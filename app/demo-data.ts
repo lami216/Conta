@@ -4,7 +4,6 @@ export const demoProducts: Product[] = [
   {
     id: "p-sugar",
     name: "سكر ناعم 1 كغ",
-    category: "مواد غذائية",
     sku: "SUG-001",
     barcode: "1001001001",
     piecesPerCarton: 20,
@@ -17,7 +16,6 @@ export const demoProducts: Product[] = [
   {
     id: "p-oil",
     name: "زيت نباتي 1 لتر",
-    category: "مواد غذائية",
     sku: "OIL-014",
     barcode: "1001001002",
     piecesPerCarton: 12,
@@ -30,7 +28,6 @@ export const demoProducts: Product[] = [
   {
     id: "p-milk",
     name: "حليب طويل الأجل",
-    category: "مشروبات",
     sku: "MLK-110",
     barcode: "1001001003",
     piecesPerCarton: 24,
@@ -43,7 +40,6 @@ export const demoProducts: Product[] = [
   {
     id: "p-rice",
     name: "أرز بسمتي 5 كغ",
-    category: "مواد غذائية",
     sku: "RIC-500",
     barcode: "1001001004",
     piecesPerCarton: 4,
@@ -56,7 +52,6 @@ export const demoProducts: Product[] = [
   {
     id: "p-pasta",
     name: "معكرونة 500 غ",
-    category: "مواد غذائية",
     sku: "PST-050",
     barcode: "1001001005",
     piecesPerCarton: 20,
@@ -69,7 +64,6 @@ export const demoProducts: Product[] = [
   {
     id: "p-cleaner",
     name: "مسحوق تنظيف 2 كغ",
-    category: "مواد تنظيف",
     sku: "CLN-200",
     barcode: "1001001006",
     piecesPerCarton: 8,

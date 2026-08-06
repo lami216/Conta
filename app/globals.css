@@ -534,31 +534,6 @@ select:focus-visible {
   cursor: pointer;
 }
 
-.category-pills {
-  display: flex;
-  gap: 7px;
-  padding: 13px 20px 6px;
-  overflow-x: auto;
-}
-
-.category-pills button {
-  padding: 7px 12px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: #6f7d82;
-  background: #fff;
-  font-size: 10px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.category-pills button.is-active {
-  border-color: var(--brand);
-  color: var(--brand-dark);
-  background: var(--brand-soft);
-  font-weight: 800;
-}
-
 .product-grid {
   min-height: 0;
   flex: 1;
@@ -2013,6 +1988,300 @@ select:focus-visible {
   font-size: 9px;
 }
 
+/* Point of sale: search-first invoice workflow */
+.pos-layout {
+  height: auto;
+  min-height: calc(100vh - 113px);
+  grid-template-columns: minmax(330px, 0.9fr) minmax(430px, 1.1fr);
+  align-items: start;
+}
+
+.product-search-panel {
+  position: relative;
+  min-height: 78px;
+  padding: 17px;
+  overflow: visible;
+}
+
+.pos-search-box {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 15px;
+  border: 1px solid #cfdcda;
+  border-radius: 14px;
+  color: var(--brand);
+  background: #fff;
+  transition: 160ms ease;
+}
+
+.pos-search-box:focus-within {
+  border-color: #6fb5ae;
+  box-shadow: 0 0 0 4px rgba(11, 118, 111, 0.1);
+}
+
+.pos-search-box input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pos-search-box input::placeholder {
+  color: #8b989c;
+  font-weight: 500;
+}
+
+.pos-search-box button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  color: #7e8b8f;
+  background: transparent;
+  cursor: pointer;
+}
+
+.pos-search-box button:hover {
+  color: var(--brand-dark);
+  background: var(--brand-soft);
+}
+
+.product-search-results {
+  max-height: 430px;
+  margin-top: 10px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 38px rgba(18, 56, 54, 0.12);
+  overflow-y: auto;
+}
+
+.product-search-result {
+  width: 100%;
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto 22px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--soft-line);
+  border-radius: 9px;
+  color: var(--ink);
+  background: #fff;
+  text-align: right;
+  cursor: pointer;
+}
+
+.product-search-result:last-child {
+  border-bottom: 0;
+}
+
+.product-search-result:hover,
+.product-search-result:focus-visible {
+  outline: 0;
+  color: var(--brand-dark);
+  background: #f1f8f7;
+}
+
+.search-result-mark {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.search-result-name {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.search-result-name strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-result-name span {
+  color: #748287;
+  font-size: 8px;
+}
+
+.search-result-price {
+  color: var(--brand-dark);
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.no-search-result {
+  min-height: 78px;
+  display: grid;
+  place-items: center;
+  color: #748287;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.checkout-panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.checkout-head {
+  min-height: 66px;
+  padding: 14px 17px;
+}
+
+.checkout-head h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.invoice-lines {
+  height: 480px;
+  min-height: 480px;
+  flex: 0 0 480px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--soft-line);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.invoice-line {
+  height: 120px;
+  box-sizing: border-box;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  padding: 8px 1px;
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.invoice-line-head,
+.invoice-line-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.invoice-line-head {
+  justify-content: space-between;
+}
+
+.invoice-line-head > div {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.invoice-line-head strong {
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invoice-line-head span {
+  color: #738186;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.invoice-line-actions .quantity-control {
+  flex: 0 0 auto;
+}
+
+.invoice-line-total {
+  margin-right: auto;
+  color: var(--brand-dark);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.line-price-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.line-price-fields label {
+  min-width: 0;
+  height: 32px;
+  display: grid;
+  grid-template-columns: auto minmax(44px, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 1px solid #d8e2e1;
+  border-radius: 8px;
+  background: #fbfcfc;
+}
+
+.line-price-fields label:focus-within {
+  border-color: #7ab8b2;
+  background: #fff;
+}
+
+.line-price-fields span,
+.line-price-fields b {
+  color: #718086;
+  font-size: 7px;
+  white-space: nowrap;
+}
+
+.line-price-fields input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  background: transparent;
+  font-size: 10px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.empty-invoice {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 9px;
+  color: #91a5a2;
+}
+
+.empty-invoice strong {
+  color: #536367;
+  font-size: 12px;
+}
+
+.checkout-payment {
+  flex: 0 0 auto;
+}
+
+.checkout-total > span {
+  display: block;
+}
+
 .mobile-backdrop {
   display: none;
 }
@@ -2150,10 +2419,6 @@ select:focus-visible {
     padding: 10px 14px 16px;
   }
 
-  .category-pills {
-    padding-inline: 14px;
-  }
-
   .two-columns,
   .four-columns,
   .destination-picker,
@@ -2224,6 +2489,64 @@ select:focus-visible {
 
   .receipt-summary > span:last-child {
     border-bottom: 0;
+  }
+}
+
+@media (max-width: 960px) {
+  .pos-layout {
+    min-height: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .product-search-panel,
+  .checkout-panel {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 650px) {
+  .product-search-panel {
+    padding: 11px;
+  }
+
+  .pos-search-box {
+    height: 50px;
+    padding-inline: 12px;
+  }
+
+  .product-search-results {
+    max-height: 330px;
+  }
+
+  .product-search-result {
+    grid-template-columns: 34px minmax(0, 1fr) auto 18px;
+    gap: 7px;
+    padding-inline: 7px;
+  }
+
+  .search-result-mark {
+    width: 32px;
+    height: 32px;
+  }
+
+  .invoice-lines {
+    height: 480px;
+    min-height: 480px;
+    flex-basis: 480px;
+    padding-inline: 10px;
+  }
+
+  .invoice-line-head > div {
+    gap: 5px;
+  }
+
+  .line-price-fields label {
+    grid-template-columns: auto minmax(34px, 1fr) auto;
+    padding-inline: 6px;
+  }
+
+  .payment-methods button {
+    min-height: 48px;
   }
 }
 

@@ -12,7 +12,6 @@ export type MovementType = "receipt" | "transfer" | "sale" | "customer-payment";
 export interface Product {
   id: string;
   name: string;
-  category: string;
   sku: string;
   barcode: string;
   piecesPerCarton: number;
@@ -35,6 +34,8 @@ export interface Customer {
 export interface CartLine {
   productId: string;
   quantityPieces: number;
+  piecePrice: number;
+  cartonPrice: number;
 }
 
 export interface SaleRecord {
@@ -84,9 +85,15 @@ export const locationLabels: Record<LocationId, string> = {
 };
 
 export function formatMoney(value: number) {
-  return `${new Intl.NumberFormat("ar-MR", {
+  return `${new Intl.NumberFormat("fr-FR", {
     maximumFractionDigits: 0,
   }).format(value)} MRU`;
+}
+
+export function formatNumber(value: number) {
+  return new Intl.NumberFormat("fr-FR", {
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 export function splitQuantity(quantityPieces: number, piecesPerCarton: number) {
@@ -99,17 +106,22 @@ export function splitQuantity(quantityPieces: number, piecesPerCarton: number) {
 
 export function formatQuantity(quantityPieces: number, piecesPerCarton: number) {
   const { cartons, pieces } = splitQuantity(quantityPieces, piecesPerCarton);
-  if (cartons && pieces) return `${cartons} كرتون + ${pieces} فرد`;
-  if (cartons) return `${cartons} كرتون`;
-  return `${pieces} فرد`;
+  if (cartons && pieces) return `${formatNumber(cartons)} كرتون + ${formatNumber(pieces)} فرد`;
+  if (cartons) return `${formatNumber(cartons)} كرتون`;
+  return `${formatNumber(pieces)} فرد`;
 }
 
-export function calculateLineTotal(product: Product, quantityPieces: number) {
+export function calculateLineTotal(
+  product: Product,
+  quantityPieces: number,
+  piecePrice = product.piecePrice,
+  cartonPrice = product.cartonPrice,
+) {
   const { cartons, pieces } = splitQuantity(
     quantityPieces,
     product.piecesPerCarton,
   );
-  return cartons * product.cartonPrice + pieces * product.piecePrice;
+  return cartons * cartonPrice + pieces * piecePrice;
 }
 
 export function makeId(prefix: string) {
@@ -117,7 +129,7 @@ export function makeId(prefix: string) {
 }
 
 export function todayLabel() {
-  return new Intl.DateTimeFormat("ar-MR", {
+  return new Intl.DateTimeFormat("ar-MR-u-nu-latn", {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -126,7 +138,7 @@ export function todayLabel() {
 }
 
 export function timeLabel(date = new Date()) {
-  return new Intl.DateTimeFormat("ar-MR", {
+  return new Intl.DateTimeFormat("ar-MR-u-nu-latn", {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Africa/Nouakchott",
