@@ -1,4 +1,4 @@
-import type { Customer, MovementRecord, Product, SaleRecord } from "./domain";
+import type { Customer, MovementRecord, Product, SaleRecord, Supplier } from "./domain";
 
 export const demoProducts: Product[] = [
   {
@@ -102,38 +102,81 @@ export const demoCustomers: Customer[] = [
   },
 ];
 
+export const demoSuppliers: Supplier[] = [
+  {
+    id: "s-001",
+    name: "محمد ولد أحمد",
+    phone: "22 33 44 55",
+    payableBalance: 12500,
+    linkedCustomerId: "c-001",
+    lastActivity: "اليوم",
+  },
+  {
+    id: "s-002",
+    name: "شركة الساحل للتوزيع",
+    phone: "45 20 18 10",
+    payableBalance: 6400,
+    linkedCustomerId: null,
+    lastActivity: "أمس",
+  },
+  {
+    id: "s-003",
+    name: "متجر الأمانة",
+    phone: "48 02 54 50",
+    payableBalance: 9000,
+    linkedCustomerId: "c-003",
+    lastActivity: "منذ 3 أيام",
+  },
+];
+
 export const demoSales: SaleRecord[] = [
   {
     id: "V-1048",
-    createdAt: "11:42",
+    createdAt: "اليوم، 11:42",
     total: 9850,
     paymentMethod: "cash",
     customerName: "زبون نقدي",
-    itemCount: 4,
+    itemCount: 7,
+    items: [
+      { productId: "p-rice", productName: "أرز بسمتي 5 كغ", quantityPieces: 4, piecesPerCarton: 4, priceMode: "carton", unitPrice: 7000, total: 7000 },
+      { productId: "p-oil", productName: "زيت نباتي 1 لتر", quantityPieces: 3, piecesPerCarton: 12, priceMode: "piece", unitPrice: 950, total: 2850 },
+    ],
   },
   {
     id: "V-1047",
-    createdAt: "11:18",
+    createdAt: "اليوم، 11:18",
     total: 7200,
     paymentMethod: "bankily",
     customerName: "زبون نقدي",
-    itemCount: 1,
+    itemCount: 24,
+    items: [
+      { productId: "p-milk", productName: "حليب طويل الأجل", quantityPieces: 24, piecesPerCarton: 24, priceMode: "carton", unitPrice: 7200, total: 7200 },
+    ],
   },
   {
     id: "V-1046",
-    createdAt: "10:54",
+    createdAt: "اليوم، 10:54",
     total: 18400,
     paymentMethod: "credit",
     customerName: "محمد ولد أحمد",
-    itemCount: 7,
+    itemCount: 36,
+    items: [
+      { productId: "p-sugar", productName: "سكر ناعم 1 كغ", quantityPieces: 20, piecesPerCarton: 20, priceMode: "carton", unitPrice: 6600, total: 6600 },
+      { productId: "p-oil", productName: "زيت نباتي 1 لتر", quantityPieces: 12, piecesPerCarton: 12, priceMode: "carton", unitPrice: 9000, total: 9000 },
+      { productId: "p-cleaner", productName: "مسحوق تنظيف 2 كغ", quantityPieces: 4, piecesPerCarton: 8, priceMode: "piece", unitPrice: 700, total: 2800 },
+    ],
   },
   {
     id: "V-1045",
-    createdAt: "10:16",
+    createdAt: "اليوم، 10:16",
     total: 3500,
     paymentMethod: "cash",
     customerName: "زبون نقدي",
-    itemCount: 2,
+    itemCount: 11,
+    items: [
+      { productId: "p-rice", productName: "أرز بسمتي 5 كغ", quantityPieces: 1, piecesPerCarton: 4, priceMode: "piece", unitPrice: 1850, total: 1850 },
+      { productId: "p-pasta", productName: "معكرونة 500 غ", quantityPieces: 10, piecesPerCarton: 20, priceMode: "piece", unitPrice: 165, total: 1650 },
+    ],
   },
 ];
 
@@ -148,6 +191,10 @@ export const demoMovements: MovementRecord[] = [
     to: "warehouse",
     reference: "REC-0032",
     note: "استلام من المورد إلى المخزن الرئيسي",
+    partyName: "شركة الساحل للتوزيع",
+    amount: 28000,
+    unitCost: 280,
+    settlement: "account",
   },
   {
     id: "M-229",
@@ -171,5 +218,9 @@ export const demoMovements: MovementRecord[] = [
     to: "boutique",
     reference: "REC-0031",
     note: "شراء من السوق واستلام مباشر في البوتيك",
+    partyName: "محمد ولد أحمد",
+    amount: 12960,
+    unitCost: 540,
+    settlement: "paid",
   },
 ];

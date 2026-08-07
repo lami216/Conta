@@ -7,7 +7,12 @@ export type PaymentMethod =
   | "sedad"
   | "bimbank";
 
-export type MovementType = "receipt" | "transfer" | "sale" | "customer-payment";
+export type MovementType =
+  | "receipt"
+  | "transfer"
+  | "sale"
+  | "customer-payment"
+  | "supplier-offset";
 
 export interface Product {
   id: string;
@@ -31,11 +36,30 @@ export interface Customer {
   lastActivity: string;
 }
 
+export interface Supplier {
+  id: string;
+  name: string;
+  phone: string;
+  payableBalance: number;
+  linkedCustomerId: string | null;
+  lastActivity: string;
+}
+
 export interface CartLine {
   productId: string;
   quantityPieces: number;
   piecePrice: number;
   cartonPrice: number;
+}
+
+export interface SaleLineRecord {
+  productId: string;
+  productName: string;
+  quantityPieces: number;
+  piecesPerCarton: number;
+  priceMode: "piece" | "carton";
+  unitPrice: number;
+  total: number;
 }
 
 export interface SaleRecord {
@@ -45,6 +69,7 @@ export interface SaleRecord {
   paymentMethod: PaymentMethod | "credit";
   customerName: string;
   itemCount: number;
+  items: SaleLineRecord[];
 }
 
 export interface MovementRecord {
@@ -58,6 +83,10 @@ export interface MovementRecord {
   to?: LocationId;
   reference: string;
   note: string;
+  partyName?: string;
+  amount?: number;
+  unitCost?: number;
+  settlement?: "paid" | "account" | "offset";
 }
 
 export interface ToastMessage {
@@ -121,7 +150,11 @@ export function calculateLineTotal(
     quantityPieces,
     product.piecesPerCarton,
   );
-  return cartons * cartonPrice + pieces * piecePrice;
+  if (cartons > 0) {
+    const proportionalPiecePrice = cartonPrice / Math.max(1, product.piecesPerCarton);
+    return Math.round(cartons * cartonPrice + pieces * proportionalPiecePrice);
+  }
+  return Math.round(pieces * piecePrice);
 }
 
 export function makeId(prefix: string) {
