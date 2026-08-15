@@ -1,156 +1,179 @@
+export type LocationId = "warehouse" | "boutique";
+
 export type PaymentMethod =
   | "cash"
   | "bankily"
   | "masrvi"
   | "sedad"
-  | "bimbank"
-  | "note";
-export type DocumentKind =
-  | "purchase"
-  | "sale"
-  | "return"
+  | "bimbank";
+
+export type MovementType =
+  | "receipt"
   | "transfer"
-  | "adjustment"
-  | "expense"
-  | "payment"
-  | "offset"
-  | "settlement";
-export interface Party {
-  id: string;
-  name: string;
-  phone: string;
-  receivable: number;
-  payable: number;
-  net: number;
-}
-export interface Warehouse {
-  id: string;
-  name: string;
-  isSalesDefault: boolean;
-}
+  | "sale"
+  | "customer-payment"
+  | "supplier-offset";
+
 export interface Product {
   id: string;
   name: string;
   sku: string;
   barcode: string;
-  pieceCost: number;
-  piecePrice: number | null;
-  cartonPrice: number | null;
   piecesPerCarton: number;
-  stocks: Record<string, number>;
+  pieceCost: number;
+  piecePrice: number;
+  cartonPrice: number;
+  stock: Record<LocationId, number>;
+  accent: string;
 }
-export interface DocumentLine {
+
+export interface Customer {
   id: string;
-  productId: string | null;
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  lineTotal: number;
+  name: string;
+  phone: string;
+  balance: number;
+  creditLimit: number | null;
+  lastActivity: string;
 }
-export interface DocumentRecord {
+
+export interface Supplier {
   id: string;
-  number: string;
-  kind: DocumentKind;
-  partyId: string | null;
-  partyName: string | null;
-  warehouseId: string | null;
-  warehouseName: string | null;
-  destinationWarehouseId: string | null;
-  destinationWarehouseName: string | null;
-  parentDocumentId: string | null;
-  paymentMethod: string | null;
-  status: string;
-  title: string | null;
-  total: number;
-  dueTotal: number;
-  paidTotal: number;
-  occurredAt: string;
-  lines: DocumentLine[];
+  name: string;
+  phone: string;
+  payableBalance: number;
+  linkedCustomerId: string | null;
+  lastActivity: string;
 }
-export interface Movement {
-  id: string;
-  documentId: string;
-  documentNumber: string;
-  warehouseId: string;
-  warehouseName: string;
+
+export interface CartLine {
+  productId: string;
+  quantityPieces: number;
+  piecePrice: number;
+  cartonPrice: number;
+}
+
+export interface SaleLineRecord {
   productId: string;
   productName: string;
-  type: string;
-  quantityDelta: number;
-  balanceBefore: number;
-  balanceAfter: number;
-  occurredAt: string;
+  quantityPieces: number;
+  piecesPerCarton: number;
+  priceMode: "piece" | "carton";
+  unitPrice: number;
+  total: number;
 }
-export interface BootstrapData {
-  parties: Party[];
-  warehouses: Warehouse[];
-  products: Product[];
-  documents: DocumentRecord[];
-  movements: Movement[];
-  recurringExpenses: Array<{
-    id: string;
-    title: string;
-    amount: number;
-    frequency: "daily" | "monthly";
-    startsOn: string;
-    active: boolean;
-  }>;
+
+export interface SaleRecord {
+  id: string;
+  createdAt: string;
+  total: number;
+  paymentMethod: PaymentMethod | "credit";
+  customerName: string;
+  itemCount: number;
+  items: SaleLineRecord[];
 }
+
+export interface MovementRecord {
+  id: string;
+  createdAt: string;
+  type: MovementType;
+  productName?: string;
+  quantityPieces?: number;
+  piecesPerCarton?: number;
+  from?: LocationId;
+  to?: LocationId;
+  reference: string;
+  note: string;
+  partyName?: string;
+  amount?: number;
+  unitCost?: number;
+  settlement?: "paid" | "account" | "offset";
+}
+
+export interface ToastMessage {
+  id: number;
+  title: string;
+  message: string;
+  tone?: "success" | "warning";
+}
+
 export const paymentMethods: Array<{
-  id: Exclude<PaymentMethod, "note">;
+  id: PaymentMethod;
   label: string;
+  shortLabel: string;
 }> = [
-  { id: "cash", label: "نقدي" },
-  { id: "bankily", label: "بنكيلي" },
-  { id: "masrvi", label: "مصرفي" },
-  { id: "sedad", label: "السداد" },
-  { id: "bimbank", label: "بيم" },
+  { id: "cash", label: "نقدي", shortLabel: "نقدي" },
+  { id: "bankily", label: "بنكيلي", shortLabel: "بنكيلي" },
+  { id: "masrvi", label: "مصرفي", shortLabel: "مصرفي" },
+  { id: "sedad", label: "السداد", shortLabel: "السداد" },
+  { id: "bimbank", label: "بيم بنك", shortLabel: "بيم" },
 ];
-export const kindLabels: Record<DocumentKind, string> = {
-  purchase: "فاتورة شراء",
-  sale: "فاتورة بيع",
-  return: "إرجاع بيع",
-  transfer: "تحويل مخزون",
-  adjustment: "تصحيح مخزون",
-  expense: "فاتورة مصروفات",
-  payment: "سداد",
-  offset: "مقاصة",
-  settlement: "مخالصة",
+
+export const locationLabels: Record<LocationId, string> = {
+  warehouse: "المخزن الرئيسي",
+  boutique: "البوتيك",
 };
-export function western(value: number | string) {
-  return String(value)
-    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
-    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
+
+export function formatMoney(value: number) {
+  return `${new Intl.NumberFormat("fr-FR", {
+    maximumFractionDigits: 0,
+  }).format(value)} MRU`;
 }
-export function money(value: number) {
-  return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} MRU`;
+
+export function formatNumber(value: number) {
+  return new Intl.NumberFormat("fr-FR", {
+    maximumFractionDigits: 0,
+  }).format(value);
 }
-export function number(value: number) {
-  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(
-    value,
-  );
+
+export function splitQuantity(quantityPieces: number, piecesPerCarton: number) {
+  const safePack = Math.max(1, piecesPerCarton);
+  return {
+    cartons: Math.floor(quantityPieces / safePack),
+    pieces: quantityPieces % safePack,
+  };
 }
-export function quantity(value: number, pack: number) {
-  const cartons = Math.floor(value / Math.max(1, pack));
-  const pieces = value % Math.max(1, pack);
-  return cartons
-    ? `${number(cartons)} كرتون${pieces ? ` + ${number(pieces)} فرد` : ""}`
-    : `${number(pieces)} فرد`;
+
+export function formatQuantity(quantityPieces: number, piecesPerCarton: number) {
+  const { cartons, pieces } = splitQuantity(quantityPieces, piecesPerCarton);
+  if (cartons && pieces) return `${formatNumber(cartons)} كرتون + ${formatNumber(pieces)} فرد`;
+  if (cartons) return `${formatNumber(cartons)} كرتون`;
+  return `${formatNumber(pieces)} فرد`;
 }
-export function saleLineTotal(
-  qty: number,
-  pack: number,
-  piecePrice: number,
-  cartonPrice: number,
+
+export function calculateLineTotal(
+  product: Product,
+  quantityPieces: number,
+  piecePrice = product.piecePrice,
+  cartonPrice = product.cartonPrice,
 ) {
-  const cartons = Math.floor(qty / Math.max(1, pack));
-  const pieces = qty % Math.max(1, pack);
-  return cartons
-    ? Math.round(
-        cartons * cartonPrice + pieces * (cartonPrice / Math.max(1, pack)),
-      )
-    : Math.round(pieces * piecePrice);
+  const { cartons, pieces } = splitQuantity(
+    quantityPieces,
+    product.piecesPerCarton,
+  );
+  if (cartons > 0) {
+    const proportionalPiecePrice = cartonPrice / Math.max(1, product.piecesPerCarton);
+    return Math.round(cartons * cartonPrice + pieces * proportionalPiecePrice);
+  }
+  return Math.round(pieces * piecePrice);
 }
-export function uid(prefix: string) {
-  return `${prefix}-${crypto.randomUUID()}`;
+
+export function makeId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export function todayLabel() {
+  return new Intl.DateTimeFormat("ar-MR-u-nu-latn", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Africa/Nouakchott",
+  }).format(new Date());
+}
+
+export function timeLabel(date = new Date()) {
+  return new Intl.DateTimeFormat("ar-MR-u-nu-latn", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Africa/Nouakchott",
+  }).format(date);
 }
