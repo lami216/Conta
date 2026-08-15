@@ -13,9 +13,10 @@ try {
   await db.command({ ping: 1 });
   log("info", "initialization.started");
   await Promise.all([
-    db.collection("parties").createIndex({ name: 1 }), db.collection("products").createIndex({ sku: 1 }, { unique: true }),
-    db.collection("products").createIndex({ barcode: 1 }, { sparse: true }), db.collection("documents").createIndex({ number: 1 }, { unique: true }),
-    db.collection("documents").createIndex({ partyId: 1, occurredAt: -1 }), db.collection("stockMovements").createIndex({ warehouseId: 1, productId: 1, occurredAt: -1 }),
+    db.collection("parties").createIndex({ name: 1 }), db.collection("parties").createIndex({ id: 1 }, { unique: true }), db.collection("parties").createIndex({ phone: 1 }),
+    db.collection("products").createIndex({ id: 1 }, { unique: true }), db.collection("products").createIndex({ sku: 1 }, { unique: true }),
+    db.collection("products").createIndex({ barcode: 1 }, { unique: true, partialFilterExpression: { barcode: { $type: "string", $gt: "" } }, name: "barcode_unique_nonempty" }), db.collection("documents").createIndex({ id: 1 }, { unique: true }), db.collection("documents").createIndex({ number: 1 }, { unique: true }),
+    db.collection("documents").createIndex({ partyId: 1, occurredAt: -1 }), db.collection("documents").createIndex({ kind: 1, occurredAt: -1 }), db.collection("stockMovements").createIndex({ warehouseId: 1, productId: 1, occurredAt: -1 }),
     db.collection("auditEvents").createIndex({ createdAt: -1 }),
   ]);
   const warehouses = db.collection("warehouses");

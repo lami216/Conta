@@ -53,6 +53,7 @@ type DraftLine = {
   cartonPrice: string;
   unitPrice: string;
   actualQuantity: string;
+  pricingMode: "piece" | "carton";
 };
 const empty: BootstrapData = {
   parties: [],
@@ -84,6 +85,7 @@ const val = (v: string) => (v === "" ? 0 : Number(v)),
     ),
     unitPrice: String(p.pieceCost),
     actualQuantity: "",
+    pricingMode: "piece",
   });
 
 export default function ContaApp() {
@@ -166,6 +168,7 @@ export default function ContaApp() {
         </nav>
         <div className="side-foot">
           <span className="dot" /> قاعدة البيانات متصلة
+          <form action="/api/auth/logout" method="post"><button type="submit">تسجيل الخروج</button></form>
         </div>
       </aside>
       <main>
@@ -355,19 +358,15 @@ function LineEditor({
         )}
         {mode === "sale" && (
           <label>
-            {cartons > 0 ? "سعر الكرتون" : "سعر الفرد"}
+            سعر الفرد
             <Num
-              value={cartons > 0 ? line.cartonPrice : line.piecePrice}
-              onChange={(v) =>
-                onChange(
-                  cartons > 0
-                    ? { ...line, cartonPrice: v }
-                    : { ...line, piecePrice: v },
-                )
-              }
+              value={line.piecePrice}
+              onChange={(v) => onChange({ ...line, piecePrice: v, pricingMode: "piece" })}
             />
           </label>
         )}
+        {mode === "sale" && cartons > 0 && <label>طريقة التسعير<select value={line.pricingMode} onChange={e => onChange({ ...line, pricingMode: e.target.value as "piece" | "carton" })}><option value="piece">سعر الفرد</option><option value="carton">سعر الكرتون</option></select></label>}
+        {mode === "sale" && cartons > 0 && line.pricingMode === "carton" && <label>سعر الكرتون<Num value={line.cartonPrice} onChange={v => onChange({ ...line, cartonPrice: v })} /></label>}
         {mode === "purchase" && (
           <label>
             سعر الشراء للفرد
@@ -386,6 +385,7 @@ function LineEditor({
               product.piecesPerCarton,
               val(line.piecePrice),
               val(line.cartonPrice),
+              line.pricingMode,
             ),
           )}
         </b>
@@ -422,6 +422,7 @@ function Pos({
                 p.piecesPerCarton,
                 val(l.piecePrice),
                 val(l.cartonPrice),
+                l.pricingMode,
               ),
             },
           ]
@@ -445,6 +446,7 @@ function Pos({
           quantity: val(l.quantity),
           piecePrice: val(l.piecePrice),
           cartonPrice: val(l.cartonPrice),
+          pricingMode: l.pricingMode,
         })),
       },
       "تم اعتماد فاتورة البيع",

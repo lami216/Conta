@@ -5,7 +5,7 @@
 ## متطلبات الخادم
 
 - Ubuntu، وNode.js 22.13 أو أحدث، وGit.
-- MongoDB Atlas مع السماح لعنوان IP الخاص بالخادم ومستخدم محدود الصلاحيات.
+- MongoDB Atlas مع السماح لعنوان IP الخاص بالخادم ومستخدم محدود الصلاحيات. يجب أن يكون Replica Set أو Sharded Cluster يدعم Transactions؛ يعتمد النظام على `withTransaction` ولا يسقط إلى writes غير ذرية، ولا يصلح standalone MongoDB.
 - PM2 (`sudo npm install -g pm2`) وNginx.
 - سجل DNS من نوع A يشير إلى الخادم، مع فتح 80 و443 فقط. لا تفتح 3000 في firewall؛ التطبيق يستمع إلى loopback فقط.
 
@@ -18,6 +18,7 @@ git clone <GIT_REPOSITORY_URL> /var/www/conta
 cd /var/www/conta
 cp .env.production.example .env.production.local
 nano .env.production.local
+# ولّد OWNER_PASSWORD_HASH بواسطة npm run hash-password وSESSION_SECRET عشوائيًا بطول 32 حرفًا على الأقل.
 npm ci
 npm run build
 pm2 start ecosystem.config.cjs
@@ -57,7 +58,7 @@ sudo certbot --nginx -d conta.example.com
 curl --fail https://conta.example.com/api/health
 ```
 
-النتيجة الصحيحة هي `{"status":"ok","database":"connected"}`. راجع أيضًا أن HTTPS يعمل، وأن `curl http://PUBLIC_IP:3000` يفشل من جهاز خارجي.
+النتيجة الصحيحة هي `{"status":"ok","database":"connected"}`. راجع أيضًا أن HTTPS يعمل، وأن `curl http://PUBLIC_IP:3000` يفشل من جهاز خارجي. تبقى health عامة للمراقبة ولا تعرض أسرارًا، بينما الصفحة وواجهتا bootstrap وcommand محمية بجلسة موقعة HttpOnly وSameSite=Strict وSecure في production.
 
 ## التحديثات اليومية
 

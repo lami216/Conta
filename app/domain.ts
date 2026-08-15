@@ -142,14 +142,12 @@ export function saleLineTotal(
   pack: number,
   piecePrice: number,
   cartonPrice: number,
+  pricingMode: "piece" | "carton" = "piece",
 ) {
-  const cartons = Math.floor(qty / Math.max(1, pack));
-  const pieces = qty % Math.max(1, pack);
-  return cartons
-    ? Math.round(
-        cartons * cartonPrice + pieces * (cartonPrice / Math.max(1, pack)),
-      )
-    : Math.round(pieces * piecePrice);
+  if (!Number.isInteger(pack) || pack <= 0 || !Number.isFinite(qty) || qty <= 0) return 0;
+  // MRU totals are rounded once per line. Never round the derived unit price.
+  if (pricingMode === "carton" && qty >= pack) return Math.round(qty * cartonPrice / pack);
+  return Math.round(qty * piecePrice);
 }
 export function uid(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;
