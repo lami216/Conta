@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   Boxes,
   ClipboardCheck,
+  CalendarDays,
   FileText,
   Menu,
   PackagePlus,
@@ -136,11 +137,17 @@ export default function ContaApp() {
     const found = data.documents.find((x) => x.id === id);
     if (found) setDoc(found);
   };
+  const activeWarehouse = data.warehouses.find((w) => w.isSalesDefault);
+  const today = new Intl.DateTimeFormat("ar-MR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
   return (
     <div className="app-shell" dir="rtl">
       <aside className={menu ? "sidebar open" : "sidebar"}>
         <div className="brand">
-          <b>ك</b>
+          <b>C</b>
           <div>
             <strong>Conta</strong>
             <span>نظام المتجر</span>
@@ -149,7 +156,11 @@ export default function ContaApp() {
             <X />
           </button>
         </div>
-        <nav>
+        <div className="warehouse-chip">
+          <Boxes />
+          <span><small>مخزن البيع النشط</small><strong>{activeWarehouse?.name ?? "غير محدد"}</strong></span>
+        </div>
+        <nav aria-label="التنقل الرئيسي">
           {nav.map((n) => (
             <button
               key={n.id}
@@ -167,22 +178,18 @@ export default function ContaApp() {
           ))}
         </nav>
         <div className="side-foot">
-          <span className="dot" /> قاعدة البيانات متصلة
+          <span className="owner-mark">م</span><strong>المالك</strong>
           <form action="/api/auth/logout" method="post"><button type="submit">تسجيل الخروج</button></form>
         </div>
       </aside>
       <main>
-        <header>
+        <header className="page-bar">
           <button className="icon mobile" onClick={() => setMenu(true)}>
             <Menu />
           </button>
-          <div>
-            <small>CONTA POS</small>
-            <h1>{nav.find((n) => n.id === view)?.label}</h1>
-          </div>
-          <button className="soft" onClick={() => void reload()}>
-            <RefreshCw /> تحديث
-          </button>
+          <h1>{nav.find((n) => n.id === view)?.label}</h1>
+          <div className="date-chip"><CalendarDays /><span>{today}</span></div>
+          <button className="icon refresh" title="تحديث البيانات" aria-label="تحديث البيانات" onClick={() => void reload()}><RefreshCw /></button>
         </header>
         <div className="content">
           {notice && <div className="toast">{notice}</div>}
@@ -190,12 +197,9 @@ export default function ContaApp() {
           {loading ? (
             <div className="loading">جاري تحميل السجلات…</div>
           ) : doc ? (
-            <DocumentDetail
-              document={doc}
-              data={data}
-              close={() => setDoc(null)}
-              run={run}
-            />
+            <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={`سجل المعاملة ${doc.number}`}>
+              <div className="modal-card"><DocumentDetail document={doc} data={data} close={() => setDoc(null)} run={run} /></div>
+            </div>
           ) : partyDetail ? (
             <PartyPage
               party={
