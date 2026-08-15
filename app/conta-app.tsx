@@ -1,1518 +1,1854 @@
 "use client";
-
+import { useEffect, useState } from "react";
 import {
   ArrowLeftRight,
-  Banknote,
-  BarChart3,
-  Box,
   Boxes,
-  CalendarDays,
-  Check,
-  CheckCircle2,
-  ChevronDown,
-  CircleAlert,
-  CircleDollarSign,
-  CreditCard,
+  ClipboardCheck,
   FileText,
-  HandCoins,
-  Landmark,
   Menu,
-  PackageCheck,
   PackagePlus,
   Plus,
   Printer,
-  ReceiptText,
+  Receipt,
+  RefreshCw,
   RotateCcw,
   Search,
-  Scale,
   ShoppingCart,
-  Smartphone,
-  Trash2,
-  Truck,
-  UserPlus,
   Users,
   WalletCards,
-  Warehouse,
-  Wifi,
   X,
-  type LucideIcon,
 } from "lucide-react";
-import { FormEvent, ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
-import { demoCustomers, demoMovements, demoProducts, demoSales, demoSuppliers } from "./demo-data";
 import {
-  calculateLineTotal,
-  formatMoney,
-  formatNumber,
-  formatQuantity,
-  locationLabels,
-  makeId,
+  kindLabels,
+  money,
+  number,
   paymentMethods,
-  splitQuantity,
-  timeLabel,
-  todayLabel,
-  type CartLine,
-  type Customer,
-  type LocationId,
-  type MovementRecord,
-  type PaymentMethod,
+  quantity,
+  saleLineTotal,
+  type BootstrapData,
+  type DocumentRecord,
+  type Party,
   type Product,
-  type SaleRecord,
-  type Supplier,
-  type ToastMessage,
 } from "./domain";
 
-type ViewId =
+type View =
   | "pos"
-  | "receiving"
-  | "inventory"
+  | "purchases"
+  | "expenses"
+  | "parties"
+  | "suppliers"
+  | "warehouses"
   | "transfers"
-  | "customers"
+  | "adjustments"
+  | "records"
   | "reports";
-
-type DialogId =
-  | "sale-receipt"
-  | "new-product"
-  | "new-customer"
-  | "new-supplier"
-  | "customer-payment"
-  | "customer-detail"
-  | "movement-detail"
-  | "sale-detail"
-  | null;
-
-interface NavItem {
-  id: ViewId;
-  label: string;
-  helper: string;
-  icon: LucideIcon;
-}
-
-const navItems: NavItem[] = [
-  { id: "pos", label: "نقطة البيع", helper: "بيع سريع", icon: ShoppingCart },
-  {
-    id: "receiving",
-    label: "استلام البضاعة",
-    helper: "مورد أو سوق",
-    icon: PackagePlus,
-  },
-  { id: "inventory", label: "المخزون", helper: "موقعان", icon: Boxes },
-  {
-    id: "transfers",
-    label: "التحويلات",
-    helper: "إلى البوتيك",
-    icon: ArrowLeftRight,
-  },
-  { id: "customers", label: "الزبائن والملاحظات", helper: "كشف وسداد", icon: Users },
-  { id: "reports", label: "التقارير", helper: "ملخص اليوم", icon: BarChart3 },
-];
-
-const paymentIcons: Record<PaymentMethod, LucideIcon> = {
-  cash: Banknote,
-  bankily: Smartphone,
-  masrvi: Landmark,
-  sedad: WalletCards,
-  bimbank: CreditCard,
+type RunCommand = (
+  body: Record<string, unknown>,
+  message: string,
+) => Promise<string>;
+type DraftLine = {
+  productId: string;
+  quantity: string;
+  piecePrice: string;
+  cartonPrice: string;
+  unitPrice: string;
+  actualQuantity: string;
 };
-
-function paymentLabel(method: PaymentMethod | "credit") {
-  if (method === "credit") return "ملاحظة";
-  return paymentMethods.find((item) => item.id === method)?.label ?? method;
-}
+const empty: BootstrapData = {
+  parties: [],
+  warehouses: [],
+  products: [],
+  documents: [],
+  movements: [],
+  recurringExpenses: [],
+};
+const nav: Array<{ id: View; label: string; icon: typeof ShoppingCart }> = [
+  { id: "pos", label: "نقطة البيع", icon: ShoppingCart },
+  { id: "purchases", label: "فواتير الشراء", icon: PackagePlus },
+  { id: "expenses", label: "فواتير المصاريف", icon: WalletCards },
+  { id: "parties", label: "العملاء والملاحظات", icon: Users },
+  { id: "suppliers", label: "الموردون", icon: Users },
+  { id: "warehouses", label: "المخازن", icon: Boxes },
+  { id: "transfers", label: "التحويلات", icon: ArrowLeftRight },
+  { id: "adjustments", label: "تصحيح المخزون", icon: ClipboardCheck },
+  { id: "records", label: "السجلات", icon: FileText },
+  { id: "reports", label: "التقارير", icon: Receipt },
+];
+const val = (v: string) => (v === "" ? 0 : Number(v)),
+  lineFor = (p: Product): DraftLine => ({
+    productId: p.id,
+    quantity: "1",
+    piecePrice: String(p.piecePrice ?? 0),
+    cartonPrice: String(
+      p.cartonPrice ?? (p.piecePrice ?? 0) * p.piecesPerCarton,
+    ),
+    unitPrice: String(p.pieceCost),
+    actualQuantity: "",
+  });
 
 export default function ContaApp() {
-  const [activeView, setActiveView] = useState<ViewId>("pos");
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [products, setProducts] = useState<Product[]>(demoProducts);
-  const [customers, setCustomers] = useState<Customer[]>(demoCustomers);
-  const [suppliers, setSuppliers] = useState<Supplier[]>(demoSuppliers);
-  const [sales, setSales] = useState<SaleRecord[]>(demoSales);
-  const [movements, setMovements] = useState<MovementRecord[]>(demoMovements);
-  const [cart, setCart] = useState<CartLine[]>([]);
-  const [paymentMode, setPaymentMode] = useState<"instant" | "credit">("instant");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
-  const [creditCustomerId, setCreditCustomerId] = useState("");
-  const [dialog, setDialog] = useState<DialogId>(null);
-  const [lastReceipt, setLastReceipt] = useState<SaleRecord | null>(null);
-  const [selectedCustomerId, setSelectedCustomerId] = useState("");
-  const [selectedMovement, setSelectedMovement] = useState<MovementRecord | null>(null);
-  const [selectedSale, setSelectedSale] = useState<SaleRecord | null>(null);
-  const [toast, setToast] = useState<ToastMessage | null>(null);
-
-  const cartDetails = useMemo(
-    () =>
-      cart.flatMap((line) => {
-        const product = products.find((item) => item.id === line.productId);
-        if (!product) return [];
-        return [{
-          ...line,
-          product,
-          total: calculateLineTotal(
-            product,
-            line.quantityPieces,
-            line.piecePrice,
-            line.cartonPrice,
-          ),
-        }];
+  const [data, setData] = useState<BootstrapData>(empty),
+    [view, setView] = useState<View>("pos"),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
+    [menu, setMenu] = useState(false),
+    [doc, setDoc] = useState<DocumentRecord | null>(null),
+    [partyDetail, setPartyDetail] = useState<Party | null>(null);
+  async function reload() {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/bootstrap");
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error);
+      setData(j);
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "تعذر تحميل البيانات");
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    const timer = window.setTimeout(() => void reload(), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+  async function run(body: Record<string, unknown>, message: string) {
+    setError("");
+    const r = await fetch("/api/command", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
       }),
-    [cart, products],
-  );
-
-  const cartTotal = cartDetails.reduce((sum, line) => sum + line.total, 0);
-  const cartPieceCount = cart.reduce((sum, line) => sum + line.quantityPieces, 0);
-
-  function showToast(title: string, message: string, tone: "success" | "warning" = "success") {
-    setToast({ id: Date.now(), title, message, tone });
-    window.setTimeout(() => setToast(null), 3400);
-  }
-
-  function navigate(view: ViewId) {
-    setActiveView(view);
-    setMenuOpen(false);
-  }
-
-  function addToCart(productId: string, quantityPieces = 1) {
-    const product = products.find((item) => item.id === productId);
-    if (!product) return;
-    setCart((current) => {
-      const existing = current.find((line) => line.productId === productId);
-      const nextQuantity = (existing?.quantityPieces ?? 0) + quantityPieces;
-      if (nextQuantity > product.stock.boutique) {
-        showToast("الكمية غير متوفرة", `المتاح في البوتيك: ${formatQuantity(product.stock.boutique, product.piecesPerCarton)}`, "warning");
-        return current;
-      }
-      if (existing) {
-        return [
-          { ...existing, quantityPieces: nextQuantity },
-          ...current.filter((line) => line.productId !== productId),
-        ];
-      }
-      return [{
-        productId,
-        quantityPieces,
-        piecePrice: product.piecePrice,
-        cartonPrice: product.cartonPrice,
-      }, ...current];
-    });
-  }
-
-  function setCartQuantity(productId: string, quantityPieces: number) {
-    if (quantityPieces <= 0) {
-      setCart((current) => current.filter((line) => line.productId !== productId));
-      return;
+      j = await r.json();
+    if (!r.ok) {
+      setError(j.error ?? "تعذر تنفيذ العملية");
+      throw new Error(j.error);
     }
-    const product = products.find((item) => item.id === productId);
-    if (!product) return;
-    if (quantityPieces > product.stock.boutique) {
-      showToast("الكمية غير متوفرة", "لا يمكن تجاوز رصيد البوتيك الحالي.", "warning");
-      return;
-    }
-    setCart((current) =>
-      current.map((line) =>
-        line.productId === productId ? { ...line, quantityPieces } : line,
-      ),
-    );
+    setNotice(message);
+    window.setTimeout(() => setNotice(""), 2600);
+    await reload();
+    return j.id as string;
   }
-
-  function setCartPrice(
-    productId: string,
-    priceType: "piece" | "carton",
-    price: number,
-  ) {
-    const safePrice = Math.max(0, price || 0);
-    setCart((current) =>
-      current.map((line) =>
-        line.productId === productId
-          ? {
-              ...line,
-              [priceType === "piece" ? "piecePrice" : "cartonPrice"]: safePrice,
-            }
-          : line,
-      ),
-    );
-  }
-
-  function completeSale() {
-    if (!cartDetails.length) {
-      showToast("الفاتورة فارغة", "أضف منتجًا واحدًا على الأقل لإتمام البيع.", "warning");
-      return;
-    }
-    if (paymentMode === "credit" && !creditCustomerId) {
-      showToast("اختر الزبون", "الملاحظة يجب أن ترتبط بزبون مسجّل.", "warning");
-      return;
-    }
-
-    const customer = customers.find((item) => item.id === creditCustomerId);
-    const sale: SaleRecord = {
-      id: `V-${1050 + sales.length}`,
-      createdAt: `اليوم، ${timeLabel()}`,
-      total: cartTotal,
-      paymentMethod: paymentMode === "credit" ? "credit" : paymentMethod,
-      customerName: paymentMode === "credit" ? customer?.name ?? "زبون" : "زبون نقدي",
-      itemCount: cartPieceCount,
-      items: cartDetails.map((line) => {
-        const { cartons } = splitQuantity(line.quantityPieces, line.product.piecesPerCarton);
-        return {
-          productId: line.productId,
-          productName: line.product.name,
-          quantityPieces: line.quantityPieces,
-          piecesPerCarton: line.product.piecesPerCarton,
-          priceMode: cartons > 0 ? "carton" : "piece",
-          unitPrice: cartons > 0 ? line.cartonPrice : line.piecePrice,
-          total: line.total,
-        };
-      }),
-    };
-
-    setProducts((current) =>
-      current.map((product) => {
-        const line = cart.find((item) => item.productId === product.id);
-        if (!line) return product;
-        return {
-          ...product,
-          stock: {
-            ...product.stock,
-            boutique: product.stock.boutique - line.quantityPieces,
-          },
-        };
-      }),
-    );
-
-    if (paymentMode === "credit" && customer) {
-      setCustomers((current) =>
-        current.map((item) =>
-          item.id === customer.id
-            ? { ...item, balance: item.balance + cartTotal, lastActivity: "الآن" }
-            : item,
-        ),
-      );
-    }
-
-    const saleMovements: MovementRecord[] = cartDetails.map((line, index) => ({
-      id: `${makeId("M")}-${index}`,
-      createdAt: `اليوم، ${timeLabel()}`,
-      type: "sale",
-      productName: line.product.name,
-      quantityPieces: line.quantityPieces,
-      piecesPerCarton: line.product.piecesPerCarton,
-      from: "boutique",
-      reference: sale.id,
-      note: paymentMode === "credit" ? `ملاحظة على ${customer?.name}` : `بيع ${paymentLabel(paymentMethod)}`,
-    }));
-
-    setMovements((current) => [...saleMovements, ...current]);
-    setSales((current) => [sale, ...current]);
-    setLastReceipt(sale);
-    setDialog("sale-receipt");
-    setCart([]);
-    setPaymentMode("instant");
-    setPaymentMethod("cash");
-    setCreditCustomerId("");
-  }
-
-  function addProduct(product: Product) {
-    setProducts((current) => [product, ...current]);
-    setDialog(null);
-    showToast("تمت إضافة المنتج", `${product.name} جاهز للاستلام والبيع.`);
-  }
-
-  function receiveStock(input: {
-    productId: string;
-    supplierId: string;
-    destination: LocationId;
-    quantityPieces: number;
-    settlement: "paid" | "account";
-  }) {
-    const product = products.find((item) => item.id === input.productId);
-    const supplier = suppliers.find((item) => item.id === input.supplierId);
-    if (!product || !supplier || input.quantityPieces <= 0) return;
-    const amount = Math.round(input.quantityPieces * product.pieceCost);
-    setProducts((current) =>
-      current.map((item) =>
-        item.id === product.id
-          ? {
-              ...item,
-              stock: {
-                ...item.stock,
-                [input.destination]: item.stock[input.destination] + input.quantityPieces,
-              },
-            }
-          : item,
-      ),
-    );
-    if (input.settlement === "account") {
-      setSuppliers((current) =>
-        current.map((item) =>
-          item.id === supplier.id
-            ? { ...item, payableBalance: item.payableBalance + amount, lastActivity: "الآن" }
-            : item,
-        ),
-      );
-    }
-    const movement: MovementRecord = {
-      id: makeId("M"),
-      createdAt: `اليوم، ${timeLabel()}`,
-      type: "receipt",
-      productName: product.name,
-      quantityPieces: input.quantityPieces,
-      piecesPerCarton: product.piecesPerCarton,
-      to: input.destination,
-      reference: `REC-${String(movements.length + 34).padStart(4, "0")}`,
-      note: `${supplier.name} ← ${locationLabels[input.destination]}`,
-      partyName: supplier.name,
-      amount,
-      unitCost: product.pieceCost,
-      settlement: input.settlement,
-    };
-    setMovements((current) => [movement, ...current]);
-    showToast("تم استلام البضاعة", `${formatQuantity(input.quantityPieces, product.piecesPerCarton)} أضيفت إلى ${locationLabels[input.destination]}.`);
-  }
-
-  function transferStock(productId: string, quantityPieces: number) {
-    const product = products.find((item) => item.id === productId);
-    if (!product || quantityPieces <= 0) return;
-    if (quantityPieces > product.stock.warehouse) {
-      showToast("رصيد المخزن غير كافٍ", `المتاح: ${formatQuantity(product.stock.warehouse, product.piecesPerCarton)}`, "warning");
-      return;
-    }
-    setProducts((current) =>
-      current.map((item) =>
-        item.id === productId
-          ? {
-              ...item,
-              stock: {
-                warehouse: item.stock.warehouse - quantityPieces,
-                boutique: item.stock.boutique + quantityPieces,
-              },
-            }
-          : item,
-      ),
-    );
-    const movement: MovementRecord = {
-      id: makeId("M"),
-      createdAt: `اليوم، ${timeLabel()}`,
-      type: "transfer",
-      productName: product.name,
-      quantityPieces,
-      piecesPerCarton: product.piecesPerCarton,
-      from: "warehouse",
-      to: "boutique",
-      reference: `TR-${String(movements.length + 20).padStart(4, "0")}`,
-      note: "تحويل مباشر مكتمل إلى البوتيك",
-    };
-    setMovements((current) => [movement, ...current]);
-    showToast("اكتمل التحويل", `${formatQuantity(quantityPieces, product.piecesPerCarton)} أصبحت متاحة للبيع في البوتيك.`);
-  }
-
-  function addCustomer(customer: Customer) {
-    setCustomers((current) => [customer, ...current]);
-    setDialog(null);
-    showToast("تمت إضافة الزبون", "يمكن الآن اختياره عند تسجيل ملاحظة.");
-  }
-
-  function addSupplier(supplier: Supplier) {
-    setSuppliers((current) => [supplier, ...current]);
-    setDialog(null);
-    showToast("تمت إضافة المورد", `${supplier.name} متاح الآن في قائمة الاستلام.`);
-  }
-
-  function offsetSupplierBalance(supplierId: string) {
-    const supplier = suppliers.find((item) => item.id === supplierId);
-    const customer = customers.find((item) => item.id === supplier?.linkedCustomerId);
-    if (!supplier || !customer) {
-      showToast("لا يمكن إجراء المقاصة", "اربط المورد بزبون مسجّل أولًا.", "warning");
-      return;
-    }
-    const applied = Math.min(supplier.payableBalance, customer.balance);
-    if (applied <= 0) {
-      showToast("لا يوجد رصيدان للمقاصة", "يجب أن يكون له رصيد علينا وعليه رصيد لنا.", "warning");
-      return;
-    }
-    setSuppliers((current) =>
-      current.map((item) =>
-        item.id === supplier.id
-          ? { ...item, payableBalance: item.payableBalance - applied, lastActivity: "الآن" }
-          : item,
-      ),
-    );
-    setCustomers((current) =>
-      current.map((item) =>
-        item.id === customer.id
-          ? { ...item, balance: item.balance - applied, lastActivity: "الآن" }
-          : item,
-      ),
-    );
-    const movement: MovementRecord = {
-      id: makeId("M"),
-      createdAt: `اليوم، ${timeLabel()}`,
-      type: "supplier-offset",
-      reference: `OFF-${String(movements.length + 1).padStart(4, "0")}`,
-      note: `مقاصة بين رصيد المورد ورصيد الزبون`,
-      partyName: supplier.name,
-      amount: applied,
-      settlement: "offset",
-    };
-    setMovements((current) => [movement, ...current]);
-    showToast("تمت المقاصة", `خُصم ${formatMoney(applied)} من الرصيدين.`);
-  }
-
-  function openMovement(movement: MovementRecord) {
-    setSelectedMovement(movement);
-    setDialog("movement-detail");
-  }
-
-  function openSale(sale: SaleRecord) {
-    setSelectedSale(sale);
-    setDialog("sale-detail");
-  }
-
-  function recordCustomerPayment(customerId: string, amount: number, method: PaymentMethod) {
-    const customer = customers.find((item) => item.id === customerId);
-    if (!customer || amount <= 0) return;
-    const applied = Math.min(amount, customer.balance);
-    setCustomers((current) =>
-      current.map((item) =>
-        item.id === customerId
-          ? { ...item, balance: Math.max(0, item.balance - applied), lastActivity: "الآن" }
-          : item,
-      ),
-    );
-    setMovements((current) => [
-      {
-        id: makeId("M"),
-        createdAt: `اليوم، ${timeLabel()}`,
-        type: "customer-payment",
-        reference: `PAY-${String(current.length + 10).padStart(4, "0")}`,
-        note: `سداد من ${customer.name} عبر ${paymentLabel(method)} — ${formatMoney(applied)}`,
-        partyName: customer.name,
-        amount: applied,
-        settlement: "paid",
-      },
-      ...current,
-    ]);
-    setDialog(null);
-    showToast("تم تسجيل السداد", `خُصم ${formatMoney(applied)} من رصيد ${customer.name}.`);
-  }
-
-  const activeItem = navItems.find((item) => item.id === activeView) ?? navItems[0];
-
+  const openDoc = (id: string) => {
+    const found = data.documents.find((x) => x.id === id);
+    if (found) setDoc(found);
+  };
   return (
     <div className="app-shell" dir="rtl">
-      <button
-        className={`mobile-backdrop ${menuOpen ? "is-visible" : ""}`}
-        aria-label="إغلاق القائمة"
-        onClick={() => setMenuOpen(false)}
-      />
-      <aside className={`sidebar ${menuOpen ? "is-open" : ""}`}>
-        <div className="brand-row">
-          <div className="brand-mark">C</div>
+      <aside className={menu ? "sidebar open" : "sidebar"}>
+        <div className="brand">
+          <b>ك</b>
           <div>
             <strong>Conta</strong>
             <span>نظام المتجر</span>
           </div>
-          <button className="icon-button sidebar-close" onClick={() => setMenuOpen(false)} aria-label="إغلاق">
-            <X size={20} />
+          <button className="icon mobile" onClick={() => setMenu(false)}>
+            <X />
           </button>
         </div>
-
-        <div className="branch-card">
-          <span className="branch-icon"><Warehouse size={20} /></span>
-          <div>
-            <small>الموقع النشط</small>
-            <strong>البوتيك الرئيسي</strong>
-          </div>
-          <ChevronDown size={17} />
-        </div>
-
-        <nav className="main-nav" aria-label="القائمة الرئيسية">
-          <p className="nav-caption">العمليات</p>
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                className={`nav-item ${activeView === item.id ? "is-active" : ""}`}
-                onClick={() => navigate(item.id)}
-              >
-                <span className="nav-icon"><Icon size={20} strokeWidth={1.9} /></span>
-                <span className="nav-copy">
-                  <strong>{item.label}</strong>
-                  <small>{item.helper}</small>
-                </span>
-              </button>
-            );
-          })}
+        <nav>
+          {nav.map((n) => (
+            <button
+              key={n.id}
+              className={view === n.id ? "nav active" : "nav"}
+              onClick={() => {
+                setView(n.id);
+                setDoc(null);
+                setPartyDetail(null);
+                setMenu(false);
+              }}
+            >
+              <n.icon />
+              <span>{n.label}</span>
+            </button>
+          ))}
         </nav>
-
-        <div className="sidebar-foot">
-          <div className="sync-card">
-            <span className="status-dot" />
-            <div>
-              <strong>متصل وآمن</strong>
-              <small>آخر مزامنة الآن</small>
-            </div>
-            <Wifi size={17} />
-          </div>
-          <div className="owner-card">
-            <div className="owner-avatar">م</div>
-            <div>
-              <strong>المالك</strong>
-              <small>صلاحيات كاملة</small>
-            </div>
-          </div>
+        <div className="side-foot">
+          <span className="dot" /> قاعدة البيانات متصلة
         </div>
       </aside>
-
-      <main className="workspace">
-        <header className="topbar">
-          <div className="topbar-title">
-            <button className="icon-button menu-button" onClick={() => setMenuOpen(true)} aria-label="فتح القائمة">
-              <Menu size={22} />
-            </button>
-            <div>
-              <span className="eyebrow">Conta · البوتيك الرئيسي</span>
-              <h1>{activeItem.label}</h1>
-            </div>
+      <main>
+        <header>
+          <button className="icon mobile" onClick={() => setMenu(true)}>
+            <Menu />
+          </button>
+          <div>
+            <small>CONTA POS</small>
+            <h1>{nav.find((n) => n.id === view)?.label}</h1>
           </div>
-          <div className="topbar-meta">
-            <span className="demo-chip"><CircleAlert size={15} /> بيانات تجريبية</span>
-            <span className="date-chip"><CalendarDays size={16} /> {todayLabel()}</span>
-          </div>
+          <button className="soft" onClick={() => void reload()}>
+            <RefreshCw /> تحديث
+          </button>
         </header>
-
-        <div className="view-container">
-          {activeView === "pos" && (
-            <PosView
-              products={products}
-              customers={customers}
-              cart={cartDetails}
-              cartTotal={cartTotal}
-              paymentMode={paymentMode}
-              paymentMethod={paymentMethod}
-              creditCustomerId={creditCustomerId}
-              onAdd={addToCart}
-              onSetQuantity={setCartQuantity}
-              onSetPrice={setCartPrice}
-              onPaymentMode={setPaymentMode}
-              onPaymentMethod={setPaymentMethod}
-              onCustomer={setCreditCustomerId}
-              onComplete={completeSale}
-              onClear={() => setCart([])}
+        <div className="content">
+          {notice && <div className="toast">{notice}</div>}
+          {error && <div className="error">{error}</div>}
+          {loading ? (
+            <div className="loading">جاري تحميل السجلات…</div>
+          ) : doc ? (
+            <DocumentDetail
+              document={doc}
+              data={data}
+              close={() => setDoc(null)}
+              run={run}
             />
-          )}
-          {activeView === "receiving" && (
-            <ReceivingView
-              products={products}
-              suppliers={suppliers}
-              customers={customers}
-              movements={movements}
-              onReceive={receiveStock}
-              onNewProduct={() => setDialog("new-product")}
-              onNewSupplier={() => setDialog("new-supplier")}
-              onOffset={offsetSupplierBalance}
-              onOpenMovement={openMovement}
+          ) : partyDetail ? (
+            <PartyPage
+              party={
+                data.parties.find((p) => p.id === partyDetail.id) ?? partyDetail
+              }
+              data={data}
+              close={() => setPartyDetail(null)}
+              openDoc={openDoc}
+              run={run}
             />
-          )}
-          {activeView === "inventory" && (
-            <InventoryView
-              products={products}
-              movements={movements}
-              onNewProduct={() => setDialog("new-product")}
-              onOpenMovement={openMovement}
-            />
-          )}
-          {activeView === "transfers" && (
-            <TransfersView products={products} movements={movements} onTransfer={transferStock} onOpenMovement={openMovement} />
-          )}
-          {activeView === "customers" && (
-            <CustomersView
-              customers={customers}
-              onNewCustomer={() => setDialog("new-customer")}
-              onStatement={(id) => {
-                setSelectedCustomerId(id);
-                setDialog("customer-detail");
-              }}
-              onPayment={(id) => {
-                setSelectedCustomerId(id);
-                setDialog("customer-payment");
-              }}
-            />
-          )}
-          {activeView === "reports" && (
-            <ReportsView products={products} sales={sales} customers={customers} onOpenSale={openSale} />
+          ) : (
+            <>
+              {view === "pos" && (
+                <Pos data={data} run={run} openDoc={openDoc} />
+              )}{" "}
+              {view === "purchases" && (
+                <Purchases data={data} run={run} openDoc={openDoc} />
+              )}{" "}
+              {view === "expenses" && (
+                <Expenses data={data} run={run} openDoc={openDoc} />
+              )}{" "}
+              {view === "parties" && (
+                <Parties data={data} run={run} openParty={setPartyDetail} />
+              )}{" "}
+              {view === "suppliers" && (
+                <Parties data={data} run={run} openParty={setPartyDetail} />
+              )}{" "}
+              {view === "warehouses" && (
+                <Warehouses data={data} run={run} openDoc={openDoc} />
+              )}{" "}
+              {view === "transfers" && (
+                <Transfer data={data} run={run} openDoc={openDoc} />
+              )}{" "}
+              {view === "adjustments" && (
+                <Adjustment data={data} run={run} openDoc={openDoc} />
+              )}{" "}
+              {view === "records" && <Records data={data} openDoc={openDoc} />}{" "}
+              {view === "reports" && (
+                <Reports data={data} openDoc={openDoc} />
+              )}{" "}
+            </>
           )}
         </div>
       </main>
-
-      {dialog === "sale-receipt" && lastReceipt && (
-        <Modal title="اكتملت عملية البيع" onClose={() => setDialog(null)} size="small">
-          <div className="success-receipt">
-            <div className="success-icon"><Check size={30} /></div>
-            <p>تم تسجيل الفاتورة بنجاح</p>
-            <strong>{formatMoney(lastReceipt.total)}</strong>
-            <div className="receipt-summary">
-              <span><small>رقم الفاتورة</small><b>{lastReceipt.id}</b></span>
-              <span><small>طريقة الدفع</small><b>{paymentLabel(lastReceipt.paymentMethod)}</b></span>
-              <span><small>الزبون</small><b>{lastReceipt.customerName}</b></span>
-            </div>
-            <div className="modal-actions two-actions">
-              <button className="secondary-button" onClick={() => window.print()}><Printer size={18} /> طباعة</button>
-              <button className="primary-button" onClick={() => setDialog(null)}>بيع جديد</button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {dialog === "new-product" && (
-        <Modal title="إضافة منتج جديد" onClose={() => setDialog(null)}>
-          <NewProductForm onSubmit={addProduct} />
-        </Modal>
-      )}
-
-      {dialog === "new-customer" && (
-        <Modal title="إضافة زبون للملاحظات" onClose={() => setDialog(null)} size="small">
-          <NewCustomerForm onSubmit={addCustomer} />
-        </Modal>
-      )}
-
-      {dialog === "new-supplier" && (
-        <Modal title="إضافة مورد" onClose={() => setDialog(null)} size="small">
-          <NewSupplierForm customers={customers} onSubmit={addSupplier} />
-        </Modal>
-      )}
-
-      {dialog === "customer-payment" && (
-        <Modal title="تسجيل سداد" onClose={() => setDialog(null)} size="small">
-          <CustomerPaymentForm
-            customer={customers.find((item) => item.id === selectedCustomerId)}
-            onSubmit={recordCustomerPayment}
-          />
-        </Modal>
-      )}
-
-      {dialog === "customer-detail" && (
-        <Modal title="كشف الحساب" onClose={() => setDialog(null)}>
-          <CustomerStatement
-            customer={customers.find((item) => item.id === selectedCustomerId)}
-            sales={sales}
-            movements={movements}
-          />
-        </Modal>
-      )}
-
-      {dialog === "movement-detail" && selectedMovement && (
-        <Modal title="تفاصيل الحركة" onClose={() => setDialog(null)} size="small">
-          <MovementDetail movement={selectedMovement} />
-        </Modal>
-      )}
-
-      {dialog === "sale-detail" && selectedSale && (
-        <Modal title={`تفاصيل الفاتورة ${selectedSale.id}`} onClose={() => setDialog(null)}>
-          <SaleDetail sale={selectedSale} />
-        </Modal>
-      )}
-
-      {toast && (
-        <div className={`toast ${toast.tone === "warning" ? "is-warning" : ""}`} role="status">
-          <span>{toast.tone === "warning" ? <CircleAlert size={20} /> : <CheckCircle2 size={20} />}</span>
-          <div><strong>{toast.title}</strong><p>{toast.message}</p></div>
-        </div>
-      )}
     </div>
   );
 }
 
-function normalizeProductText(value: string) {
-  return value
-    .toLocaleLowerCase("ar")
-    .normalize("NFD")
-    .replace(/[\u064B-\u065F\u0670]/g, "")
-    .replace(/[أإآ]/g, "ا")
-    .replace(/ى/g, "ي")
-    .replace(/ة/g, "ه")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
-}
-
-function editDistance(left: string, right: string) {
-  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
-  for (let row = 1; row <= left.length; row += 1) {
-    const current = [row];
-    for (let column = 1; column <= right.length; column += 1) {
-      current[column] = Math.min(
-        current[column - 1] + 1,
-        previous[column] + 1,
-        previous[column - 1] + (left[row - 1] === right[column - 1] ? 0 : 1),
-      );
-    }
-    previous.splice(0, previous.length, ...current);
-  }
-  return previous[right.length];
-}
-
-function productSearchScore(product: Product, query: string) {
-  const name = normalizeProductText(product.name);
-  const reference = normalizeProductText(`${product.sku} ${product.barcode}`);
-  if (name === query || reference === query) return 0;
-  if (name.startsWith(query)) return 1;
-  if (name.includes(query)) return 2 + name.indexOf(query) / 100;
-  if (reference.includes(query)) return 3;
-
-  const words = name.split(" ");
-  const closest = Math.min(...words.map((word) => editDistance(word, query)));
-  const threshold = query.length <= 3 ? 1 : Math.max(2, Math.floor(query.length * 0.34));
-  return closest <= threshold ? 5 + closest : Number.POSITIVE_INFINITY;
-}
-
-function PosView({
-  products,
-  customers,
-  cart,
-  cartTotal,
-  paymentMode,
-  paymentMethod,
-  creditCustomerId,
-  onAdd,
-  onSetQuantity,
-  onSetPrice,
-  onPaymentMode,
-  onPaymentMethod,
-  onCustomer,
-  onComplete,
-  onClear,
-}: {
-  products: Product[];
-  customers: Customer[];
-  cart: Array<CartLine & { product: Product; total: number }>;
-  cartTotal: number;
-  paymentMode: "instant" | "credit";
-  paymentMethod: PaymentMethod;
-  creditCustomerId: string;
-  onAdd: (productId: string, quantity?: number) => void;
-  onSetQuantity: (productId: string, quantity: number) => void;
-  onSetPrice: (productId: string, priceType: "piece" | "carton", price: number) => void;
-  onPaymentMode: (mode: "instant" | "credit") => void;
-  onPaymentMethod: (method: PaymentMethod) => void;
-  onCustomer: (customerId: string) => void;
-  onComplete: () => void;
-  onClear: () => void;
-}) {
-  const [query, setQuery] = useState("");
-  const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({});
-  const searchInput = useRef<HTMLInputElement>(null);
-  const invoiceList = useRef<HTMLDivElement>(null);
-  const normalizedQuery = normalizeProductText(query);
-  const newestCartProductId = cart[0]?.productId;
-  const searchResults = useMemo(() => {
-    if (!normalizedQuery) return [];
-    return products
-      .filter((product) => product.stock.boutique > 0)
-      .map((product) => ({ product, score: productSearchScore(product, normalizedQuery) }))
-      .filter((result) => Number.isFinite(result.score))
-      .sort((left, right) => left.score - right.score || left.product.name.localeCompare(right.product.name, "ar"))
-      .slice(0, 8)
-      .map((result) => result.product);
-  }, [normalizedQuery, products]);
-
-  useEffect(() => {
-    invoiceList.current?.scrollTo({ top: 0 });
-  }, [newestCartProductId]);
-
-  function selectProduct(productId: string) {
-    onAdd(productId);
-    setQuery("");
-    window.setTimeout(() => searchInput.current?.focus(), 0);
-  }
-
-  function changeQuantity(line: CartLine & { product: Product }, rawValue: string) {
-    setQuantityDrafts((current) => ({ ...current, [line.productId]: rawValue }));
-    const next = Number(rawValue);
-    if (Number.isInteger(next) && next >= 1 && next <= line.product.stock.boutique) {
-      onSetQuantity(line.productId, next);
-    }
-  }
-
-  function commitQuantity(line: CartLine & { product: Product }) {
-    const rawValue = quantityDrafts[line.productId];
-    if (rawValue === undefined) return;
-    const parsed = Number(rawValue);
-    const next = Number.isFinite(parsed)
-      ? Math.min(line.product.stock.boutique, Math.max(1, Math.floor(parsed)))
-      : line.quantityPieces;
-    onSetQuantity(line.productId, next);
-    setQuantityDrafts((current) => {
-      const nextDrafts = { ...current };
-      delete nextDrafts[line.productId];
-      return nextDrafts;
-    });
-  }
-
-  return (
-    <div className="pos-layout">
-      <section className="product-search-panel panel">
-        <div className="pos-search-box">
-          <Search size={22} />
-          <input
-            ref={searchInput}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && searchResults[0]) selectProduct(searchResults[0].id);
-            }}
-            placeholder="ابحث عن منتج بالاسم أو الباركود"
-            aria-label="البحث عن منتج"
-            autoFocus
-          />
-          {query && <button type="button" onClick={() => setQuery("")} aria-label="مسح البحث"><X size={18} /></button>}
-        </div>
-
-        {normalizedQuery && (
-          <div className="product-search-results" role="listbox" aria-label="نتائج البحث">
-            {searchResults.map((product) => (
-              <button
-                type="button"
-                className="product-search-result"
-                key={product.id}
-                onClick={() => selectProduct(product.id)}
-              >
-                <span className="search-result-mark" style={{ background: `${product.accent}18`, color: product.accent }}>
-                  {product.name.slice(0, 1)}
-                </span>
-                <span className="search-result-name">
-                  <strong>{product.name}</strong>
-                  <span>المتاح {formatQuantity(product.stock.boutique, product.piecesPerCarton)}</span>
-                </span>
-                <span className="search-result-price">{formatMoney(product.piecePrice)}</span>
-                <Plus size={19} />
-              </button>
-            ))}
-            {!searchResults.length && <div className="no-search-result">لا يوجد منتج مطابق</div>}
-          </div>
-        )}
-      </section>
-
-      <aside className="checkout-panel panel">
-        <div className="checkout-head">
-          <h2>الفاتورة</h2>
-          <span className="cart-count">{formatNumber(cart.length)}</span>
-        </div>
-
-        <div ref={invoiceList} className={`invoice-lines ${cart.length > 3 ? "is-scrollable" : ""}`}>
-          {cart.length ? cart.map((line) => {
-            const cartonMode = splitQuantity(
-              line.quantityPieces,
-              line.product.piecesPerCarton,
-            ).cartons > 0;
-            return (
-              <article className="invoice-line" key={line.productId}>
-                <div className="invoice-line-head">
-                  <div>
-                    <strong>{line.product.name}</strong>
-                    <span>{formatQuantity(line.quantityPieces, line.product.piecesPerCarton)}</span>
-                  </div>
-                  <button className="remove-line" onClick={() => onSetQuantity(line.productId, 0)} aria-label={`حذف ${line.product.name}`}><Trash2 size={17} /></button>
-                </div>
-
-                <div className="invoice-line-actions">
-                  <label className="quantity-direct-input">
-                    <span>الكمية</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max={line.product.stock.boutique}
-                      inputMode="numeric"
-                      value={quantityDrafts[line.productId] ?? line.quantityPieces}
-                      onChange={(event) => changeQuantity(line, event.target.value)}
-                      onBlur={() => commitQuantity(line)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") event.currentTarget.blur();
-                      }}
-                      aria-label={`كمية ${line.product.name}`}
-                    />
-                  </label>
-                  <strong className="invoice-line-total">{formatMoney(line.total)}</strong>
-                </div>
-
-                <div className="line-price-fields one-price">
-                  <label>
-                    <span>{cartonMode ? "سعر الكرتون" : "سعر الفرد"}</span>
-                    <input
-                      type="number"
-                      min="0"
-                      inputMode="decimal"
-                      value={cartonMode ? line.cartonPrice : line.piecePrice}
-                      onChange={(event) => onSetPrice(
-                        line.productId,
-                        cartonMode ? "carton" : "piece",
-                        Number(event.target.value),
-                      )}
-                    />
-                    <b>MRU</b>
-                  </label>
-                </div>
-              </article>
-            );
-          }) : (
-            <div className="empty-invoice">
-              <ReceiptText size={30} />
-              <strong>الفاتورة فارغة</strong>
-            </div>
-          )}
-        </div>
-
-        <div className="checkout-payment">
-          <div className="payment-mode-switch">
-            <button className={paymentMode === "instant" ? "is-active" : ""} onClick={() => onPaymentMode("instant")}><Banknote size={17} /> دفع مباشر</button>
-            <button className={paymentMode === "credit" ? "is-active" : ""} onClick={() => onPaymentMode("credit")}><FileText size={17} /> ملاحظة</button>
-          </div>
-
-          {paymentMode === "instant" ? (
-            <div className="payment-methods">
-              {paymentMethods.map((method) => {
-                const Icon = paymentIcons[method.id];
-                return <button key={method.id} className={paymentMethod === method.id ? "is-active" : ""} onClick={() => onPaymentMethod(method.id)}><Icon size={17} />{method.shortLabel}</button>;
-              })}
-            </div>
-          ) : (
-            <label className="customer-select-label">
-              <span>الزبون</span>
-              <select value={creditCustomerId} onChange={(event) => onCustomer(event.target.value)}>
-                <option value="">اختر زبونًا</option>
-                {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} — {formatMoney(customer.balance)}</option>)}
-              </select>
-            </label>
-          )}
-
-          <div className="checkout-total">
-            <span>الإجمالي</span>
-            <strong>{formatMoney(cartTotal)}</strong>
-          </div>
-          <button className="complete-sale" onClick={onComplete}><CheckCircle2 size={21} /> إتمام البيع</button>
-          {cart.length > 0 && <button className="clear-cart" onClick={onClear}><RotateCcw size={15} /> تفريغ الفاتورة</button>}
-        </div>
-      </aside>
-    </div>
-  );
-}
-
-interface SearchChoice {
-  id: string;
-  name: string;
-  description?: string;
-}
-
-function SearchablePicker({
-  label,
-  placeholder,
-  items,
-  value,
-  onChange,
-}: {
-  label: string;
-  placeholder: string;
-  items: SearchChoice[];
+function Num(props: {
   value: string;
-  onChange: (id: string) => void;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  min?: number;
 }) {
-  const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
-  const listboxId = useId();
-  const selected = items.find((item) => item.id === value);
-  const normalizedQuery = normalizeProductText(query);
-  const results = items
-    .filter((item) => !normalizedQuery || normalizeProductText(`${item.name} ${item.description ?? ""}`).includes(normalizedQuery))
-    .slice(0, 8);
-
   return (
-    <div
-      className="searchable-picker"
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
-      }}
-    >
-      <span className="field-label">{label}</span>
-      <div className={`searchable-picker-input ${open ? "is-open" : ""}`}>
-        <Search size={17} />
+    <input
+      className="num"
+      dir="ltr"
+      inputMode="decimal"
+      value={props.value}
+      min={props.min ?? 0}
+      placeholder={props.placeholder}
+      onChange={(e) => props.onChange(e.target.value.replace(/[^0-9.]/g, ""))}
+    />
+  );
+}
+function SearchProducts({
+  data,
+  query,
+  setQuery,
+  onPick,
+}: {
+  data: BootstrapData;
+  query: string;
+  setQuery: (v: string) => void;
+  onPick: (p: Product) => void;
+}) {
+  const results = query.trim()
+    ? data.products
+        .filter((p) =>
+          `${p.name} ${p.sku} ${p.barcode}`
+            .toLowerCase()
+            .includes(query.trim().toLowerCase()),
+        )
+        .slice(0, 8)
+    : [];
+  return (
+    <div className="product-search">
+      <label className="search">
+        <Search />
         <input
-          value={open ? query : selected?.name ?? ""}
-          placeholder={placeholder}
-          onFocus={() => {
-            setQuery("");
-            setOpen(true);
-          }}
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setOpen(true);
-          }}
-          role="combobox"
-          aria-expanded={open}
-          aria-controls={listboxId}
-          aria-autocomplete="list"
-          aria-label={label}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="ابحث عن منتج بالاسم أو الرمز"
         />
-        <ChevronDown size={17} />
-      </div>
-      {open && (
-        <div className="searchable-picker-results" role="listbox" id={listboxId}>
-          {results.map((item) => (
-            <button
-              type="button"
-              key={item.id}
-              className={item.id === value ? "is-selected" : ""}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                onChange(item.id);
-                setQuery("");
-                setOpen(false);
-              }}
-            >
-              <span><strong>{item.name}</strong>{item.description && <small>{item.description}</small>}</span>
-              {item.id === value && <Check size={17} />}
+      </label>
+      {results.length > 0 && (
+        <div className="search-results">
+          {results.map((p) => (
+            <button key={p.id} onClick={() => onPick(p)}>
+              <span>
+                <strong>{p.name}</strong>
+                <small>{p.sku}</small>
+              </span>
+              <Plus />
             </button>
           ))}
-          {!results.length && <div className="picker-empty">لا توجد نتيجة مطابقة</div>}
         </div>
       )}
     </div>
   );
 }
-
-function ReceivingView({
-  products,
-  suppliers,
-  customers,
-  movements,
-  onReceive,
-  onNewProduct,
-  onNewSupplier,
-  onOffset,
-  onOpenMovement,
+function LineEditor({
+  line,
+  product,
+  onChange,
+  onRemove,
+  mode,
 }: {
-  products: Product[];
-  suppliers: Supplier[];
-  customers: Customer[];
-  movements: MovementRecord[];
-  onReceive: (input: { productId: string; supplierId: string; destination: LocationId; quantityPieces: number; settlement: "paid" | "account" }) => void;
-  onNewProduct: () => void;
-  onNewSupplier: () => void;
-  onOffset: (supplierId: string) => void;
-  onOpenMovement: (movement: MovementRecord) => void;
+  line: DraftLine;
+  product: Product;
+  onChange: (x: DraftLine) => void;
+  onRemove: () => void;
+  mode: "sale" | "purchase" | "transfer" | "adjust";
 }) {
-  const [productId, setProductId] = useState(products[0]?.id ?? "");
-  const [supplierId, setSupplierId] = useState(suppliers[0]?.id ?? "");
-  const [destination, setDestination] = useState<LocationId>("warehouse");
-  const [settlement, setSettlement] = useState<"paid" | "account">("paid");
-  const [cartons, setCartons] = useState("1");
-  const [pieces, setPieces] = useState("0");
-  const product = products.find((item) => item.id === productId) ?? products[0];
-  const quantityPieces = (Number(cartons) || 0) * (product?.piecesPerCarton ?? 1) + (Number(pieces) || 0);
-  const purchaseAmount = Math.round(quantityPieces * (product?.pieceCost ?? 0));
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!product || !supplierId || quantityPieces <= 0) return;
-    onReceive({ productId: product.id, supplierId, destination, quantityPieces, settlement });
-    setCartons("1");
-    setPieces("0");
-  }
-
-  const receipts = movements.filter((movement) => movement.type === "receipt").slice(0, 6);
-  const productChoices = products.map((item) => ({
-    id: item.id,
-    name: item.name,
-    description: `${item.sku} · ${formatMoney(item.pieceCost)} شراء الفرد`,
-  }));
-  const supplierChoices = suppliers.map((item) => ({
-    id: item.id,
-    name: item.name,
-    description: item.phone || `علينا له ${formatMoney(item.payableBalance)}`,
-  }));
-
+  const qty = val(line.quantity),
+    cartons = Math.floor(qty / product.piecesPerCarton);
   return (
-    <div className="page-grid receiving-layout">
-      <section className="panel form-panel">
-        <div className="panel-heading">
-          <div><span className="section-kicker">إدخال مباشر</span><h2>استلام بضاعة</h2></div>
-          <div className="heading-actions">
-            <button className="secondary-button" onClick={onNewSupplier}><UserPlus size={17} /> مورد جديد</button>
-            <button className="secondary-button" onClick={onNewProduct}><Plus size={17} /> منتج جديد</button>
-          </div>
-        </div>
-        <form className="business-form" onSubmit={submit}>
-          <div className="destination-picker">
-            <button type="button" className={destination === "warehouse" ? "is-active" : ""} onClick={() => setDestination("warehouse")}><Warehouse size={23} /><span><strong>المخزن الرئيسي</strong></span><CheckCircle2 size={18} /></button>
-            <button type="button" className={destination === "boutique" ? "is-active" : ""} onClick={() => setDestination("boutique")}><ShoppingCart size={23} /><span><strong>البوتيك مباشرة</strong></span><CheckCircle2 size={18} /></button>
-          </div>
-          <div className="form-grid two-columns picker-grid">
-            <SearchablePicker label="المورد" placeholder="ابحث عن مورد" items={supplierChoices} value={supplierId} onChange={setSupplierId} />
-            <SearchablePicker label="المنتج" placeholder="ابحث عن منتج" items={productChoices} value={productId} onChange={setProductId} />
-          </div>
-          <div className="quantity-entry">
-            <label><span>عدد الكراتين</span><input type="number" min="0" value={cartons} onChange={(event) => setCartons(event.target.value)} /></label>
-            <span className="math-sign">×</span>
-            <div className="pack-info"><strong>{formatNumber(product?.piecesPerCarton ?? 0)}</strong><span>فرد في الكرتون</span></div>
-            <span className="math-sign">+</span>
-            <label><span>أفراد إضافية</span><input type="number" min="0" value={pieces} onChange={(event) => setPieces(event.target.value)} /></label>
-            <div className="quantity-result"><span>إجمالي الداخل</span><strong>{formatNumber(quantityPieces)} فرد</strong></div>
-          </div>
-          <div className="receipt-accounting-row">
-            <div className="receipt-settlement-switch">
-              <button type="button" className={settlement === "paid" ? "is-active" : ""} onClick={() => setSettlement("paid")}>مدفوع</button>
-              <button type="button" className={settlement === "account" ? "is-active" : ""} onClick={() => setSettlement("account")}>على الحساب</button>
-            </div>
-            <div><span>قيمة الاستلام</span><strong>{formatMoney(purchaseAmount)}</strong></div>
-          </div>
-          <div className="form-submit-row">
-            <div><CircleAlert size={17} /><span>{settlement === "account" ? "ستضاف القيمة إلى حساب المورد." : `سيضاف الرصيد إلى ${locationLabels[destination]}.`}</span></div>
-            <button className="primary-button" type="submit" disabled={!supplierId || quantityPieces <= 0}><PackageCheck size={18} /> تسجيل الاستلام</button>
-          </div>
-        </form>
-      </section>
+    <div className="line">
+      <div className="line-title">
+        <span>
+          <strong>{product.name}</strong>
+          <small>
+            {mode === "purchase" && qty
+              ? `يعادل ${quantity(qty, product.piecesPerCarton)}`
+              : `المتاح: ${number(Object.values(product.stocks).reduce((a, b) => a + b, 0))} فرد`}
+          </small>
+        </span>
+        <button className="icon danger" onClick={onRemove}>
+          <X />
+        </button>
+      </div>
+      <div className="line-fields">
+        {mode === "adjust" ? (
+          <label>
+            الكمية الفعلية
+            <Num
+              value={line.actualQuantity}
+              onChange={(v) => onChange({ ...line, actualQuantity: v })}
+            />
+          </label>
+        ) : (
+          <label>
+            الكمية بالأفراد
+            <Num
+              value={line.quantity}
+              onChange={(v) => onChange({ ...line, quantity: v })}
+            />
+          </label>
+        )}
+        {mode === "sale" && (
+          <label>
+            {cartons > 0 ? "سعر الكرتون" : "سعر الفرد"}
+            <Num
+              value={cartons > 0 ? line.cartonPrice : line.piecePrice}
+              onChange={(v) =>
+                onChange(
+                  cartons > 0
+                    ? { ...line, cartonPrice: v }
+                    : { ...line, piecePrice: v },
+                )
+              }
+            />
+          </label>
+        )}
+        {mode === "purchase" && (
+          <label>
+            سعر الشراء للفرد
+            <Num
+              value={line.unitPrice}
+              onChange={(v) => onChange({ ...line, unitPrice: v })}
+            />
+          </label>
+        )}
+      </div>
+      {mode === "sale" && (
+        <b className="line-total">
+          {money(
+            saleLineTotal(
+              qty,
+              product.piecesPerCarton,
+              val(line.piecePrice),
+              val(line.cartonPrice),
+            ),
+          )}
+        </b>
+      )}
+    </div>
+  );
+}
 
-      <section className="panel activity-panel">
-        <div className="panel-heading compact"><div><span className="section-kicker">آخر العمليات</span><h2>الاستلامات الأخيرة</h2></div><ReceiptText size={22} /></div>
-        <div className="activity-list">
-          {receipts.map((movement) => <MovementItem key={movement.id} movement={movement} onOpen={onOpenMovement} />)}
+function Pos({
+  data,
+  run,
+  openDoc,
+}: {
+  data: BootstrapData;
+  run: RunCommand;
+  openDoc: (id: string) => void;
+}) {
+  const [query, setQuery] = useState(""),
+    [lines, setLines] = useState<DraftLine[]>([]),
+    [payment, setPayment] = useState("cash"),
+    [partyId, setPartyId] = useState(""),
+    [quick, setQuick] = useState(false);
+  const wh = data.warehouses.find((w) => w.isSalesDefault),
+    details = lines.flatMap((l) => {
+      const p = data.products.find((x) => x.id === l.productId);
+      return p
+        ? [
+            {
+              l,
+              p,
+              total: saleLineTotal(
+                val(l.quantity),
+                p.piecesPerCarton,
+                val(l.piecePrice),
+                val(l.cartonPrice),
+              ),
+            },
+          ]
+        : [];
+    }),
+    total = details.reduce((s, x) => s + x.total, 0);
+  function add(p: Product) {
+    setLines((x) => [lineFor(p), ...x.filter((l) => l.productId !== p.id)]);
+    setQuery("");
+  }
+  async function submit() {
+    const id = await run(
+      {
+        type: "sale.post",
+        warehouseId: wh?.id,
+        paymentMethod: payment,
+        partyId: payment === "note" ? partyId : null,
+        lines: lines.map((l) => ({
+          productId: l.productId,
+          quantity: val(l.quantity),
+          piecePrice: val(l.piecePrice),
+          cartonPrice: val(l.cartonPrice),
+        })),
+      },
+      "تم اعتماد فاتورة البيع",
+    );
+    setLines([]);
+    openDoc(id);
+  }
+  return (
+    <section>
+      <div className="hero">
+        <div>
+          <span>فاتورة جديدة</span>
+          <h2>بيع من {wh?.name ?? "مخزن البيع"}</h2>
         </div>
-      </section>
+        <b>{money(total)}</b>
+      </div>
+      <div className="pos-grid">
+        <div className="panel">
+          <SearchProducts
+            data={data}
+            query={query}
+            setQuery={setQuery}
+            onPick={add}
+          />
+          <div
+            className={
+              lines.length > 3 ? "invoice-lines scroll" : "invoice-lines"
+            }
+          >
+            {lines.length ? (
+              details.map(({ l, p }) => (
+                <LineEditor
+                  key={l.productId}
+                  line={l}
+                  product={p}
+                  mode="sale"
+                  onChange={(x) =>
+                    setLines((s) =>
+                      s.map((a) => (a.productId === x.productId ? x : a)),
+                    )
+                  }
+                  onRemove={() =>
+                    setLines((s) =>
+                      s.filter((a) => a.productId !== l.productId),
+                    )
+                  }
+                />
+              ))
+            ) : (
+              <Empty text="ابحث عن منتج لإضافته إلى الفاتورة" />
+            )}
+          </div>
+        </div>
+        <div className="panel checkout">
+          <h3>طريقة الدفع</h3>
+          <div className="pay-grid">
+            {paymentMethods.map((p) => (
+              <button
+                key={p.id}
+                className={payment === p.id ? "choice selected" : "choice"}
+                onClick={() => setPayment(p.id)}
+              >
+                {p.label}
+              </button>
+            ))}
+            <button
+              className={payment === "note" ? "choice selected" : "choice"}
+              onClick={() => setPayment("note")}
+            >
+              ملاحظة
+            </button>
+          </div>
+          {payment === "note" && (
+            <>
+              <label>
+                العميل
+                <select
+                  value={partyId}
+                  onChange={(e) => setPartyId(e.target.value)}
+                >
+                  <option value="">اختر العميل</option>
+                  {data.parties.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button className="link" onClick={() => setQuick(!quick)}>
+                <Plus /> إضافة عميل
+              </button>
+              {quick && <QuickParty run={run} onDone={() => setQuick(false)} />}
+            </>
+          )}
+          <div className="total">
+            <span>إجمالي الفاتورة</span>
+            <strong>{money(total)}</strong>
+          </div>
+          <button
+            className="primary wide"
+            disabled={!lines.length || !wh}
+            onClick={() => void submit()}
+          >
+            إتمام البيع
+          </button>
+        </div>
+      </div>
+      <Recent
+        title="فواتير بيع أخيرة"
+        docs={data.documents.filter((d) => d.kind === "sale")}
+        openDoc={openDoc}
+      />
+    </section>
+  );
+}
 
-      <section className="panel supplier-accounts-panel">
-        <div className="panel-heading table-heading">
-          <div><span className="section-kicker">حساب موحد</span><h2>الموردون والمقاصة</h2></div>
-          <button className="primary-button" onClick={onNewSupplier}><UserPlus size={17} /> إضافة مورد</button>
+function QuickParty({ run, onDone }: { run: RunCommand; onDone: () => void }) {
+  const [name, setName] = useState(""),
+    [phone, setPhone] = useState("");
+  return (
+    <div className="mini-form">
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="اسم العميل"
+      />
+      <input
+        dir="ltr"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+        placeholder="رقم الهاتف"
+      />
+      <button
+        className="primary"
+        onClick={async () => {
+          await run({ type: "party.create", name, phone }, "تمت إضافة العميل");
+          onDone();
+        }}
+      >
+        حفظ
+      </button>
+    </div>
+  );
+}
+function Purchases({
+  data,
+  run,
+  openDoc,
+}: {
+  data: BootstrapData;
+  run: RunCommand;
+  openDoc: (id: string) => void;
+}) {
+  const [partyId, setPartyId] = useState(""),
+    [locked, setLocked] = useState(false),
+    [warehouseId, setWarehouseId] = useState(""),
+    [query, setQuery] = useState(""),
+    [lines, setLines] = useState<DraftLine[]>([]),
+    [payment, setPayment] = useState("cash"),
+    [addingWh, setAddingWh] = useState(false);
+  function add(p: Product) {
+    setLines((x) =>
+      x.some((l) => l.productId === p.id) ? x : [...x, lineFor(p)],
+    );
+    setQuery("");
+  }
+  async function submit() {
+    const id = await run(
+      {
+        type: "purchase.post",
+        partyId,
+        warehouseId,
+        paymentMethod: payment,
+        lines: lines.map((l) => ({
+          productId: l.productId,
+          quantity: val(l.quantity),
+          unitPrice: val(l.unitPrice),
+        })),
+      },
+      "تم اعتماد فاتورة الشراء",
+    );
+    setLines([]);
+    setPartyId("");
+    setLocked(false);
+    openDoc(id);
+  }
+  return (
+    <section>
+      <Heading title="فاتورة شراء جديدة" />
+      <div className="panel form-stack">
+        <div className="form-row">
+          <label>
+            المورد
+            <select
+              disabled={locked}
+              value={partyId}
+              onChange={(e) => setPartyId(e.target.value)}
+            >
+              <option value="">ابحث واختر المورد</option>
+              {data.parties.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} — {p.phone}
+                </option>
+              ))}
+            </select>
+          </label>
+          {locked ? (
+            <button
+              className="soft"
+              onClick={() => {
+                if (
+                  confirm(
+                    "هل أنت متأكد من تغيير المورد؟ ستبقى المنتجات كما هي.",
+                  )
+                )
+                  setLocked(false);
+              }}
+            >
+              تعديل المورد
+            </button>
+          ) : (
+            <button
+              className="soft"
+              disabled={!partyId}
+              onClick={() => setLocked(true)}
+            >
+              تأكيد المورد
+            </button>
+          )}
+          <label>
+            المخزن
+            <select
+              value={warehouseId}
+              onChange={(e) => setWarehouseId(e.target.value)}
+            >
+              <option value="">اختر مخزن الاستلام</option>
+              {data.warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="link" onClick={() => setAddingWh(!addingWh)}>
+            <Plus /> إضافة مخزن جديد
+          </button>
         </div>
-        <div className="supplier-account-grid">
-          {suppliers.map((supplier) => {
-            const customer = customers.find((item) => item.id === supplier.linkedCustomerId);
-            const receivable = customer?.balance ?? 0;
-            const canOffset = supplier.payableBalance > 0 && receivable > 0;
-            const net = receivable - supplier.payableBalance;
+        {addingWh && (
+          <InlineCreate
+            label="اسم المخزن"
+            onSave={async (name) => {
+              await run({ type: "warehouse.create", name }, "تمت إضافة المخزن");
+              setAddingWh(false);
+            }}
+          />
+        )}
+        <SearchProducts
+          data={data}
+          query={query}
+          setQuery={setQuery}
+          onPick={add}
+        />
+        <div className="compact-list">
+          {lines.map((l) => {
+            const p = data.products.find((x) => x.id === l.productId)!;
             return (
-              <article className="supplier-account-card" key={supplier.id}>
-                <div className="supplier-account-head">
-                  <span className="customer-avatar">{supplier.name.slice(0, 1)}</span>
-                  <div><strong>{supplier.name}</strong><small>{supplier.phone || "بدون هاتف"}</small></div>
-                  {customer && <span className="linked-party">مورد وزبون</span>}
-                </div>
-                <div className="supplier-balance-row">
-                  <span><small>علينا له</small><strong>{formatMoney(supplier.payableBalance)}</strong></span>
-                  <span><small>عليه لنا</small><strong>{formatMoney(receivable)}</strong></span>
-                </div>
-                <div className="supplier-net"><span>صافي الحساب</span><strong>{net === 0 ? "متوازن" : `${net > 0 ? "عليه لنا" : "علينا له"} ${formatMoney(Math.abs(net))}`}</strong></div>
-                <button className="secondary-button full-button" disabled={!canOffset} onClick={() => onOffset(supplier.id)}><Scale size={17} /> إجراء مقاصة</button>
-              </article>
+              <LineEditor
+                key={l.productId}
+                line={l}
+                product={p}
+                mode="purchase"
+                onChange={(x) =>
+                  setLines((s) =>
+                    s.map((a) => (a.productId === x.productId ? x : a)),
+                  )
+                }
+                onRemove={() =>
+                  setLines((s) => s.filter((a) => a.productId !== l.productId))
+                }
+              />
             );
           })}
         </div>
-      </section>
-    </div>
-  );
-}
-
-function InventoryView({ products, movements, onNewProduct, onOpenMovement }: { products: Product[]; movements: MovementRecord[]; onNewProduct: () => void; onOpenMovement: (movement: MovementRecord) => void }) {
-  const [query, setQuery] = useState("");
-  const filtered = products.filter((product) => `${product.name} ${product.sku}`.toLowerCase().includes(query.toLowerCase()));
-  const warehousePieces = products.reduce((sum, item) => sum + item.stock.warehouse, 0);
-  const boutiquePieces = products.reduce((sum, item) => sum + item.stock.boutique, 0);
-
-  return (
-    <div className="stack-layout">
-      <div className="stats-row three-stats">
-        <StatCard icon={Warehouse} label="رصيد المخزن" value={`${warehousePieces} فرد`} helper={`${products.length} منتجات`} tone="blue" />
-        <StatCard icon={ShoppingCart} label="رصيد البوتيك" value={`${boutiquePieces} فرد`} helper="متاح للبيع الآن" tone="green" />
-        <StatCard icon={CircleDollarSign} label="قيمة المخزون" value={formatMoney(products.reduce((sum, item) => sum + (item.stock.warehouse + item.stock.boutique) * item.pieceCost, 0))} helper="بسعر التكلفة" tone="amber" />
-      </div>
-      <section className="panel table-panel">
-        <div className="panel-heading table-heading">
-          <div><span className="section-kicker">الأرصدة الحالية</span><h2>المنتجات والمواقع</h2></div>
-          <div className="heading-actions"><div className="small-search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="بحث عن منتج" /></div><button className="primary-button" onClick={onNewProduct}><Plus size={17} /> إضافة منتج</button></div>
+        <div className="form-row">
+          <label>
+            التسوية
+            <select
+              value={payment}
+              onChange={(e) => setPayment(e.target.value)}
+            >
+              <option value="cash">مدفوعة مباشرة</option>
+              <option value="note">مستحقة للمورد</option>
+            </select>
+          </label>
+          <button
+            className="primary"
+            disabled={!locked || !warehouseId || !lines.length}
+            onClick={() => void submit()}
+          >
+            اعتماد الفاتورة كاملة
+          </button>
         </div>
-        <div className="data-table-wrap">
-          <table className="data-table">
-            <thead><tr><th>المنتج</th><th>حجم الكرتون</th><th>المخزن الرئيسي</th><th>البوتيك</th><th>سعر الفرد</th><th>سعر الكرتون</th></tr></thead>
-            <tbody>{filtered.map((product) => <tr key={product.id}><td><div className="table-product"><span style={{ background: `${product.accent}18`, color: product.accent }}>{product.name.slice(0, 1)}</span><div><strong>{product.name}</strong><small>{product.sku}</small></div></div></td><td>{product.piecesPerCarton} فرد</td><td><strong>{formatQuantity(product.stock.warehouse, product.piecesPerCarton)}</strong></td><td><strong>{formatQuantity(product.stock.boutique, product.piecesPerCarton)}</strong></td><td>{formatMoney(product.piecePrice)}</td><td>{formatMoney(product.cartonPrice)}</td></tr>)}</tbody>
-          </table>
+      </div>
+      <Recent
+        title="مشتريات أخيرة"
+        docs={data.documents.filter((d) => d.kind === "purchase")}
+        openDoc={openDoc}
+      />
+    </section>
+  );
+}
+
+function Expenses({
+  data,
+  run,
+  openDoc,
+}: {
+  data: BootstrapData;
+  run: RunCommand;
+  openDoc: (id: string) => void;
+}) {
+  const [title, setTitle] = useState(""),
+    [amount, setAmount] = useState(""),
+    [date, setDate] = useState(new Date().toISOString().slice(0, 10)),
+    [frequency, setFrequency] = useState("once");
+  return (
+    <section>
+      <Heading title="فاتورة مصروفات جديدة" />
+      <form
+        className="panel form-row"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const id = await run(
+            {
+              type: "expense.post",
+              title,
+              amount: val(amount),
+              occurredAt: date,
+              frequency,
+            },
+            "تم تسجيل المصروف",
+          );
+          setTitle("");
+          setAmount("");
+          openDoc(id);
+        }}
+      >
+        <label>
+          عنوان المصروف
+          <input value={title} onChange={(e) => setTitle(e.target.value)} />
+        </label>
+        <label>
+          المبلغ
+          <Num value={amount} onChange={setAmount} />
+        </label>
+        <label>
+          التاريخ
+          <input
+            dir="ltr"
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </label>
+        <label>
+          التكرار
+          <select
+            value={frequency}
+            onChange={(e) => setFrequency(e.target.value)}
+          >
+            <option value="once">مرة واحدة</option>
+            <option value="daily">يومي</option>
+            <option value="monthly">شهري</option>
+          </select>
+        </label>
+        <button className="primary">حفظ الفاتورة</button>
+      </form>
+      {data.recurringExpenses.length > 0 && (
+        <div className="panel">
+          <Heading title="المصاريف المتكررة" />
+          {data.recurringExpenses.map((r) => (
+            <div className="list-row" key={r.id}>
+              <span>
+                <strong>{r.title}</strong>
+                <small>
+                  {r.frequency === "daily" ? "يومي" : "شهري"} منذ {r.startsOn}
+                </small>
+              </span>
+              <b>{money(r.amount)}</b>
+              <button
+                className="soft"
+                onClick={() =>
+                  void run(
+                    {
+                      type: "expense.materialize",
+                      recurringId: r.id,
+                      dueDate: new Date().toISOString().slice(0, 10),
+                    },
+                    "تم احتساب الاستحقاق دون تكرار",
+                  )
+                }
+              >
+                احتساب الاستحقاق
+              </button>
+            </div>
+          ))}
         </div>
-      </section>
-      <section className="panel movement-panel">
-        <div className="panel-heading compact"><div><span className="section-kicker">قابل للتتبع</span><h2>سجل حركة المخزون</h2></div><FileText size={22} /></div>
-        <div className="movement-grid">{movements.filter((item) => item.productName).slice(0, 8).map((movement) => <MovementItem key={movement.id} movement={movement} onOpen={onOpenMovement} />)}</div>
-      </section>
-    </div>
+      )}
+      <Recent
+        title="فواتير المصاريف"
+        docs={data.documents.filter((d) => d.kind === "expense")}
+        openDoc={openDoc}
+      />
+    </section>
   );
 }
 
-function TransfersView({ products, movements, onTransfer, onOpenMovement }: { products: Product[]; movements: MovementRecord[]; onTransfer: (productId: string, quantityPieces: number) => void; onOpenMovement: (movement: MovementRecord) => void }) {
-  const [productId, setProductId] = useState(products[0]?.id ?? "");
-  const [cartons, setCartons] = useState("1");
-  const [pieces, setPieces] = useState("0");
-  const product = products.find((item) => item.id === productId) ?? products[0];
-  const quantityPieces = (Number(cartons) || 0) * (product?.piecesPerCarton ?? 1) + (Number(pieces) || 0);
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!product) return;
-    onTransfer(product.id, quantityPieces);
-  }
-
-  const transfers = movements.filter((movement) => movement.type === "transfer").slice(0, 8);
+function Parties({
+  data,
+  run,
+  openParty,
+}: {
+  data: BootstrapData;
+  run: RunCommand;
+  openParty: (p: Party) => void;
+}) {
+  const [q, setQ] = useState(""),
+    [name, setName] = useState(""),
+    [phone, setPhone] = useState("");
+  const list = [...data.parties]
+    .sort((a, b) => {
+      const s = q.toLowerCase();
+      const score = (p: Party) =>
+        p.name.toLowerCase() === s
+          ? 0
+          : p.name.toLowerCase().startsWith(s)
+            ? 1
+            : p.name.toLowerCase().includes(s)
+              ? 2
+              : p.phone.includes(s)
+                ? 3
+                : 9;
+      return score(a) - score(b);
+    })
+    .filter(
+      (p) =>
+        !q || `${p.name} ${p.phone}`.toLowerCase().includes(q.toLowerCase()),
+    );
   return (
-    <div className="page-grid transfer-layout">
-      <section className="panel form-panel transfer-form-panel">
-        <div className="panel-heading"><div><span className="section-kicker">حركة داخلية</span><h2>تحويل إلى البوتيك</h2><p>التحويل يغيّر مكان المخزون فقط ولا يُسجّل كمبيعة أو ربح.</p></div><ArrowLeftRight size={25} /></div>
-        <div className="route-visual"><div><Warehouse size={24} /><span>المخزن الرئيسي</span></div><span className="route-line"><i /><Truck size={25} /><i /></span><div><ShoppingCart size={24} /><span>البوتيك</span></div></div>
-        <form className="business-form" onSubmit={submit}>
-          <label><span>المنتج</span><select value={productId} onChange={(event) => setProductId(event.target.value)}>{products.map((item) => <option key={item.id} value={item.id}>{item.name} — متاح {formatQuantity(item.stock.warehouse, item.piecesPerCarton)}</option>)}</select></label>
-          <div className="form-grid two-columns">
-            <label><span>عدد الكراتين</span><input type="number" min="0" value={cartons} onChange={(event) => setCartons(event.target.value)} /></label>
-            <label><span>أفراد إضافية</span><input type="number" min="0" value={pieces} onChange={(event) => setPieces(event.target.value)} /></label>
-          </div>
-          <div className="transfer-summary"><div><span>الكمية المطلوبة</span><strong>{product ? formatQuantity(quantityPieces, product.piecesPerCarton) : "—"}</strong></div><div><span>بعد التحويل في البوتيك</span><strong>{product ? formatQuantity(product.stock.boutique + quantityPieces, product.piecesPerCarton) : "—"}</strong></div></div>
-          <button className="primary-button full-button" type="submit"><ArrowLeftRight size={18} /> تنفيذ التحويل</button>
-        </form>
-      </section>
-      <section className="panel activity-panel">
-        <div className="panel-heading compact"><div><span className="section-kicker">السجل</span><h2>التحويلات الأخيرة</h2></div><Box size={22} /></div>
-        <div className="activity-list">{transfers.length ? transfers.map((movement) => <MovementItem key={movement.id} movement={movement} onOpen={onOpenMovement} />) : <EmptyState icon={ArrowLeftRight} title="لا توجد تحويلات" text="ستظهر التحويلات المكتملة هنا." />}</div>
-      </section>
-    </div>
-  );
-}
-
-function CustomersView({ customers, onNewCustomer, onStatement, onPayment }: { customers: Customer[]; onNewCustomer: () => void; onStatement: (id: string) => void; onPayment: (id: string) => void }) {
-  const [query, setQuery] = useState("");
-  const filtered = customers.filter((customer) => `${customer.name} ${customer.phone}`.toLowerCase().includes(query.toLowerCase()));
-  const totalDebt = customers.reduce((sum, customer) => sum + customer.balance, 0);
-  return (
-    <div className="stack-layout">
-      <div className="stats-row three-stats">
-        <StatCard icon={HandCoins} label="إجمالي الملاحظات" value={formatMoney(totalDebt)} helper={`${formatNumber(customers.filter((item) => item.balance > 0).length)} زبائن عليهم رصيد`} tone="rose" />
-        <StatCard icon={Users} label="الزبائن المسجلون" value={formatNumber(customers.length)} helper="متاحون للملاحظات" tone="blue" />
-        <StatCard icon={CheckCircle2} label="أرصدة مسددة" value={formatNumber(customers.filter((item) => item.balance === 0).length)} helper="لا توجد ملاحظات عليهم" tone="green" />
+    <section>
+      <div className="toolbar">
+        <label className="search">
+          <Search />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="ابحث بالاسم أو رقم الهاتف"
+          />
+        </label>
       </div>
-      <section className="panel table-panel">
-        <div className="panel-heading table-heading"><div><span className="section-kicker">حسابات الزبائن</span><h2>الزبائن والملاحظات</h2></div><div className="heading-actions"><div className="small-search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="الاسم أو الهاتف" /></div><button className="primary-button" onClick={onNewCustomer}><UserPlus size={17} /> زبون جديد</button></div></div>
-        <div className="customer-cards">
-          {filtered.map((customer) => <article className="customer-card" key={customer.id}><div className="customer-card-top"><span className="customer-avatar">{customer.name.slice(0, 1)}</span><div><strong>{customer.name}</strong><small>{customer.phone}</small></div><span className={`debt-badge ${customer.balance === 0 ? "is-clear" : ""}`}>{customer.balance === 0 ? "مسدد" : "عليه ملاحظة"}</span></div><div className="customer-balance"><span>الرصيد الحالي</span><strong>{formatMoney(customer.balance)}</strong><small>آخر حركة: {customer.lastActivity}</small></div><div className="customer-actions"><button className="secondary-button" onClick={() => onStatement(customer.id)}><FileText size={16} /> كشف الحساب</button><button className="primary-button" disabled={customer.balance === 0} onClick={() => onPayment(customer.id)}><HandCoins size={16} /> تسجيل سداد</button></div></article>)}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function ReportsView({ products, sales, customers, onOpenSale }: { products: Product[]; sales: SaleRecord[]; customers: Customer[]; onOpenSale: (sale: SaleRecord) => void }) {
-  const totalSales = sales.reduce((sum, sale) => sum + sale.total, 0);
-  const cashSales = sales.filter((sale) => sale.paymentMethod === "cash").reduce((sum, sale) => sum + sale.total, 0);
-  const digitalSales = sales.filter((sale) => !["cash", "credit"].includes(sale.paymentMethod)).reduce((sum, sale) => sum + sale.total, 0);
-  const creditSales = sales.filter((sale) => sale.paymentMethod === "credit").reduce((sum, sale) => sum + sale.total, 0);
-  const totalDebt = customers.reduce((sum, customer) => sum + customer.balance, 0);
-  const maxMethod = Math.max(cashSales, digitalSales, creditSales, 1);
-  return (
-    <div className="stack-layout">
-      <div className="stats-row four-stats">
-        <StatCard icon={CircleDollarSign} label="مبيعات اليوم" value={formatMoney(totalSales)} helper={`${sales.length} فواتير`} tone="green" />
-        <StatCard icon={Banknote} label="المبيعات النقدية" value={formatMoney(cashSales)} helper="الخيار الأساسي" tone="blue" />
-        <StatCard icon={Smartphone} label="دفع إلكتروني" value={formatMoney(digitalSales)} helper="بنكيلي ومصرفي وغيرها" tone="violet" />
-        <StatCard icon={HandCoins} label="الملاحظات القائمة" value={formatMoney(totalDebt)} helper="كل الزبائن" tone="rose" />
-      </div>
-      <div className="reports-grid">
-        <section className="panel report-card">
-          <div className="panel-heading compact"><div><span className="section-kicker">توزيع التحصيل</span><h2>المبيعات حسب الدفع</h2></div><BarChart3 size={22} /></div>
-          <div className="bar-chart">
-            {[{ label: "نقدي", value: cashSales, color: "var(--green)" }, { label: "إلكتروني", value: digitalSales, color: "var(--blue)" }, { label: "ملاحظة", value: creditSales, color: "var(--amber)" }].map((bar) => <div className="bar-row" key={bar.label}><span>{bar.label}</span><div><i style={{ width: `${Math.max(6, (bar.value / maxMethod) * 100)}%`, background: bar.color }} /></div><strong>{formatMoney(bar.value)}</strong></div>)}
-          </div>
-        </section>
-        <section className="panel report-card">
-          <div className="panel-heading compact"><div><span className="section-kicker">المخزون</span><h2>القيمة حسب الموقع</h2></div><Boxes size={22} /></div>
-          <div className="location-values"><div><span className="value-icon blue"><Warehouse size={22} /></span><span><small>المخزن الرئيسي</small><strong>{formatMoney(products.reduce((sum, item) => sum + item.stock.warehouse * item.pieceCost, 0))}</strong></span></div><div><span className="value-icon green"><ShoppingCart size={22} /></span><span><small>البوتيك</small><strong>{formatMoney(products.reduce((sum, item) => sum + item.stock.boutique * item.pieceCost, 0))}</strong></span></div></div>
-        </section>
-      </div>
-      <section className="panel table-panel">
-        <div className="panel-heading compact"><div><span className="section-kicker">اليوم</span><h2>آخر الفواتير</h2></div><ReceiptText size={22} /></div>
-        <div className="data-table-wrap"><table className="data-table"><thead><tr><th>الفاتورة</th><th>التاريخ</th><th>الزبون</th><th>طريقة الدفع</th><th>العدد</th><th>الإجمالي</th></tr></thead><tbody>{sales.map((sale) => <tr className="clickable-row" key={sale.id} tabIndex={0} onClick={() => onOpenSale(sale)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onOpenSale(sale); }}><td><strong>{sale.id}</strong></td><td>{sale.createdAt}</td><td>{sale.customerName}</td><td><span className={`method-badge method-${sale.paymentMethod}`}>{paymentLabel(sale.paymentMethod)}</span></td><td>{formatNumber(sale.itemCount)} فرد</td><td><strong>{formatMoney(sale.total)}</strong></td></tr>)}</tbody></table></div>
-      </section>
-    </div>
-  );
-}
-
-function MovementItem({ movement, onOpen }: { movement: MovementRecord; onOpen: (movement: MovementRecord) => void }) {
-  const Icon = movement.type === "receipt" ? PackagePlus : movement.type === "transfer" ? ArrowLeftRight : movement.type === "sale" ? ShoppingCart : HandCoins;
-  return (
-    <button type="button" className="movement-item" onClick={() => onOpen(movement)}>
-      <span className={`movement-icon type-${movement.type}`}><Icon size={18} /></span>
-      <div className="movement-copy"><strong>{movement.productName ?? movement.note}</strong><p>{movement.productName ? movement.note : movement.reference}</p><small>{movement.createdAt}</small></div>
-      <div className="movement-value">{movement.quantityPieces && movement.piecesPerCarton ? <strong>{formatQuantity(movement.quantityPieces, movement.piecesPerCarton)}</strong> : <strong>سداد</strong>}<span>{movement.reference}</span></div>
-    </button>
-  );
-}
-
-function StatCard({ icon: Icon, label, value, helper, tone }: { icon: LucideIcon; label: string; value: string; helper: string; tone: string }) {
-  return <article className={`stat-card tone-${tone}`}><span className="stat-icon"><Icon size={22} /></span><div><span>{label}</span><strong>{value}</strong><small>{helper}</small></div></article>;
-}
-
-function Modal({ title, children, onClose, size = "normal" }: { title: string; children: ReactNode; onClose: () => void; size?: "normal" | "small" }) {
-  return <div className="modal-layer" role="dialog" aria-modal="true" aria-label={title}><button className="modal-backdrop" onClick={onClose} aria-label="إغلاق" /><section className={`modal-card modal-${size}`}><header><h2>{title}</h2><button className="icon-button" onClick={onClose}><X size={20} /></button></header><div className="modal-body">{children}</div></section></div>;
-}
-
-function NewProductForm({ onSubmit }: { onSubmit: (product: Product) => void }) {
-  const [name, setName] = useState("");
-  const [sku, setSku] = useState("");
-  const [barcode, setBarcode] = useState("");
-  const [packSize, setPackSize] = useState("12");
-  const [cost, setCost] = useState("");
-  const [piecePrice, setPiecePrice] = useState("");
-  const [cartonPrice, setCartonPrice] = useState("");
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    const piecesPerCarton = Math.max(1, Number(packSize) || 1);
-    const unitPrice = Number(piecePrice) || 0;
-    const unitCost = Number(cost) || 0;
-    if (!name.trim() || unitCost <= 0) return;
-    onSubmit({
-      id: makeId("P"),
-      name: name.trim(),
-      sku: sku.trim() || `SKU-${Date.now().toString().slice(-5)}`,
-      barcode: barcode.trim(),
-      piecesPerCarton,
-      pieceCost: unitCost,
-      piecePrice: unitPrice,
-      cartonPrice: Number(cartonPrice) || unitPrice * piecesPerCarton,
-      stock: { warehouse: 0, boutique: 0 },
-      accent: "#0f766e",
-    });
-  }
-
-  return (
-    <form className="business-form product-form-sequence" onSubmit={submit}>
-      <label><span>اسم المنتج *</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="اسم المنتج" required /></label>
-      <label><span>سعر الشراء للفرد *</span><input type="number" min="0.01" step="any" value={cost} onChange={(event) => setCost(event.target.value)} required /></label>
-      <label><span>سعر بيع الفرد</span><input type="number" min="0" step="any" value={piecePrice} onChange={(event) => setPiecePrice(event.target.value)} /></label>
-      <label><span>سعر بيع الكرتون</span><input type="number" min="0" step="any" value={cartonPrice} onChange={(event) => setCartonPrice(event.target.value)} /></label>
-      <label><span>عدد الأفراد في الكرتون *</span><input type="number" min="1" value={packSize} onChange={(event) => setPackSize(event.target.value)} required /></label>
-      <div className="form-grid two-columns product-reference-fields">
-        <label><span>رمز المنتج</span><input value={sku} onChange={(event) => setSku(event.target.value)} /></label>
-        <label><span>الباركود</span><input value={barcode} onChange={(event) => setBarcode(event.target.value)} /></label>
-      </div>
-      <div className="modal-actions"><button type="submit" className="primary-button"><Plus size={18} /> إضافة المنتج</button></div>
-    </form>
-  );
-}
-
-function NewCustomerForm({ onSubmit }: { onSubmit: (customer: Customer) => void }) {
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [openingBalance, setOpeningBalance] = useState("0");
-  function submit(event: FormEvent) { event.preventDefault(); if (!name.trim()) return; onSubmit({ id: makeId("C"), name: name.trim(), phone: phone.trim(), balance: Number(openingBalance) || 0, creditLimit: null, lastActivity: "الآن" }); }
-  return <form className="business-form" onSubmit={submit}><label><span>اسم الزبون *</span><input value={name} onChange={(event) => setName(event.target.value)} required placeholder="الاسم الكامل أو اسم المتجر" /></label><label><span>رقم الهاتف</span><input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="مثال: 22 00 00 00" /></label><label><span>رصيد افتتاحي عليه</span><input type="number" min="0" value={openingBalance} onChange={(event) => setOpeningBalance(event.target.value)} /></label><div className="modal-actions"><button className="primary-button" type="submit"><UserPlus size={18} /> حفظ الزبون</button></div></form>;
-}
-
-function NewSupplierForm({ customers, onSubmit }: { customers: Customer[]; onSubmit: (supplier: Supplier) => void }) {
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [openingBalance, setOpeningBalance] = useState("0");
-  const [linkedCustomerId, setLinkedCustomerId] = useState("");
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!name.trim()) return;
-    const matchingCustomer = customers.find((customer) => normalizeProductText(customer.name) === normalizeProductText(name));
-    onSubmit({
-      id: makeId("S"),
-      name: name.trim(),
-      phone: phone.trim(),
-      payableBalance: Math.max(0, Number(openingBalance) || 0),
-      linkedCustomerId: linkedCustomerId || matchingCustomer?.id || null,
-      lastActivity: "الآن",
-    });
-  }
-  return (
-    <form className="business-form" onSubmit={submit}>
-      <label><span>اسم المورد *</span><input value={name} onChange={(event) => setName(event.target.value)} required /></label>
-      <label><span>رقم الهاتف</span><input value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
-      <label><span>رصيد افتتاحي علينا له</span><input type="number" min="0" value={openingBalance} onChange={(event) => setOpeningBalance(event.target.value)} /></label>
-      <label><span>ربطه بزبون موجود</span><select value={linkedCustomerId} onChange={(event) => setLinkedCustomerId(event.target.value)}><option value="">غير مرتبط</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
-      <div className="modal-actions"><button className="primary-button" type="submit"><UserPlus size={18} /> حفظ المورد</button></div>
-    </form>
-  );
-}
-
-function CustomerStatement({ customer, sales, movements }: { customer?: Customer; sales: SaleRecord[]; movements: MovementRecord[] }) {
-  if (!customer) return <EmptyState icon={CircleAlert} title="الزبون غير موجود" text="أغلق النافذة وحاول مجددًا." />;
-  const creditSales = sales.filter((sale) => sale.paymentMethod === "credit" && sale.customerName === customer.name);
-  const payments = movements.filter((movement) => movement.type === "customer-payment" && movement.partyName === customer.name);
-  const entries = [
-    ...creditSales.map((sale) => ({ id: sale.id, date: sale.createdAt, label: "فاتورة ملاحظة", amount: sale.total, direction: "debit" as const })),
-    ...payments.map((movement) => ({ id: movement.reference, date: movement.createdAt, label: "سداد", amount: movement.amount ?? 0, direction: "credit" as const })),
-  ];
-  return (
-    <div className="customer-statement record-detail">
-      <div className="statement-head"><span className="customer-avatar">{customer.name.slice(0, 1)}</span><div><strong>{customer.name}</strong><small>{customer.phone}</small></div><span><small>الرصيد الحالي</small><strong>{formatMoney(customer.balance)}</strong></span></div>
-      <div className="statement-list">
-        {entries.length ? entries.map((entry) => (
-          <article key={`${entry.id}-${entry.direction}`}>
-            <div><strong>{entry.label}</strong><small>{entry.id} · {entry.date}</small></div>
-            <strong className={entry.direction === "credit" ? "is-credit" : ""}>{entry.direction === "credit" ? "−" : "+"} {formatMoney(entry.amount)}</strong>
-          </article>
-        )) : <EmptyState icon={FileText} title="لا توجد حركات" text="ستظهر الفواتير والسداد هنا." />}
-      </div>
-    </div>
-  );
-}
-
-function MovementDetail({ movement }: { movement: MovementRecord }) {
-  const typeLabel: Record<MovementRecord["type"], string> = {
-    receipt: "استلام بضاعة",
-    transfer: "تحويل مخزون",
-    sale: "بيع",
-    "customer-payment": "سداد زبون",
-    "supplier-offset": "مقاصة مورد",
-  };
-  return (
-    <div className="record-detail">
-      <div className="record-detail-hero"><span>{movement.reference}</span><strong>{typeLabel[movement.type]}</strong><small>{movement.createdAt}</small></div>
-      <dl className="detail-list">
-        {movement.productName && <div><dt>المنتج</dt><dd>{movement.productName}</dd></div>}
-        {movement.quantityPieces !== undefined && movement.piecesPerCarton && <div><dt>الكمية</dt><dd>{formatQuantity(movement.quantityPieces, movement.piecesPerCarton)}</dd></div>}
-        {movement.from && <div><dt>من</dt><dd>{locationLabels[movement.from]}</dd></div>}
-        {movement.to && <div><dt>إلى</dt><dd>{locationLabels[movement.to]}</dd></div>}
-        {movement.partyName && <div><dt>المورد أو الطرف</dt><dd>{movement.partyName}</dd></div>}
-        {movement.unitCost !== undefined && <div><dt>سعر شراء الفرد</dt><dd>{formatMoney(movement.unitCost)}</dd></div>}
-        {movement.amount !== undefined && <div><dt>القيمة</dt><dd>{formatMoney(movement.amount)}</dd></div>}
-        {movement.settlement && <div><dt>التسوية</dt><dd>{movement.settlement === "paid" ? "مدفوع" : movement.settlement === "account" ? "على الحساب" : "مقاصة"}</dd></div>}
-        <div><dt>الملاحظة</dt><dd>{movement.note}</dd></div>
-      </dl>
-    </div>
-  );
-}
-
-function SaleDetail({ sale }: { sale: SaleRecord }) {
-  return (
-    <div className="record-detail sale-record-detail">
-      <div className="sale-detail-meta">
-        <span><small>التاريخ</small><strong>{sale.createdAt}</strong></span>
-        <span><small>الزبون</small><strong>{sale.customerName}</strong></span>
-        <span><small>الدفع</small><strong>{paymentLabel(sale.paymentMethod)}</strong></span>
-      </div>
-      <div className="sale-detail-lines">
-        {sale.items.map((item) => (
-          <article key={`${sale.id}-${item.productId}`}>
-            <div><strong>{item.productName}</strong><span>{formatQuantity(item.quantityPieces, item.piecesPerCarton)}</span></div>
-            <div><small>{item.priceMode === "carton" ? "سعر الكرتون" : "سعر الفرد"}</small><span>{formatMoney(item.unitPrice)}</span></div>
-            <strong>{formatMoney(item.total)}</strong>
+      <form
+        className="panel mini-form"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          await run(
+            { type: "party.create", name, phone },
+            "تمت إضافة الطرف كعميل ومورد تلقائيًا",
+          );
+          setName("");
+          setPhone("");
+        }}
+      >
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="اسم العميل أو المورد"
+        />
+        <input
+          dir="ltr"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="رقم الهاتف"
+        />
+        <button className="primary">
+          <Plus /> إضافة طرف
+        </button>
+      </form>
+      <div className="party-grid">
+        {list.map((p) => (
+          <article
+            className="party-card"
+            key={p.id}
+            onClick={() => openParty(p)}
+          >
+            <div className="avatar">{p.name.slice(0, 1)}</div>
+            <div>
+              <h3>{p.name}</h3>
+              <small dir="ltr">{p.phone || "—"}</small>
+              <div className="balances">
+                <span>
+                  لنا عليه <b>{money(p.receivable)}</b>
+                </span>
+                <span>
+                  له علينا <b>{money(p.payable)}</b>
+                </span>
+              </div>
+            </div>
+            <button className="soft">كشف الحساب</button>
           </article>
         ))}
       </div>
-      <div className="sale-detail-total"><span>الإجمالي</span><strong>{formatMoney(sale.total)}</strong></div>
-    </div>
+    </section>
+  );
+}
+function PartyPage({
+  party,
+  data,
+  close,
+  openDoc,
+  run,
+}: {
+  party: Party;
+  data: BootstrapData;
+  close: () => void;
+  openDoc: (id: string) => void;
+  run: RunCommand;
+}) {
+  const [from, setFrom] = useState(""),
+    [to, setTo] = useState(""),
+    [amount, setAmount] = useState(""),
+    [side, setSide] = useState("receivable"),
+    [action, setAction] = useState("payment");
+  const docs = data.documents.filter(
+    (d) =>
+      d.partyId === party.id &&
+      (!from || d.occurredAt.slice(0, 10) >= from) &&
+      (!to || d.occurredAt.slice(0, 10) <= to),
+  );
+  async function submit() {
+    await run(
+      {
+        type: `${action}.post`,
+        partyId: party.id,
+        amount: val(amount),
+        side,
+        paymentMethod: "cash",
+      },
+      action === "offset" ? "تمت المقاصة" : "تم تسجيل العملية",
+    );
+    setAmount("");
+  }
+  return (
+    <section>
+      <button className="back" onClick={close}>
+        ← العودة إلى الأطراف
+      </button>
+      <div className="hero party-hero">
+        <div>
+          <span>حساب طرف موحد</span>
+          <h2>{party.name}</h2>
+          <p dir="ltr">{party.phone || "—"}</p>
+        </div>
+        <div className="hero-stats">
+          <span>
+            لنا عليه <b>{money(party.receivable)}</b>
+          </span>
+          <span>
+            له علينا <b>{money(party.payable)}</b>
+          </span>
+          <span>
+            الصافي <b>{money(party.net)}</b>
+          </span>
+        </div>
+      </div>
+      <div className="panel form-row">
+        <label>
+          العملية
+          <select value={action} onChange={(e) => setAction(e.target.value)}>
+            <option value="payment">تسجيل سداد</option>
+            <option value="settlement">مخالصة/تسوية</option>
+            <option value="offset">مقاصة</option>
+          </select>
+        </label>
+        {action !== "offset" && (
+          <label>
+            جهة الرصيد
+            <select value={side} onChange={(e) => setSide(e.target.value)}>
+              <option value="receivable">مبلغ لنا عليه</option>
+              <option value="payable">مبلغ له علينا</option>
+            </select>
+          </label>
+        )}
+        <label>
+          المبلغ
+          <Num value={amount} onChange={setAmount} />
+        </label>
+        <button className="primary" onClick={() => void submit()}>
+          تسجيل العملية
+        </button>
+      </div>
+      <div className="filters">
+        <label>
+          من
+          <input
+            type="date"
+            dir="ltr"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+        </label>
+        <label>
+          إلى
+          <input
+            type="date"
+            dir="ltr"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
+        </label>
+      </div>
+      <Recent
+        title="الفواتير والدفعات والتسويات"
+        docs={docs}
+        openDoc={openDoc}
+      />
+    </section>
   );
 }
 
-function CustomerPaymentForm({ customer, onSubmit }: { customer?: Customer; onSubmit: (customerId: string, amount: number, method: PaymentMethod) => void }) {
-  const [amount, setAmount] = useState(customer ? String(customer.balance) : "");
-  const [method, setMethod] = useState<PaymentMethod>("cash");
-  if (!customer) return <EmptyState icon={CircleAlert} title="الزبون غير موجود" text="أغلق النافذة وحاول مجددًا." />;
-  return <form className="business-form" onSubmit={(event) => { event.preventDefault(); onSubmit(customer.id, Number(amount), method); }}><div className="payment-customer-summary"><span className="customer-avatar">{customer.name.slice(0, 1)}</span><div><strong>{customer.name}</strong><span>الرصيد الحالي: {formatMoney(customer.balance)}</span></div></div><label><span>المبلغ المسدد</span><input type="number" min="1" max={customer.balance} value={amount} onChange={(event) => setAmount(event.target.value)} required /></label><div className="payment-methods modal-payment-methods">{paymentMethods.map((item) => { const Icon = paymentIcons[item.id]; return <button type="button" key={item.id} className={method === item.id ? "is-active" : ""} onClick={() => setMethod(item.id)}><Icon size={17} />{item.shortLabel}</button>; })}</div><div className="modal-actions"><button type="submit" className="primary-button"><HandCoins size={18} /> تسجيل السداد</button></div></form>;
+function Warehouses({
+  data,
+  run,
+  openDoc,
+}: {
+  data: BootstrapData;
+  run: RunCommand;
+  openDoc: (id: string) => void;
+}) {
+  const [wh, setWh] = useState(data.warehouses[0]?.id ?? ""),
+    [q, setQ] = useState(""),
+    [newName, setNewName] = useState(""),
+    [productModal, setProductModal] = useState(false),
+    [editingProduct, setEditingProduct] = useState<Product | null>(null),
+    [rename, setRename] = useState(""),
+    [moveProduct, setMoveProduct] = useState(""),
+    [from, setFrom] = useState(""),
+    [to, setTo] = useState("");
+  const active = data.warehouses.find((w) => w.id === wh),
+    products = q
+      ? data.products.filter((p) =>
+          `${p.name} ${p.sku}`.toLowerCase().includes(q.toLowerCase()),
+        )
+      : [],
+    moves = data.movements.filter(
+      (m) =>
+        m.warehouseId === wh &&
+        (!moveProduct || m.productId === moveProduct) &&
+        (!from || m.occurredAt.slice(0, 10) >= from) &&
+        (!to || m.occurredAt.slice(0, 10) <= to),
+    );
+  return (
+    <section>
+      <div className="warehouse-head">
+        <label>
+          المخزن النشط
+          <select
+            value={wh}
+            onChange={(e) => {
+              setWh(e.target.value);
+              setQ("");
+              setRename("");
+            }}
+          >
+            {data.warehouses.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          className="soft"
+          disabled={active?.isSalesDefault}
+          onClick={() =>
+            void run(
+              { type: "warehouse.default", warehouseId: wh },
+              "تم تحديد مخزن البيع الافتراضي",
+            )
+          }
+        >
+          جعله مخزن البيع الافتراضي
+        </button>
+      </div>
+      <div className="hero">
+        <div>
+          <span>المخزن المختار</span>
+          <h2>{active?.name}</h2>
+        </div>
+        <b>{active?.isSalesDefault ? "مخزن البيع الافتراضي" : "مخزن مسجل"}</b>
+      </div>
+      <div className="panel mini-form">
+        <input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder="اسم مخزن جديد"
+        />
+        <button
+          className="soft"
+          onClick={async () => {
+            await run(
+              { type: "warehouse.create", name: newName },
+              "تمت إضافة المخزن",
+            );
+            setNewName("");
+          }}
+        >
+          <Plus /> إضافة مخزن
+        </button>
+        <button
+          className="primary"
+          onClick={() => {
+            setEditingProduct(null);
+            setProductModal(true);
+          }}
+        >
+          <Plus /> إضافة منتج
+        </button>
+        <input
+          value={rename}
+          onChange={(e) => setRename(e.target.value)}
+          placeholder={`تعديل اسم ${active?.name ?? "المخزن"}`}
+        />
+        <button
+          className="soft"
+          disabled={!active || !rename.trim()}
+          onClick={async () => {
+            await run(
+              { type: "warehouse.update", id: wh, name: rename },
+              "تم تعديل اسم المخزن",
+            );
+            setRename("");
+          }}
+        >
+          حفظ اسم المخزن
+        </button>
+      </div>
+      {productModal && (
+        <ProductForm
+          run={run}
+          product={editingProduct}
+          close={() => setProductModal(false)}
+        />
+      )}
+      <div className="panel">
+        <Heading title="منتجات المخزن" />
+        <label className="search">
+          <Search />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="ابحث لتظهر المنتجات"
+          />
+        </label>
+        {products.map((p) => (
+          <div className="product-row" key={p.id}>
+            <span>
+              <strong>{p.name}</strong>
+              <small>{p.sku}</small>
+            </span>
+            <b>{quantity(p.stocks[wh] ?? 0, p.piecesPerCarton)}</b>
+            <span>
+              {p.piecePrice == null ? "بدون سعر بيع" : money(p.piecePrice)}
+            </span>
+            <button
+              className="soft"
+              onClick={() => {
+                setEditingProduct(p);
+                setProductModal(true);
+              }}
+            >
+              تعديل
+            </button>
+          </div>
+        ))}
+        {!q && (
+          <Empty text="لن نعرض كتالوجًا بطول فاتورة الكهرباء. ابدأ بالبحث." />
+        )}
+      </div>
+      <div className="panel">
+        <Heading title="حركة المنتجات" />
+        <div className="filters">
+          <select
+            value={moveProduct}
+            onChange={(e) => setMoveProduct(e.target.value)}
+          >
+            <option value="">كل المنتجات</option>
+            {data.products.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <input
+            type="date"
+            dir="ltr"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+          <input
+            type="date"
+            dir="ltr"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
+        </div>
+        {moves.map((m) => (
+          <button
+            className="list-row clickable"
+            key={m.id}
+            onClick={() => openDoc(m.documentId)}
+          >
+            <span>
+              <strong>{m.productName}</strong>
+              <small>
+                {m.type} · {m.documentNumber}
+              </small>
+            </span>
+            <b className={m.quantityDelta >= 0 ? "green" : "red"}>
+              {m.quantityDelta >= 0 ? "+" : ""}
+              {number(m.quantityDelta)}
+            </b>
+            <small>
+              {m.balanceBefore} ← {m.balanceAfter}
+            </small>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+function ProductForm({
+  run,
+  close,
+  product,
+}: {
+  run: RunCommand;
+  close: () => void;
+  product: Product | null;
+}) {
+  const [name, setName] = useState(product?.name ?? ""),
+    [cost, setCost] = useState(String(product?.pieceCost ?? "")),
+    [price, setPrice] = useState(String(product?.piecePrice ?? "")),
+    [carton, setCarton] = useState(String(product?.cartonPrice ?? "")),
+    [pack, setPack] = useState(String(product?.piecesPerCarton ?? 1)),
+    [sku, setSku] = useState(product?.sku ?? ""),
+    [barcode, setBarcode] = useState(product?.barcode ?? "");
+  return (
+    <form
+      className="panel form-grid"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const sensitive =
+          product &&
+          (name.trim() !== product.name || val(cost) !== product.pieceCost);
+        const confirmed = sensitive
+          ? window.confirm(
+              `أنت تغيّر ${name.trim() !== product.name ? `اسم المنتج من «${product.name}» إلى «${name}»` : ""}${name.trim() !== product.name && val(cost) !== product.pieceCost ? " و" : ""}${val(cost) !== product.pieceCost ? ` سعر الشراء من ${product.pieceCost} إلى ${val(cost)} MRU` : ""}. هل تريد المتابعة؟`,
+            )
+          : true;
+        if (!confirmed) return;
+        await run(
+          {
+            type: product ? "product.update" : "product.create",
+            id: product?.id,
+            name,
+            pieceCost: val(cost),
+            piecePrice: price,
+            cartonPrice: carton,
+            piecesPerCarton: val(pack),
+            sku,
+            barcode,
+            confirmSensitive: confirmed,
+          },
+          product ? "تم تعديل المنتج" : "تم إنشاء المنتج",
+        );
+        close();
+      }}
+    >
+      <label>
+        1. اسم المنتج
+        <input value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <label>
+        2. سعر الشراء للفرد
+        <Num value={cost} onChange={setCost} />
+      </label>
+      <label>
+        3. سعر البيع (اختياري)
+        <Num value={price} onChange={setPrice} />
+      </label>
+      <label>
+        4. سعر بيع الكرتون (اختياري)
+        <Num value={carton} onChange={setCarton} />
+      </label>
+      <label>
+        5. عدد الأفراد داخل الكرتون
+        <Num value={pack} onChange={setPack} />
+      </label>
+      <label>
+        رمز المنتج
+        <input dir="ltr" value={sku} onChange={(e) => setSku(e.target.value)} />
+      </label>
+      <label>
+        الباركود
+        <input
+          dir="ltr"
+          value={barcode}
+          onChange={(e) => setBarcode(e.target.value)}
+        />
+      </label>
+      <button className="primary">
+        {product ? "حفظ التعديلات" : "حفظ المنتج"}
+      </button>
+    </form>
+  );
 }
 
-function EmptyState({ icon: Icon, title, text }: { icon: LucideIcon; title: string; text: string }) {
-  return <div className="empty-state"><Icon size={28} /><strong>{title}</strong><span>{text}</span></div>;
+function MultiStockForm({
+  data,
+  mode,
+  run,
+  openDoc,
+}: {
+  data: BootstrapData;
+  mode: "transfer" | "adjust";
+  run: RunCommand;
+  openDoc: (id: string) => void;
+}) {
+  const [from, setFrom] = useState(""),
+    [to, setTo] = useState(""),
+    [q, setQ] = useState(""),
+    [lines, setLines] = useState<DraftLine[]>([]);
+  async function submit() {
+    const body =
+      mode === "transfer"
+        ? {
+            type: "transfer.post",
+            fromWarehouseId: from,
+            toWarehouseId: to,
+            lines: lines.map((l) => ({
+              productId: l.productId,
+              quantity: val(l.quantity),
+            })),
+          }
+        : {
+            type: "adjustment.post",
+            warehouseId: from,
+            lines: lines.map((l) => ({
+              productId: l.productId,
+              actualQuantity: val(l.actualQuantity),
+            })),
+          };
+    const id = await run(
+      body,
+      mode === "transfer" ? "تم التحويل بين المخازن" : "تم تسجيل تصحيح المخزون",
+    );
+    setLines([]);
+    openDoc(id);
+  }
+  return (
+    <div className="panel form-stack">
+      <div className="form-row">
+        <label>
+          {mode === "transfer" ? "من" : "المخزن"}
+          <select value={from} onChange={(e) => setFrom(e.target.value)}>
+            <option value="">اختر المخزن</option>
+            {data.warehouses.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {mode === "transfer" && (
+          <label>
+            إلى
+            <select value={to} onChange={(e) => setTo(e.target.value)}>
+              <option value="">اختر الوجهة</option>
+              {data.warehouses
+                .filter((w) => w.id !== from)
+                .map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+        )}
+      </div>
+      <SearchProducts
+        data={data}
+        query={q}
+        setQuery={setQ}
+        onPick={(p) => {
+          setLines((x) =>
+            x.some((l) => l.productId === p.id) ? x : [...x, lineFor(p)],
+          );
+          setQ("");
+        }}
+      />
+      {lines.map((l) => (
+        <LineEditor
+          key={l.productId}
+          line={l}
+          product={data.products.find((p) => p.id === l.productId)!}
+          mode={mode}
+          onChange={(x) =>
+            setLines((s) => s.map((a) => (a.productId === x.productId ? x : a)))
+          }
+          onRemove={() =>
+            setLines((s) => s.filter((a) => a.productId !== l.productId))
+          }
+        />
+      ))}
+      <button
+        className="primary"
+        disabled={!from || (mode === "transfer" && !to) || !lines.length}
+        onClick={() => void submit()}
+      >
+        {mode === "transfer" ? "اعتماد التحويل" : "حفظ عملية التصحيح"}
+      </button>
+    </div>
+  );
+}
+function Transfer(p: {
+  data: BootstrapData;
+  run: RunCommand;
+  openDoc: (id: string) => void;
+}) {
+  return (
+    <section>
+      <Heading title="تحويل مرن بين أي مخزنين" />
+      <MultiStockForm {...p} mode="transfer" />
+      <Recent
+        title="سجل التحويلات"
+        docs={p.data.documents.filter((d) => d.kind === "transfer")}
+        openDoc={p.openDoc}
+      />
+    </section>
+  );
+}
+function Adjustment(p: {
+  data: BootstrapData;
+  run: RunCommand;
+  openDoc: (id: string) => void;
+}) {
+  return (
+    <section>
+      <Heading title="تصحيح المخزون بالجرد الفعلي" />
+      <MultiStockForm {...p} mode="adjust" />
+      <Recent
+        title="سجل التصحيحات"
+        docs={p.data.documents.filter((d) => d.kind === "adjustment")}
+        openDoc={p.openDoc}
+      />
+    </section>
+  );
+}
+function Records({
+  data,
+  openDoc,
+}: {
+  data: BootstrapData;
+  openDoc: (id: string) => void;
+}) {
+  const [kind, setKind] = useState(""),
+    [q, setQ] = useState(""),
+    [from, setFrom] = useState(""),
+    [to, setTo] = useState("");
+  const docs = data.documents.filter(
+    (d) =>
+      (!kind || d.kind === kind) &&
+      (!q ||
+        `${d.number} ${d.partyName ?? ""} ${d.title ?? ""}`
+          .toLowerCase()
+          .includes(q.toLowerCase())) &&
+      (!from || d.occurredAt.slice(0, 10) >= from) &&
+      (!to || d.occurredAt.slice(0, 10) <= to),
+  );
+  return (
+    <section>
+      <div className="filters">
+        <label className="search">
+          <Search />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="رقم المستند أو الطرف"
+          />
+        </label>
+        <select value={kind} onChange={(e) => setKind(e.target.value)}>
+          <option value="">كل المعاملات</option>
+          {Object.entries(kindLabels).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
+        <input
+          type="date"
+          dir="ltr"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+        />
+        <input
+          type="date"
+          dir="ltr"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+        />
+      </div>
+      <Recent title="كل السجلات القابلة للتتبع" docs={docs} openDoc={openDoc} />
+    </section>
+  );
+}
+function Reports({
+  data,
+  openDoc,
+}: {
+  data: BootstrapData;
+  openDoc: (id: string) => void;
+}) {
+  const sales = data.documents
+      .filter((d) => d.kind === "sale")
+      .reduce((s, d) => s + d.total, 0),
+    purchases = data.documents
+      .filter((d) => d.kind === "purchase")
+      .reduce((s, d) => s + d.total, 0),
+    expenses = data.documents
+      .filter((d) => d.kind === "expense")
+      .reduce((s, d) => s + d.total, 0);
+  return (
+    <section>
+      <div className="stats">
+        <Stat label="المبيعات" value={money(sales)} />
+        <Stat label="المشتريات" value={money(purchases)} />
+        <Stat label="المصاريف" value={money(expenses)} />
+        <Stat label="صافي التدفق" value={money(sales - purchases - expenses)} />
+      </div>
+      <Recent title="آخر المعاملات" docs={data.documents} openDoc={openDoc} />
+    </section>
+  );
+}
+function DocumentDetail({
+  document,
+  data,
+  close,
+  run,
+}: {
+  document: DocumentRecord;
+  data: BootstrapData;
+  close: () => void;
+  run: RunCommand;
+}) {
+  const [returning, setReturning] = useState(false),
+    [returns, setReturns] = useState<Record<string, string>>({});
+  function download() {
+    const content = [
+      `${kindLabels[document.kind]} ${document.number}`,
+      `التاريخ: ${document.occurredAt}`,
+      `الطرف: ${document.partyName ?? "—"}`,
+      `المخزن: ${document.warehouseName ?? "—"}`,
+      ...document.lines.map(
+        (l) =>
+          `${l.description} | ${l.quantity} × ${l.unitPrice} = ${l.lineTotal}`,
+      ),
+      `الإجمالي: ${document.total} MRU`,
+    ].join("\n");
+    const a = window.document.createElement("a");
+    a.href = URL.createObjectURL(
+      new Blob([content], { type: "text/plain;charset=utf-8" }),
+    );
+    a.download = `${document.number}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+  return (
+    <section>
+      <div className="doc-actions">
+        <button className="back" onClick={close}>
+          ← العودة
+        </button>
+        <button className="soft" onClick={() => window.print()}>
+          <Printer /> طباعة
+        </button>
+        <button className="soft" onClick={download}>
+          تنزيل
+        </button>
+        {document.kind === "sale" && (
+          <button className="warn" onClick={() => setReturning(!returning)}>
+            <RotateCcw /> إرجاع جزئي
+          </button>
+        )}
+      </div>
+      <article className="document">
+        <div className="document-head">
+          <div>
+            <span>{kindLabels[document.kind]}</span>
+            <h2>{document.number}</h2>
+            <small>{document.occurredAt}</small>
+          </div>
+          <b>{document.status === "posted" ? "معتمد" : document.status}</b>
+        </div>
+        <div className="doc-meta">
+          <span>
+            الطرف <b>{document.partyName ?? "—"}</b>
+          </span>
+          <span>
+            المخزن <b>{document.warehouseName ?? "—"}</b>
+          </span>
+          {document.destinationWarehouseName && (
+            <span>
+              الوجهة <b>{document.destinationWarehouseName}</b>
+            </span>
+          )}
+          <span>
+            طريقة الدفع <b>{document.paymentMethod ?? "—"}</b>
+          </span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>البيان</th>
+              <th>الكمية</th>
+              <th>سعر الوحدة</th>
+              <th>الإجمالي</th>
+            </tr>
+          </thead>
+          <tbody>
+            {document.lines.map((l) => (
+              <tr key={l.id}>
+                <td>{l.description}</td>
+                <td>{number(l.quantity)}</td>
+                <td>{money(l.unitPrice)}</td>
+                <td>{money(l.lineTotal)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="document-total">
+          <span>الإجمالي</span>
+          <strong>{money(document.total)}</strong>
+        </div>
+        {document.dueTotal > 0 && (
+          <div className="due">
+            <span>المستحق الأصلي {money(document.dueTotal)}</span>
+            <span>المسوّى {money(document.paidTotal)}</span>
+            <b>
+              المتبقي{" "}
+              {money(Math.max(0, document.dueTotal - document.paidTotal))}
+            </b>
+          </div>
+        )}
+      </article>
+      {returning && (
+        <div className="panel">
+          <h3>حدد الكميات المرتجعة</h3>
+          {document.lines
+            .filter((l) => l.productId)
+            .map((l) => (
+              <label className="return-line" key={l.id}>
+                <span>
+                  {l.description} — المباع {number(l.quantity)}
+                </span>
+                <Num
+                  value={returns[l.productId!] ?? ""}
+                  onChange={(v) =>
+                    setReturns((x) => ({ ...x, [l.productId!]: v }))
+                  }
+                />
+              </label>
+            ))}
+          <button
+            className="primary"
+            onClick={async () => {
+              await run(
+                {
+                  type: "sale.return",
+                  saleId: document.id,
+                  lines: Object.entries(returns)
+                    .filter(([, v]) => val(v) > 0)
+                    .map(([productId, v]) => ({ productId, quantity: val(v) })),
+                },
+                "تم الإرجاع وتحديث المخزون والحساب",
+              );
+              close();
+            }}
+          >
+            اعتماد الإرجاع
+          </button>
+        </div>
+      )}
+      <Linked document={document} data={data} />
+    </section>
+  );
+}
+function Linked({
+  document,
+  data,
+}: {
+  document: DocumentRecord;
+  data: BootstrapData;
+}) {
+  const linked = data.documents.filter(
+    (d) =>
+      d.parentDocumentId === document.id || d.id === document.parentDocumentId,
+  );
+  return linked.length ? (
+    <div className="panel">
+      <Heading title="المعاملات المرتبطة" />
+      {linked.map((d) => (
+        <div className="list-row" key={d.id}>
+          <span>
+            <strong>{kindLabels[d.kind]}</strong>
+            <small>{d.number}</small>
+          </span>
+          <b>{money(d.total)}</b>
+        </div>
+      ))}
+    </div>
+  ) : null;
+}
+
+function Recent({
+  title,
+  docs,
+  openDoc,
+}: {
+  title: string;
+  docs: DocumentRecord[];
+  openDoc: (id: string) => void;
+}) {
+  return (
+    <div className="panel records">
+      <Heading title={title} />
+      {docs.slice(0, 100).map((d) => (
+        <button
+          className="list-row clickable"
+          key={d.id}
+          onClick={() => openDoc(d.id)}
+        >
+          <span>
+            <strong>{d.partyName ?? d.title ?? kindLabels[d.kind]}</strong>
+            <small>
+              {d.number} ·{" "}
+              {new Date(d.occurredAt).toLocaleString("ar-MR-u-nu-latn")}
+            </small>
+          </span>
+          <span className="status">
+            {d.dueTotal > 0 && d.paidTotal < d.dueTotal
+              ? "مستحق"
+              : "مدفوع/معتمد"}
+          </span>
+          <b>{money(d.total)}</b>
+        </button>
+      ))}
+      {!docs.length && <Empty text="لا توجد معاملات بعد" />}
+    </div>
+  );
+}
+function Heading({ title }: { title: string }) {
+  return (
+    <div className="heading">
+      <h2>{title}</h2>
+    </div>
+  );
+}
+function Empty({ text }: { text: string }) {
+  return <div className="empty">{text}</div>;
+}
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="stat">
+      <small>{label}</small>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+function InlineCreate({
+  label,
+  onSave,
+}: {
+  label: string;
+  onSave: (v: string) => Promise<void>;
+}) {
+  const [v, setV] = useState("");
+  return (
+    <div className="mini-form">
+      <input
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        placeholder={label}
+      />
+      <button className="primary" onClick={() => void onSave(v)}>
+        حفظ
+      </button>
+    </div>
+  );
 }

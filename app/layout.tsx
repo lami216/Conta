@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Conta — نظام المتجر",
-  description: "نقطة بيع وإدارة مخزون وتحويلات وحسابات بواجهة عربية بسيطة.",
+  description: "نظام نقاط بيع ومشتريات ومخازن وحسابات قابل للتدقيق.",
   other: {
     "codex-preview": "development",
   },
