@@ -1,7 +1,9 @@
 import { getMongo } from "../../../lib/mongodb";
 import { log } from "../../../lib/log";
+import { sessionFromRequest } from "../../../lib/auth";
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!sessionFromRequest(request)) return Response.json({ error: "غير مصرح" }, { status: 401 });
   try {
     const db = await getMongo();
     const [parties, warehouses, products, documents, movements, recurringExpenses] = await Promise.all([

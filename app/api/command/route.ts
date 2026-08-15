@@ -1,12 +1,13 @@
 import type { ClientSession, Db } from "mongodb";
-import { getMongo, getMongoClient } from "../../../lib/mongodb";
-import { log } from "../../../lib/log";
+import { getMongo, getMongoClient } from "../../../lib/mongodb.ts";
+import { log } from "../../../lib/log.ts";
+import { sessionFromRequest, validSameOrigin } from "../../../lib/auth.ts";
 
 type Input = Record<string, unknown>;
-type Line = { productId: string; quantity: number; description?: string; piecePrice?: number; cartonPrice?: number; unitPrice?: number; actualQuantity?: number };
+type Line = { productId: string; quantity: number; description?: string; piecePrice?: number; cartonPrice?: number; pricingMode?: string; unitPrice?: number; actualQuantity?: number };
 type WarehouseDoc = { _id: string; name: string; isSalesDefault?: boolean; [key: string]: unknown };
 const warehouses = (db: Db) => db.collection<WarehouseDoc>("warehouses");
-class CommandError extends Error { constructor(message: string, public status = 400) { super(message); } }
+class CommandError extends Error { status: number; constructor(message: string, status = 400) { super(message); this.status = status; } }
 const id = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 const text = (v: unknown) => typeof v === "string" ? v.trim() : "";
 const num = (v: unknown) => typeof v === "number" ? v : Number(v);
@@ -19,7 +20,7 @@ const lines = (body: Input): Line[] => {
   return body.lines.map((raw) => {
     const r = raw as Input, productId = text(r.productId), quantity = positive(r.quantity, "الكمية");
     if (!productId || seen.has(productId)) throw new CommandError("المنتجات غير صالحة أو مكررة"); seen.add(productId);
-    return { productId, quantity, piecePrice: num(r.piecePrice), cartonPrice: num(r.cartonPrice), unitPrice: num(r.unitPrice), actualQuantity: num(r.actualQuantity) };
+    return { productId, quantity, piecePrice: num(r.piecePrice), cartonPrice: num(r.cartonPrice), pricingMode: text(r.pricingMode), unitPrice: num(r.unitPrice), actualQuantity: num(r.actualQuantity) };
   });
 };
 const baseDocument = (kind: string, prefix: string) => ({
@@ -43,14 +44,17 @@ async function products(db: Db, session: ClientSession, input: Line[]) {
 async function changeStock(db: Db, session: ClientSession, product: Record<string, unknown>, warehouse: Record<string, unknown>, delta: number, document: Record<string, unknown>, type: string) {
   const warehouseId = String(warehouse._id), productId = String(product.id), before = Number((product.stocks as Record<string, number> | undefined)?.[warehouseId] ?? 0), after = before + delta;
   if (after < 0) throw new CommandError(`المخزون غير كافٍ للمنتج ${product.name}`);
-  const result = await db.collection("products").updateOne({ id: productId, [`stocks.${warehouseId}`]: before }, { $set: { [`stocks.${warehouseId}`]: after } }, { session });
+  const stockPath = `stocks.${warehouseId}`;
+  const stockMatch = before === 0 ? { $or: [{ [stockPath]: 0 }, { [stockPath]: { $exists: false } }] } : { [stockPath]: before };
+  const result = await db.collection("products").updateOne({ id: productId, ...stockMatch }, { $set: { [stockPath]: after } }, { session });
   if (!result.matchedCount) throw new CommandError("تغير المخزون أثناء العملية، أعد المحاولة", 409);
-  (product.stocks as Record<string, number>)[warehouseId] = after;
+  const currentStocks = (product.stocks ??= {}) as Record<string, number>;
+  currentStocks[warehouseId] = after;
   await db.collection("stockMovements").insertOne({ id: id("mov"), documentId: document.id, documentNumber: document.number, warehouseId, warehouseName: warehouse.name, productId, productName: product.name, type, quantityDelta: delta, balanceBefore: before, balanceAfter: after, occurredAt: document.occurredAt }, { session });
   return { before, after };
 }
 
-async function execute(db: Db, session: ClientSession, body: Input) {
+export async function execute(db: Db, session: ClientSession, body: Input) {
   const type = text(body.type);
   if (type === "party.create") {
     const name = text(body.name), phone = text(body.phone); if (!name) throw new CommandError("اسم الطرف مطلوب");
@@ -74,10 +78,10 @@ async function execute(db: Db, session: ClientSession, body: Input) {
   }
   if (type === "sale.post" || type === "purchase.post") {
     const input = lines(body), isSale = type === "sale.post", { warehouse, party, warehouseId, partyId } = await refs(db, session, body, !isSale || text(body.paymentMethod) === "note"), map = await products(db, session, input), paymentMethod = text(body.paymentMethod) || "cash";
-    const calculated = input.map(line => { const p = map.get(line.productId)!; let unitPrice: number, total: number; if (isSale) { const piece = positive(line.piecePrice, "سعر الفرد", true), carton = positive(line.cartonPrice, "سعر الكرتون", true), pack = Number(p.piecesPerCarton); const cartons = Math.floor(line.quantity / pack), pieces = line.quantity % pack; total = Math.round(cartons * carton + pieces * (cartons ? carton / pack : piece)); unitPrice = total / line.quantity; } else { unitPrice = positive(line.unitPrice, "سعر الشراء", true); total = unitPrice * line.quantity; } return { id: id("line"), productId: line.productId, description: p.name, quantity: line.quantity, unitPrice, lineTotal: total }; });
+    const calculated = input.map(line => { const p = map.get(line.productId)!; let unitPrice: number, total: number; if (isSale) { const pack = Number(p.piecesPerCarton); if (!Number.isInteger(pack) || pack <= 0) throw new CommandError("عدد أفراد الكرتون غير صالح"); const mode = line.pricingMode; if (mode !== "piece" && mode !== "carton") throw new CommandError("طريقة التسعير مطلوبة"); if (mode === "carton" && line.quantity < pack) throw new CommandError("لا يمكن استخدام سعر الكرتون لكمية أقل من كرتون"); const price = positive(mode === "carton" ? line.cartonPrice : line.piecePrice, mode === "carton" ? "سعر الكرتون" : "سعر الفرد", true); total = Math.round(mode === "carton" ? line.quantity * price / pack : line.quantity * price); unitPrice = total / line.quantity; } else { unitPrice = positive(line.unitPrice, "سعر الشراء", true); total = Math.round(unitPrice * line.quantity); } return { id: id("line"), productId: line.productId, description: p.name, quantity: line.quantity, unitPrice, lineTotal: total, ...(isSale ? { pricingMode: line.pricingMode } : {}) }; });
     const total = calculated.reduce((s, l) => s + l.lineTotal, 0), requestedPaid = body.paidAmount == null ? (paymentMethod === "note" ? 0 : total) : positive(body.paidAmount, "المبلغ المدفوع", true); if (requestedPaid > total) throw new CommandError("المبلغ المدفوع أكبر من الإجمالي"); const due = total - requestedPaid;
     if (due > 0 && !party) throw new CommandError("يجب اختيار طرف عند وجود مبلغ مستحق");
-    const doc = { ...baseDocument(isSale ? "sale" : "purchase", isSale ? "SAL" : "PUR"), partyId: partyId || null, partyName: party?.name ?? null, warehouseId, warehouseName: warehouse.name, destinationWarehouseId: null, destinationWarehouseName: null, parentDocumentId: null, paymentMethod, title: null, total, dueTotal: due > 0 ? total : 0, paidTotal: requestedPaid, lines: calculated };
+    const doc = { ...baseDocument(isSale ? "sale" : "purchase", isSale ? "SAL" : "PUR"), partyId: partyId || null, partyName: party?.name ?? null, warehouseId, warehouseName: warehouse.name, destinationWarehouseId: null, destinationWarehouseName: null, parentDocumentId: null, paymentMethod, title: null, total, dueTotal: due, paidTotal: requestedPaid, lines: calculated };
     for (const line of input) await changeStock(db, session, map.get(line.productId)!, warehouse, isSale ? -line.quantity : line.quantity, doc, isSale ? "sale" : "purchase");
     await db.collection("documents").insertOne(doc, { session });
     if (due) await db.collection("parties").updateOne({ id: partyId }, { $inc: isSale ? { receivable: due, net: due } : { payable: due, net: -due } }, { session });
@@ -95,7 +99,7 @@ async function execute(db: Db, session: ClientSession, body: Input) {
   }
   if (type === "sale.return") {
     const input = lines(body), saleId = text(body.saleId), sale = await db.collection("documents").findOne({ id: saleId, kind: "sale", status: "posted" }, { session }); if (!sale) throw new CommandError("فاتورة البيع غير موجودة", 404); const prior = await db.collection("documents").find({ parentDocumentId: saleId, kind: "return" }, { session }).toArray(), returned = new Map<string, number>(); for (const d of prior) for (const l of d.lines as Line[]) returned.set(l.productId, (returned.get(l.productId) ?? 0) + l.quantity); const saleLines = new Map((sale.lines as Line[]).map(l => [l.productId, l])); const map = await products(db, session, input), warehouse = await warehouses(db).findOne({ _id: String(sale.warehouseId) }, { session }); if (!warehouse) throw new CommandError("مخزن الفاتورة غير موجود");
-    const calculated = input.map(l => { const original = saleLines.get(l.productId); if (!original || l.quantity + (returned.get(l.productId) ?? 0) > original.quantity) throw new CommandError("كمية الإرجاع تتجاوز الكمية القابلة للإرجاع"); return { id: id("line"), productId: l.productId, description: original.description, quantity: l.quantity, unitPrice: original.unitPrice, lineTotal: l.quantity * Number(original.unitPrice) }; }); const total = calculated.reduce((s, l) => s + l.lineTotal, 0), dueCredit = Math.min(total, Math.max(0, Number(sale.dueTotal) - Number(sale.paidTotal))), doc = { ...baseDocument("return", "RET"), partyId: sale.partyId, partyName: sale.partyName, warehouseId: sale.warehouseId, warehouseName: sale.warehouseName, destinationWarehouseId: null, destinationWarehouseName: null, parentDocumentId: saleId, paymentMethod: sale.paymentMethod, title: null, total, dueTotal: 0, paidTotal: total - dueCredit, lines: calculated };
+    const calculated = input.map(l => { const original = saleLines.get(l.productId); if (!original || l.quantity + (returned.get(l.productId) ?? 0) > original.quantity) throw new CommandError("كمية الإرجاع تتجاوز الكمية القابلة للإرجاع"); return { id: id("line"), productId: l.productId, description: original.description, quantity: l.quantity, unitPrice: original.unitPrice, lineTotal: Math.round(l.quantity * Number(original.unitPrice)) }; }); const total = calculated.reduce((s, l) => s + l.lineTotal, 0), priorDueCredits = prior.reduce((sum, d) => sum + Math.max(0, Number(d.total) - Number(d.paidTotal)), 0), priorRefunds = prior.reduce((sum, d) => sum + Number(d.paidTotal), 0), dueCredit = Math.min(total, Math.max(0, Number(sale.dueTotal) - priorDueCredits)), refund = Math.min(total - dueCredit, Math.max(0, Number(sale.paidTotal) - priorRefunds)), doc = { ...baseDocument("return", "RET"), partyId: sale.partyId, partyName: sale.partyName, warehouseId: sale.warehouseId, warehouseName: sale.warehouseName, destinationWarehouseId: null, destinationWarehouseName: null, parentDocumentId: saleId, paymentMethod: sale.paymentMethod, title: null, total, dueTotal: total - dueCredit - refund, paidTotal: refund, lines: calculated };
     for (const line of input) await changeStock(db, session, map.get(line.productId)!, warehouse, line.quantity, doc, "sale-return"); await db.collection("documents").insertOne(doc, { session }); if (dueCredit && sale.partyId) await db.collection("parties").updateOne({ id: sale.partyId }, { $inc: { receivable: -dueCredit, net: -dueCredit } }, { session }); return doc.id;
   }
   if (["payment.post", "settlement.post", "offset.post"].includes(type)) {
@@ -108,6 +112,8 @@ async function execute(db: Db, session: ClientSession, body: Input) {
 }
 
 export async function POST(request: Request) {
+  if (!sessionFromRequest(request)) return Response.json({ error: "غير مصرح" }, { status: 401 });
+  if (!validSameOrigin(request)) return Response.json({ error: "طلب غير صالح" }, { status: 403 });
   let type = "unknown";
   try {
     const body = await request.json() as Input; type = text(body.type); const db = await getMongo(), client = getMongoClient(); let result = "";

@@ -1,5 +1,5 @@
 import { MongoClient, type Db } from "mongodb";
-import { log } from "./log";
+import { log } from "./log.ts";
 
 let client: MongoClient | undefined;
 let database: Db | undefined;
@@ -17,10 +17,15 @@ export function initializeMongo(): Promise<Db> {
       await database.command({ ping: 1 });
       await Promise.all([
         database.collection("parties").createIndex({ name: 1 }),
+        database.collection("parties").createIndex({ id: 1 }, { unique: true }),
+        database.collection("parties").createIndex({ phone: 1 }),
+        database.collection("products").createIndex({ id: 1 }, { unique: true }),
         database.collection("products").createIndex({ sku: 1 }, { unique: true }),
-        database.collection("products").createIndex({ barcode: 1 }, { sparse: true }),
+        database.collection("products").createIndex({ barcode: 1 }, { unique: true, partialFilterExpression: { barcode: { $type: "string", $gt: "" } }, name: "barcode_unique_nonempty" }),
+        database.collection("documents").createIndex({ id: 1 }, { unique: true }),
         database.collection("documents").createIndex({ number: 1 }, { unique: true }),
         database.collection("documents").createIndex({ partyId: 1, occurredAt: -1 }),
+        database.collection("documents").createIndex({ kind: 1, occurredAt: -1 }),
         database.collection("stockMovements").createIndex({ warehouseId: 1, productId: 1, occurredAt: -1 }),
         database.collection("auditEvents").createIndex({ createdAt: -1 }),
       ]);
