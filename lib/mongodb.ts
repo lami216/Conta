@@ -41,3 +41,7 @@ export function initializeMongo(): Promise<Db> {
 }
 
 export async function getMongo() { return database ?? initializeMongo(); }
+export function getMongoClient() {
+  if (!client) throw new Error("MongoDB is not initialized");
+  return client;
+}
