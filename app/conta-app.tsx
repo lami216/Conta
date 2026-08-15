@@ -406,6 +406,7 @@ function Pos({
   const [query, setQuery] = useState(""),
     [lines, setLines] = useState<DraftLine[]>([]),
     [payment, setPayment] = useState("cash"),
+    [paidAmount, setPaidAmount] = useState(""),
     [partyId, setPartyId] = useState(""),
     [quick, setQuick] = useState(false);
   const wh = data.warehouses.find((w) => w.isSalesDefault),
@@ -437,6 +438,7 @@ function Pos({
         type: "sale.post",
         warehouseId: wh?.id,
         paymentMethod: payment,
+        paidAmount: payment === "note" ? val(paidAmount) : total,
         partyId: payment === "note" ? partyId : null,
         lines: lines.map((l) => ({
           productId: l.productId,
@@ -518,6 +520,10 @@ function Pos({
           {payment === "note" && (
             <>
               <label>
+                المبلغ المدفوع
+                <Num value={paidAmount} onChange={setPaidAmount} />
+              </label>
+              <label>
                 العميل
                 <select
                   value={partyId}
@@ -543,7 +549,7 @@ function Pos({
           </div>
           <button
             className="primary wide"
-            disabled={!lines.length || !wh}
+            disabled={!lines.length || !wh || (payment === "note" && (!partyId || val(paidAmount) > total))}
             onClick={() => void submit()}
           >
             إتمام البيع
@@ -602,6 +608,7 @@ function Purchases({
     [query, setQuery] = useState(""),
     [lines, setLines] = useState<DraftLine[]>([]),
     [payment, setPayment] = useState("cash"),
+    [paidAmount, setPaidAmount] = useState(""),
     [addingWh, setAddingWh] = useState(false);
   function add(p: Product) {
     setLines((x) =>
@@ -616,6 +623,7 @@ function Purchases({
         partyId,
         warehouseId,
         paymentMethod: payment,
+        paidAmount: payment === "note" ? val(paidAmount) : undefined,
         lines: lines.map((l) => ({
           productId: l.productId,
           quantity: val(l.quantity),
@@ -737,6 +745,7 @@ function Purchases({
               <option value="note">مستحقة للمورد</option>
             </select>
           </label>
+          {payment === "note" && <label>المدفوع الآن<Num value={paidAmount} onChange={setPaidAmount} /></label>}
           <button
             className="primary"
             disabled={!locked || !warehouseId || !lines.length}
@@ -1384,6 +1393,7 @@ function MultiStockForm({
   const [from, setFrom] = useState(""),
     [to, setTo] = useState(""),
     [q, setQ] = useState(""),
+    [reason, setReason] = useState(""),
     [lines, setLines] = useState<DraftLine[]>([]);
   async function submit() {
     const body =
@@ -1400,6 +1410,7 @@ function MultiStockForm({
         : {
             type: "adjustment.post",
             warehouseId: from,
+            reason,
             lines: lines.map((l) => ({
               productId: l.productId,
               actualQuantity: val(l.actualQuantity),
@@ -1467,9 +1478,12 @@ function MultiStockForm({
           }
         />
       ))}
+      {mode === "adjust" && (
+        <label>سبب التصحيح<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="مثال: نتيجة الجرد الفعلي" /></label>
+      )}
       <button
         className="primary"
-        disabled={!from || (mode === "transfer" && !to) || !lines.length}
+        disabled={!from || (mode === "transfer" && !to) || !lines.length || (mode === "adjust" && !reason.trim())}
         onClick={() => void submit()}
       >
         {mode === "transfer" ? "اعتماد التحويل" : "حفظ عملية التصحيح"}
