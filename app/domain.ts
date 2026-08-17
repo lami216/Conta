@@ -33,10 +33,10 @@ export interface Product {
   name: string;
   sku: string;
   barcode: string;
-  pieceCost: number;
+  pieceCost: number | null;
   piecePrice: number | null;
   cartonPrice: number | null;
-  piecesPerCarton: number;
+  piecesPerCarton?: number | null;
   stocks: Record<string, number>;
 }
 export interface DocumentLine {
@@ -130,23 +130,28 @@ export function number(value: number) {
     value,
   );
 }
-export function quantity(value: number, pack: number) {
-  const cartons = Math.floor(value / Math.max(1, pack));
-  const pieces = value % Math.max(1, pack);
+export function quantity(value: number, pack?: number | null) {
+  if (!Number.isInteger(pack) || (pack ?? 0) <= 0) return `${number(value)} فرد`;
+  const validPack = pack as number;
+  const cartons = Math.floor(value / validPack);
+  const pieces = value % validPack;
   return cartons
     ? `${number(cartons)} كرتون${pieces ? ` + ${number(pieces)} فرد` : ""}`
     : `${number(pieces)} فرد`;
 }
 export function saleLineTotal(
   qty: number,
-  pack: number,
+  pack: number | null | undefined,
   piecePrice: number,
   cartonPrice: number,
   pricingMode: "piece" | "carton" = "piece",
 ) {
-  if (!Number.isInteger(pack) || pack <= 0 || !Number.isFinite(qty) || qty <= 0) return 0;
+  if (!Number.isFinite(qty) || qty <= 0) return 0;
   // MRU totals are rounded once per line. Never round the derived unit price.
-  if (pricingMode === "carton" && qty >= pack) return Math.round(qty * cartonPrice / pack);
+  if (pricingMode === "carton") {
+    if (!Number.isInteger(pack) || (pack ?? 0) <= 0 || qty < (pack as number)) return Math.round(qty * piecePrice);
+    return Math.round(qty * cartonPrice / (pack as number));
+  }
   return Math.round(qty * piecePrice);
 }
 export function uid(prefix: string) {

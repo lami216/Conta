@@ -1102,6 +1102,30 @@ input, select, .combobox-trigger { border-color: var(--border); }
 .product-form-actions { justify-content: flex-end; padding-top: 7px; border-top: 1px solid var(--border); }
 .draft-line { display: grid; gap: 12px; }
 .confirm-line { border: 1px solid #111; }
+.invoice-lines { height: auto; min-height: 190px; align-content: start; }
+.draft-line { gap: 8px; }
+.draft-line .line { padding: 10px 12px; }
+.draft-line .line-fields { margin-top: 7px; }
+.draft-line .line-total { margin-top: 6px; }
+.draft-line .confirm-line { width: auto; min-height: 43px; justify-self: stretch; }
+.invoice-preview-list { gap: 7px; padding: 8px; }
+.invoice-preview-item {
+  position: relative;
+  padding: 7px;
+  border: 1px solid #d4dfdc;
+  border-radius: 9px;
+  background: #fbfdfc;
+}
+.invoice-preview-item:last-child { border-bottom: 1px solid #d4dfdc; }
+.invoice-item-name, .invoice-item-total { padding: 5px 7px; border: 1px solid #e0e8e6; border-radius: 7px; background: #fff; }
+.invoice-item-edit { display: flex; align-items: center; gap: 3px; padding: 5px 7px; border: 1px solid #bad0cc; border-radius: 7px; color: var(--brand); background: #fff; font-size: 9px; font-weight: 800; opacity: 0; }
+.invoice-item-edit svg { width: 12px; height: 12px; }
+.invoice-preview-item:hover .invoice-item-edit, .invoice-item-edit:focus-visible { opacity: 1; }
+.invoice-meta-row { grid-template-columns: 1.2fr 1fr; }
+.meta-option.secondary:not(.selected) { color: #71807d; background: #f8faf9; }
+.invoice-card .pay-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.recent-date-filters { margin: 10px 0 14px; }
+.recent-date-filters label { min-width: 180px; }
 
 /* Keep the existing visual language while making every primary card edge clear. */
 .panel, .hero, .line, .invoice-preview, .invoice-preview-item,
@@ -1120,4 +1144,6 @@ input, select, .combobox-trigger { border-color: var(--border); }
   .nav-popover { position: static; width: 100%; margin-top: 4px; box-shadow: none; }
   .combobox-popover { position: fixed; top: auto; right: 14px; bottom: 14px; left: 14px; width: auto; max-width: none; }
   .section-toolbar { align-items: stretch; flex-direction: column; }
+  .invoice-item-edit { opacity: 1; }
+  .invoice-card .pay-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

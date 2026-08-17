@@ -86,9 +86,9 @@ const val = (v: string) => (v === "" ? 0 : Number(v)),
     quantity: "1",
     piecePrice: String(p.piecePrice ?? 0),
     cartonPrice: String(
-      p.cartonPrice ?? (p.piecePrice ?? 0) * p.piecesPerCarton,
+      p.cartonPrice ?? (p.piecePrice ?? 0) * (p.piecesPerCarton ?? 0),
     ),
-    unitPrice: String(p.pieceCost),
+    unitPrice: String(p.pieceCost ?? 0),
     actualQuantity: "",
     pricingMode: "piece",
   });
@@ -461,7 +461,6 @@ function Pos({
     [lines, setLines] = useState<DraftLine[]>([]),
     [editingLine, setEditingLine] = useState<DraftLine | null>(null),
     [payment, setPayment] = useState("cash"),
-    [paidAmount, setPaidAmount] = useState(""),
     [partyId, setPartyId] = useState(""),
     [quick, setQuick] = useState(false);
   const wh = data.warehouses.find((w) => w.isSalesDefault),
@@ -495,7 +494,7 @@ function Pos({
         type: "sale.post",
         warehouseId: wh?.id,
         paymentMethod: payment,
-        paidAmount: payment === "note" ? val(paidAmount) : total,
+        paidAmount: payment === "note" ? 0 : total,
         partyId: payment === "note" ? partyId : null,
         lines: lines.map((l) => ({
           productId: l.productId,
@@ -507,6 +506,9 @@ function Pos({
       "تم اعتماد فاتورة البيع",
     );
     setLines([]);
+    setEditingLine(null);
+    setPayment("cash");
+    setPartyId("");
     openDoc(id);
   }
   return (
@@ -557,8 +559,9 @@ function Pos({
               <div className="invoice-preview-list">
                 {details.map(({ l, p, total: lineTotal }) => (
                   <div className="invoice-preview-item" key={p.id}>
-                    <span><b>{p.name}</b><small>{quantity(val(l.quantity), p.piecesPerCarton)}</small></span>
-                    <strong>{money(lineTotal)}</strong>
+                    <span className="invoice-item-name"><b>{p.name}</b><small>{quantity(val(l.quantity), p.piecesPerCarton)}</small></span>
+                    <button type="button" className="invoice-item-edit" aria-label={`تعديل ${p.name}`} onClick={() => setEditingLine({ ...l })}><PencilLine /> تعديل</button>
+                    <strong className="invoice-item-total">{money(lineTotal)}</strong>
                   </div>
                 ))}
               </div>
@@ -572,31 +575,26 @@ function Pos({
           </div>
 
           <div className="invoice-meta-row" aria-label="نوع الفاتورة">
-            <button className={payment === "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("note")}>
-              <PencilLine /><span><small>نوع البيع</small><b>ملاحظة</b></span>
-            </button>
             <button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}>
               <Banknote /><span><small>طريقة التحصيل</small><b>دفع مباشر</b></span>
             </button>
+            <button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}>
+              <PencilLine /><span><small>نوع البيع</small><b>ملاحظة</b></span>
+            </button>
           </div>
 
-          <div className="payment-section">
+          {payment !== "note" && <div className="payment-section">
             <span className="payment-label">طريقة الدفع</span>
             <div className="pay-grid">
               {paymentMethods.map((p) => (
                 <PaymentMethodButton key={p.id} id={p.id} label={p.label} selected={payment === p.id} onSelect={setPayment} />
               ))}
-              <PaymentMethodButton id="note" label="ملاحظة" selected={payment === "note"} onSelect={setPayment} />
             </div>
-          </div>
+          </div>}
           {payment === "note" && (
             <>
               <label>
-                المبلغ المدفوع
-                <Num value={paidAmount} onChange={setPaidAmount} />
-              </label>
-              <label>
-                العميل
+                اختيار العميل
                 <SearchableSelect value={partyId} onChange={setPartyId} placeholder="اختر العميل" searchPlaceholder="ابحث باسم العميل أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: p.name, search: p.phone }))} />
               </label>
               <button className="link" onClick={() => setQuick(!quick)}>
@@ -611,7 +609,7 @@ function Pos({
           </div>
           <button
             className="primary wide"
-            disabled={!lines.length || !wh || (payment === "note" && (!partyId || val(paidAmount) > total))}
+            disabled={!lines.length || !wh || (payment === "note" && !partyId)}
             onClick={() => void submit()}
           >
             إتمام البيع
@@ -622,6 +620,7 @@ function Pos({
         title="فواتير بيع أخيرة"
         docs={data.documents.filter((d) => d.kind === "sale")}
         openDoc={openDoc}
+        dateFilter
       />
     </section>
   );
@@ -1340,7 +1339,7 @@ function ProductForm({
   const [name, setName] = useState(product?.name ?? ""),
     [cost, setCost] = useState(String(product?.pieceCost ?? "")),
     [price, setPrice] = useState(String(product?.piecePrice ?? "")),
-    [pack, setPack] = useState(String(product?.piecesPerCarton ?? 1)),
+    [pack, setPack] = useState(String(product?.piecesPerCarton ?? "")),
     [sku, setSku] = useState(product?.sku ?? ""),
     [barcode, setBarcode] = useState(product?.barcode ?? "");
   return (
@@ -1350,10 +1349,10 @@ function ProductForm({
         e.preventDefault();
         const sensitive =
           product &&
-          (name.trim() !== product.name || val(cost) !== product.pieceCost);
+          (name.trim() !== product.name || (cost === "" ? null : val(cost)) !== product.pieceCost);
         const confirmed = sensitive
           ? window.confirm(
-              `أنت تغيّر ${name.trim() !== product.name ? `اسم المنتج من «${product.name}» إلى «${name}»` : ""}${name.trim() !== product.name && val(cost) !== product.pieceCost ? " و" : ""}${val(cost) !== product.pieceCost ? ` سعر الشراء من ${product.pieceCost} إلى ${val(cost)} MRU` : ""}. هل تريد المتابعة؟`,
+              `أنت تغيّر بيانات أساسية للمنتج «${product.name}». هل تريد المتابعة؟`,
             )
           : true;
         if (!confirmed) return;
@@ -1362,9 +1361,9 @@ function ProductForm({
             type: product ? "product.update" : "product.create",
             id: product?.id,
             name,
-            pieceCost: val(cost),
+            pieceCost: cost,
             piecePrice: price,
-            piecesPerCarton: val(pack),
+            piecesPerCarton: pack,
             sku,
             barcode,
             confirmSensitive: confirmed,
@@ -1377,14 +1376,14 @@ function ProductForm({
       <div className="product-form-head"><div><small>{product ? "بيانات المنتج" : "منتج جديد"}</small><h2>{product ? "تعديل المنتج" : "إضافة منتج جديد"}</h2></div><button type="button" className="icon" aria-label="إغلاق" onClick={close}><X /></button></div>
       <label>
         اسم المنتج
-        <input value={name} onChange={(e) => setName(e.target.value)} />
+        <input required value={name} onChange={(e) => setName(e.target.value)} />
       </label>
       <label>
         سعر الشراء للفرد
         <Num value={cost} onChange={setCost} />
       </label>
       <label>
-        سعر البيع للفرد (اختياري)
+        سعر البيع للفرد
         <Num value={price} onChange={setPrice} />
       </label>
       <label>
@@ -1809,15 +1808,38 @@ function Recent({
   title,
   docs,
   openDoc,
+  dateFilter = false,
 }: {
   title: string;
   docs: DocumentRecord[];
   openDoc: (id: string) => void;
+  dateFilter?: boolean;
 }) {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const localDate = (iso: string) => {
+    const date = new Date(iso);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+  const today = localDate(new Date().toISOString());
+  const visibleDocs = dateFilter
+    ? docs.filter((document) => {
+        const occurredOn = localDate(document.occurredAt);
+        if (!from && !to) return occurredOn === today;
+        return (!from || occurredOn >= from) && (!to || occurredOn <= to);
+      })
+    : docs;
   return (
     <div className="panel records">
       <Heading title={title} />
-      {docs.slice(0, 100).map((d) => (
+      {dateFilter && <div className="filters recent-date-filters">
+        <label>من تاريخ<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
+        <label>إلى تاريخ<input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label>
+      </div>}
+      {visibleDocs.slice(0, 100).map((d) => (
         <button
           className="list-row clickable"
           key={d.id}
@@ -1838,7 +1860,7 @@ function Recent({
           <b>{money(d.total)}</b>
         </button>
       ))}
-      {!docs.length && <Empty text="لا توجد معاملات بعد" />}
+      {!visibleDocs.length && <Empty text="لا توجد فواتير ضمن الفترة المحددة" />}
     </div>
   );
 }
