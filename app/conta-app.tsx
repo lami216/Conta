@@ -2,15 +2,20 @@
 import { useEffect, useState } from "react";
 import {
   ArrowLeftRight,
+  Banknote,
   Boxes,
+  Building2,
   ClipboardCheck,
   CalendarDays,
   FileText,
+  Landmark,
   Menu,
   PackagePlus,
+  PencilLine,
   Plus,
   Printer,
   Receipt,
+  ReceiptText,
   RefreshCw,
   RotateCcw,
   Search,
@@ -504,24 +509,48 @@ function Pos({
             )}
           </div>
         </div>
-        <div className="panel checkout">
-          <h3>طريقة الدفع</h3>
-          <div className="pay-grid">
-            {paymentMethods.map((p) => (
-              <button
-                key={p.id}
-                className={payment === p.id ? "choice selected" : "choice"}
-                onClick={() => setPayment(p.id)}
-              >
-                {p.label}
-              </button>
-            ))}
-            <button
-              className={payment === "note" ? "choice selected" : "choice"}
-              onClick={() => setPayment("note")}
-            >
-              ملاحظة
+        <div className="panel checkout invoice-card">
+          <div className="invoice-card-head">
+            <h3>الفاتورة</h3>
+            <span className="product-count">{number(lines.length)} منتج</span>
+          </div>
+
+          <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>
+            {lines.length ? (
+              <div className="invoice-preview-list">
+                {details.map(({ l, p, total: lineTotal }) => (
+                  <div className="invoice-preview-item" key={p.id}>
+                    <span><b>{p.name}</b><small>{quantity(val(l.quantity), p.piecesPerCarton)}</small></span>
+                    <strong>{money(lineTotal)}</strong>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-invoice-state">
+                <span><ReceiptText /></span>
+                <b>الفاتورة فارغة</b>
+                <small>أضف المنتجات لبدء فاتورة جديدة</small>
+              </div>
+            )}
+          </div>
+
+          <div className="invoice-meta-row" aria-label="نوع الفاتورة">
+            <button className={payment === "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("note")}>
+              <PencilLine /><span><small>نوع البيع</small><b>ملاحظة</b></span>
             </button>
+            <button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}>
+              <Banknote /><span><small>طريقة التحصيل</small><b>دفع مباشر</b></span>
+            </button>
+          </div>
+
+          <div className="payment-section">
+            <span className="payment-label">طريقة الدفع</span>
+            <div className="pay-grid">
+              {paymentMethods.map((p) => (
+                <PaymentMethodButton key={p.id} id={p.id} label={p.label} selected={payment === p.id} onSelect={setPayment} />
+              ))}
+              <PaymentMethodButton id="note" label="ملاحظة" selected={payment === "note"} onSelect={setPayment} />
+            </div>
           </div>
           {payment === "note" && (
             <>
@@ -549,9 +578,9 @@ function Pos({
               {quick && <QuickParty run={run} onDone={() => setQuick(false)} />}
             </>
           )}
-          <div className="total">
-            <span>إجمالي الفاتورة</span>
-            <strong>{money(total)}</strong>
+          <div className="total invoice-total">
+            <span>الإجمالي</span>
+            <strong><small>MRU</small>{money(total).replace("MRU", "").trim()}</strong>
           </div>
           <button
             className="primary wide"
@@ -568,6 +597,35 @@ function Pos({
         openDoc={openDoc}
       />
     </section>
+  );
+}
+
+const paymentIcons = {
+  cash: Banknote,
+  bankily: WalletCards,
+  masrvi: Building2,
+  sedad: Landmark,
+  bimbank: Receipt,
+  note: PencilLine,
+};
+
+function PaymentMethodButton({ id, label, selected, onSelect }: {
+  id: keyof typeof paymentIcons;
+  label: string;
+  selected: boolean;
+  onSelect: (id: string) => void;
+}) {
+  const Icon = paymentIcons[id];
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      className={selected ? "choice selected" : "choice"}
+      onClick={() => onSelect(id)}
+    >
+      <Icon />
+      <span>{label}</span>
+    </button>
   );
 }
 
