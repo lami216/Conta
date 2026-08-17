@@ -1058,3 +1058,52 @@ input, select { min-height: 54px; border-color: #c8d3d0; border-radius: 10px; ba
   .modal-overlay { padding: 0; }
   .modal-card { max-height: 100vh; height: 100%; border-radius: 0; padding: 12px; }
 }
+
+/* Shared Conta design tokens and interactive pickers */
+:root {
+  --border: #cbd9d5;
+  --border-strong: #9dbbb5;
+  --accent: #0d7065;
+  --accent-soft: #e4f2ef;
+  --surface: #ffffff;
+  --surface-muted: #f1f6f4;
+  --text: #111a19;
+  --text-muted: #657572;
+}
+input, select, .combobox-trigger { border-color: var(--border); }
+.panel, .stat, .party-card { border-color: var(--border); }
+.panel { background: var(--surface); }
+.soft { border-color: var(--border-strong); background: var(--surface-muted); color: var(--text); }
+.soft:hover { border-color: var(--accent); background: var(--accent-soft); }
+.primary:hover { background: #095c54; }
+.heading h2, header h1 { color: var(--text); font-weight: 800; }
+.nav-menu { position: relative; flex: 0 0 auto; }
+.nav-menu > .nav .chevron { width: 15px; transition: transform .16s; }
+.nav-menu > .nav[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+.nav-popover { position: absolute; z-index: 80; top: calc(100% + 7px); right: 0; width: 235px; padding: 7px; border: 1px solid var(--border-strong); border-radius: 13px; background: var(--surface); box-shadow: 0 18px 45px rgba(13,42,39,.18); }
+.nav-popover button { display: flex; align-items: center; gap: 11px; width: 100%; padding: 11px; border: 0; border-radius: 9px; color: var(--text); background: transparent; text-align: right; font-weight: 700; }
+.nav-popover button svg { width: 18px; color: var(--accent); }
+.nav-popover button:hover, .nav-popover button.active { color: var(--accent); background: var(--accent-soft); }
+.combobox { position: relative; width: 100%; min-width: 0; }
+.combobox-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 43px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 11px; color: var(--text); background: var(--surface); text-align: right; }
+.combobox-trigger svg { width: 16px; color: var(--text-muted); }
+.combobox-popover { position: absolute; z-index: 70; top: calc(100% + 5px); right: 0; width: max(100%, 280px); max-width: min(92vw, 440px); padding: 7px; border: 1px solid var(--border-strong); border-radius: 13px; background: var(--surface); box-shadow: 0 16px 42px rgba(13,42,39,.16); }
+.combobox-results { max-height: 260px; overflow-y: auto; margin-top: 6px; }
+.combobox-results button { display: block; width: 100%; padding: 10px; border: 0; border-radius: 8px; background: transparent; text-align: right; }
+.combobox-results button:hover, .combobox-results button.active { color: var(--accent); background: var(--accent-soft); }
+.combobox-empty { padding: 18px; color: var(--text-muted); text-align: center; font-size: 12px; }
+.section-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.party-badge { display: inline-block; margin-right: 5px; padding: 3px 7px; border-radius: 999px; color: var(--accent); background: var(--accent-soft); font-size: 8px; vertical-align: middle; }
+.product-modal { width: min(820px, calc(100vw - 28px)); }
+.product-form-head, .product-form-actions { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.product-form-head { padding-bottom: 13px; border-bottom: 1px solid var(--border); }
+.product-form-head h2 { margin: 3px 0 0; font-size: 19px; }
+.product-form-head small { color: var(--accent); font-weight: 800; }
+.product-form-actions { justify-content: flex-end; padding-top: 7px; border-top: 1px solid var(--border); }
+@media (max-width: 760px) {
+  .nav-menu { width: 100%; }
+  .nav-menu > .nav { width: 100%; }
+  .nav-popover { position: static; width: 100%; margin-top: 4px; box-shadow: none; }
+  .combobox-popover { position: fixed; top: auto; right: 14px; bottom: 14px; left: 14px; width: auto; max-width: none; }
+  .section-toolbar { align-items: stretch; flex-direction: column; }
+}

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeftRight,
   Banknote,
@@ -7,7 +7,7 @@ import {
   Building2,
   ClipboardCheck,
   CalendarDays,
-  FileText,
+  ChevronDown,
   Landmark,
   Menu,
   PackagePlus,
@@ -42,7 +42,6 @@ type View =
   | "purchases"
   | "expenses"
   | "parties"
-  | "suppliers"
   | "warehouses"
   | "transfers"
   | "adjustments"
@@ -71,15 +70,15 @@ const empty: BootstrapData = {
 };
 const nav: Array<{ id: View; label: string; icon: typeof ShoppingCart }> = [
   { id: "pos", label: "نقطة البيع", icon: ShoppingCart },
-  { id: "purchases", label: "فواتير الشراء", icon: PackagePlus },
   { id: "expenses", label: "فواتير المصاريف", icon: WalletCards },
   { id: "parties", label: "العملاء والملاحظات", icon: Users },
-  { id: "suppliers", label: "الموردون", icon: Users },
-  { id: "warehouses", label: "المخازن", icon: Boxes },
-  { id: "transfers", label: "التحويلات", icon: ArrowLeftRight },
-  { id: "adjustments", label: "تصحيح المخزون", icon: ClipboardCheck },
-  { id: "records", label: "السجلات", icon: FileText },
   { id: "reports", label: "التقارير", icon: Receipt },
+];
+const warehouseNav: Array<{ id: View; label: string; icon: typeof Boxes }> = [
+  { id: "warehouses", label: "تفاصيل المخزن", icon: Boxes },
+  { id: "purchases", label: "فواتير الشراء", icon: PackagePlus },
+  { id: "transfers", label: "التحويلات", icon: ArrowLeftRight },
+  { id: "adjustments", label: "تصحيح المخازن", icon: ClipboardCheck },
 ];
 const val = (v: string) => (v === "" ? 0 : Number(v)),
   lineFor = (p: Product): DraftLine => ({
@@ -101,8 +100,20 @@ export default function ContaApp() {
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [menu, setMenu] = useState(false),
+    [warehouseMenu, setWarehouseMenu] = useState(false),
     [doc, setDoc] = useState<DocumentRecord | null>(null),
     [partyDetail, setPartyDetail] = useState<Party | null>(null);
+  const warehouseMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const close = (event: PointerEvent) => {
+      if (!warehouseMenuRef.current?.contains(event.target as Node)) setWarehouseMenu(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, []);
+  const navigate = (id: View) => {
+    setView(id); setDoc(null); setPartyDetail(null); setMenu(false); setWarehouseMenu(false);
+  };
   async function reload() {
     setLoading(true);
     try {
@@ -166,20 +177,26 @@ export default function ContaApp() {
           <span><small>مخزن البيع النشط</small><strong>{activeWarehouse?.name ?? "غير محدد"}</strong></span>
         </div>
         <nav aria-label="التنقل الرئيسي">
-          {nav.map((n) => (
+          {nav.slice(0, 1).map((n) => (
             <button
               key={n.id}
               className={view === n.id ? "nav active" : "nav"}
-              onClick={() => {
-                setView(n.id);
-                setDoc(null);
-                setPartyDetail(null);
-                setMenu(false);
-              }}
+              onClick={() => navigate(n.id)}
             >
               <n.icon />
               <span>{n.label}</span>
             </button>
+          ))}
+          <div className="nav-menu" ref={warehouseMenuRef}>
+            <button className={warehouseNav.some(n => n.id === view) ? "nav active" : "nav"} aria-expanded={warehouseMenu} onClick={() => setWarehouseMenu(x => !x)}>
+              <Boxes /><span>المخازن</span><ChevronDown className="chevron" />
+            </button>
+            {warehouseMenu && <div className="nav-popover">
+              {warehouseNav.map(n => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => navigate(n.id)}><n.icon /><span>{n.label}</span></button>)}
+            </div>}
+          </div>
+          {nav.slice(1).map((n) => (
+            <button key={n.id} className={view === n.id ? "nav active" : "nav"} onClick={() => navigate(n.id)}><n.icon /><span>{n.label}</span></button>
           ))}
         </nav>
         <div className="side-foot">
@@ -192,7 +209,7 @@ export default function ContaApp() {
           <button className="icon mobile" onClick={() => setMenu(true)}>
             <Menu />
           </button>
-          <h1>{nav.find((n) => n.id === view)?.label}</h1>
+          <h1>{[...nav, ...warehouseNav].find((n) => n.id === view)?.label}</h1>
           <div className="date-chip"><CalendarDays /><span>{today}</span></div>
           <button className="icon refresh" title="تحديث البيانات" aria-label="تحديث البيانات" onClick={() => void reload()}><RefreshCw /></button>
         </header>
@@ -227,9 +244,6 @@ export default function ContaApp() {
                 <Expenses data={data} run={run} openDoc={openDoc} />
               )}{" "}
               {view === "parties" && (
-                <Parties data={data} run={run} openParty={setPartyDetail} />
-              )}{" "}
-              {view === "suppliers" && (
                 <Parties data={data} run={run} openParty={setPartyDetail} />
               )}{" "}
               {view === "warehouses" && (
@@ -271,6 +285,44 @@ function Num(props: {
     />
   );
 }
+type SelectOption = { value: string; label: string; search?: string };
+function SearchableSelect({ value, onChange, options, placeholder, searchPlaceholder, disabled = false, allowEmpty = false }: {
+  value: string; onChange: (value: string) => void; options: SelectOption[];
+  placeholder: string; searchPlaceholder: string; disabled?: boolean; allowEmpty?: boolean;
+}) {
+  const [open, setOpen] = useState(false), [query, setQuery] = useState(""), [active, setActive] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
+  const normalized = query.trim().toLocaleLowerCase("ar");
+  const matches = options.map((option, index) => ({ option, index, text: `${option.label} ${option.search ?? ""}`.toLocaleLowerCase("ar") }))
+    .filter(x => !normalized || x.text.includes(normalized))
+    .sort((a, b) => {
+      const score = (x: typeof a) => x.text === normalized ? 0 : x.text.startsWith(normalized) ? 1 : x.option.label.toLocaleLowerCase("ar").startsWith(normalized) ? 2 : 3;
+      return score(a) - score(b) || a.index - b.index;
+    }).slice(0, 20).map(x => x.option);
+  useEffect(() => {
+    const close = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
+    document.addEventListener("pointerdown", close); return () => document.removeEventListener("pointerdown", close);
+  }, []);
+  const choose = (next: string) => { onChange(next); setOpen(false); setQuery(""); setActive(0); };
+  return <div className="combobox" ref={root}>
+    <button type="button" className="combobox-trigger" disabled={disabled} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(x => !x)}>
+      <span>{options.find(x => x.value === value)?.label ?? placeholder}</span><ChevronDown />
+    </button>
+    {open && <div className="combobox-popover">
+      <label className="search"><Search /><input autoFocus value={query} placeholder={searchPlaceholder} onChange={e => { setQuery(e.target.value); setActive(0); }} onKeyDown={e => {
+        if (e.key === "Escape") setOpen(false);
+        if (e.key === "ArrowDown") { e.preventDefault(); setActive(x => Math.min(x + 1, matches.length - 1)); }
+        if (e.key === "ArrowUp") { e.preventDefault(); setActive(x => Math.max(x - 1, 0)); }
+        if (e.key === "Enter" && matches[active]) { e.preventDefault(); choose(matches[active].value); }
+      }} /></label>
+      <div className="combobox-results" role="listbox">
+        {allowEmpty && <button type="button" onClick={() => choose("")}>{placeholder}</button>}
+        {matches.map((option, index) => <button type="button" role="option" aria-selected={option.value === value} className={index === active || option.value === value ? "active" : ""} key={option.value} onMouseEnter={() => setActive(index)} onClick={() => choose(option.value)}>{option.label}</button>)}
+        {!matches.length && <div className="combobox-empty">لا توجد نتائج</div>}
+      </div>
+    </div>}
+  </div>;
+}
 function SearchProducts({
   data,
   query,
@@ -282,14 +334,14 @@ function SearchProducts({
   setQuery: (v: string) => void;
   onPick: (p: Product) => void;
 }) {
-  const results = query.trim()
-    ? data.products
-        .filter((p) =>
-          `${p.name} ${p.sku} ${p.barcode}`
-            .toLowerCase()
-            .includes(query.trim().toLowerCase()),
-        )
-        .slice(0, 8)
+  const normalized = query.trim().toLocaleLowerCase("ar");
+  const results = normalized
+    ? data.products.map((p, index) => ({ p, index, name: p.name.toLocaleLowerCase("ar"), all: `${p.name} ${p.sku} ${p.barcode}`.toLocaleLowerCase("ar") }))
+        .filter(x => x.all.includes(normalized))
+        .sort((a, b) => {
+          const score = (x: typeof a) => x.name === normalized ? 0 : x.name.startsWith(normalized) ? 1 : x.all.startsWith(normalized) ? 2 : 3;
+          return score(a) - score(b) || a.index - b.index;
+        }).slice(0, 20).map(x => x.p)
     : [];
   return (
     <div className="product-search">
@@ -301,7 +353,7 @@ function SearchProducts({
           placeholder="ابحث عن منتج بالاسم أو الرمز"
         />
       </label>
-      {results.length > 0 && (
+      {query.trim() && (
         <div className="search-results">
           {results.map((p) => (
             <button key={p.id} onClick={() => onPick(p)}>
@@ -312,6 +364,7 @@ function SearchProducts({
               <Plus />
             </button>
           ))}
+          {!results.length && <div className="combobox-empty">لا توجد نتائج</div>}
         </div>
       )}
     </div>
@@ -560,17 +613,7 @@ function Pos({
               </label>
               <label>
                 العميل
-                <select
-                  value={partyId}
-                  onChange={(e) => setPartyId(e.target.value)}
-                >
-                  <option value="">اختر العميل</option>
-                  {data.parties.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect value={partyId} onChange={setPartyId} placeholder="اختر العميل" searchPlaceholder="ابحث باسم العميل أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: p.name, search: p.phone }))} />
               </label>
               <button className="link" onClick={() => setQuick(!quick)}>
                 <Plus /> إضافة عميل
@@ -708,18 +751,7 @@ function Purchases({
         <div className="form-row">
           <label>
             المورد
-            <select
-              disabled={locked}
-              value={partyId}
-              onChange={(e) => setPartyId(e.target.value)}
-            >
-              <option value="">ابحث واختر المورد</option>
-              {data.parties.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — {p.phone}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect disabled={locked} value={partyId} onChange={setPartyId} placeholder="اختر المورد" searchPlaceholder="ابحث باسم المورد أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: `${p.name} — ${p.phone}`, search: p.phone }))} />
           </label>
           {locked ? (
             <button
@@ -746,17 +778,7 @@ function Purchases({
           )}
           <label>
             المخزن
-            <select
-              value={warehouseId}
-              onChange={(e) => setWarehouseId(e.target.value)}
-            >
-              <option value="">اختر مخزن الاستلام</option>
-              {data.warehouses.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect value={warehouseId} onChange={setWarehouseId} placeholder="اختر مخزن الاستلام" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} />
           </label>
           <button className="link" onClick={() => setAddingWh(!addingWh)}>
             <Plus /> إضافة مخزن جديد
@@ -972,7 +994,7 @@ function Parties({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="ابحث بالاسم أو رقم الهاتف"
+            placeholder="ابحث باسم الزبون أو المورد أو رقم الهاتف"
           />
         </label>
       </div>
@@ -1012,7 +1034,7 @@ function Parties({
           >
             <div className="avatar">{p.name.slice(0, 1)}</div>
             <div>
-              <h3>{p.name}</h3>
+              <h3>{p.name} <span className="party-badge">زبون ومورد</span></h3>
               <small dir="ltr">{p.phone || "—"}</small>
               <div className="balances">
                 <span>
@@ -1181,20 +1203,7 @@ function Warehouses({
       <div className="warehouse-head">
         <label>
           المخزن النشط
-          <select
-            value={wh}
-            onChange={(e) => {
-              setWh(e.target.value);
-              setQ("");
-              setRename("");
-            }}
-          >
-            {data.warehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect value={wh} onChange={(value) => { setWh(value); setQ(""); setRename(""); }} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} />
         </label>
         <button
           className="soft"
@@ -1234,15 +1243,6 @@ function Warehouses({
         >
           <Plus /> إضافة مخزن
         </button>
-        <button
-          className="primary"
-          onClick={() => {
-            setEditingProduct(null);
-            setProductModal(true);
-          }}
-        >
-          <Plus /> إضافة منتج
-        </button>
         <input
           value={rename}
           onChange={(e) => setRename(e.target.value)}
@@ -1263,61 +1263,14 @@ function Warehouses({
         </button>
       </div>
       {productModal && (
-        <ProductForm
-          run={run}
-          product={editingProduct}
-          close={() => setProductModal(false)}
-        />
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={editingProduct ? "تعديل المنتج" : "إضافة منتج جديد"}>
+          <div className="modal-card product-modal"><ProductForm run={run} product={editingProduct} close={() => setProductModal(false)} /></div>
+        </div>
       )}
-      <div className="panel">
-        <Heading title="منتجات المخزن" />
-        <label className="search">
-          <Search />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="ابحث لتظهر المنتجات"
-          />
-        </label>
-        {products.map((p) => (
-          <div className="product-row" key={p.id}>
-            <span>
-              <strong>{p.name}</strong>
-              <small>{p.sku}</small>
-            </span>
-            <b>{quantity(p.stocks[wh] ?? 0, p.piecesPerCarton)}</b>
-            <span>
-              {p.piecePrice == null ? "بدون سعر بيع" : money(p.piecePrice)}
-            </span>
-            <button
-              className="soft"
-              onClick={() => {
-                setEditingProduct(p);
-                setProductModal(true);
-              }}
-            >
-              تعديل
-            </button>
-          </div>
-        ))}
-        {!q && (
-          <Empty text="لن نعرض كتالوجًا بطول فاتورة الكهرباء. ابدأ بالبحث." />
-        )}
-      </div>
       <div className="panel">
         <Heading title="حركة المنتجات" />
         <div className="filters">
-          <select
-            value={moveProduct}
-            onChange={(e) => setMoveProduct(e.target.value)}
-          >
-            <option value="">كل المنتجات</option>
-            {data.products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect value={moveProduct} onChange={setMoveProduct} allowEmpty placeholder="كل المنتجات" searchPlaceholder="ابحث عن منتج" options={data.products.map(p => ({ value: p.id, label: p.name, search: `${p.sku} ${p.barcode}` }))} />
           <input
             type="date"
             dir="ltr"
@@ -1353,6 +1306,41 @@ function Warehouses({
           </button>
         ))}
       </div>
+      <div className="panel">
+        <div className="section-toolbar"><Heading title="منتجات المخزن" /><button className="primary" onClick={() => { setEditingProduct(null); setProductModal(true); }}><Plus /> إضافة منتج</button></div>
+        <label className="search">
+          <Search />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="ابحث لتظهر المنتجات"
+          />
+        </label>
+        {products.map((p) => (
+          <div className="product-row" key={p.id}>
+            <span>
+              <strong>{p.name}</strong>
+              <small>{p.sku}</small>
+            </span>
+            <b>{quantity(p.stocks[wh] ?? 0, p.piecesPerCarton)}</b>
+            <span>
+              {p.piecePrice == null ? "بدون سعر بيع" : money(p.piecePrice)}
+            </span>
+            <button
+              className="soft"
+              onClick={() => {
+                setEditingProduct(p);
+                setProductModal(true);
+              }}
+            >
+              تعديل
+            </button>
+          </div>
+        ))}
+        {!q && (
+          <Empty text="لن نعرض كتالوجًا بطول فاتورة الكهرباء. ابدأ بالبحث." />
+        )}
+      </div>
     </section>
   );
 }
@@ -1374,7 +1362,7 @@ function ProductForm({
     [barcode, setBarcode] = useState(product?.barcode ?? "");
   return (
     <form
-      className="panel form-grid"
+      className="panel form-grid product-form"
       onSubmit={async (e) => {
         e.preventDefault();
         const sensitive =
@@ -1404,24 +1392,25 @@ function ProductForm({
         close();
       }}
     >
+      <div className="product-form-head"><div><small>{product ? "بيانات المنتج" : "منتج جديد"}</small><h2>{product ? "تعديل المنتج" : "إضافة منتج جديد"}</h2></div><button type="button" className="icon" aria-label="إغلاق" onClick={close}><X /></button></div>
       <label>
-        1. اسم المنتج
+        اسم المنتج
         <input value={name} onChange={(e) => setName(e.target.value)} />
       </label>
       <label>
-        2. سعر الشراء للفرد
+        سعر الشراء للفرد
         <Num value={cost} onChange={setCost} />
       </label>
       <label>
-        3. سعر البيع (اختياري)
+        سعر البيع للفرد (اختياري)
         <Num value={price} onChange={setPrice} />
       </label>
       <label>
-        4. سعر بيع الكرتون (اختياري)
+        سعر بيع الكرتون (اختياري)
         <Num value={carton} onChange={setCarton} />
       </label>
       <label>
-        5. عدد الأفراد داخل الكرتون
+        عدد الأفراد داخل الكرتون
         <Num value={pack} onChange={setPack} />
       </label>
       <label>
@@ -1436,9 +1425,9 @@ function ProductForm({
           onChange={(e) => setBarcode(e.target.value)}
         />
       </label>
-      <button className="primary">
+      <div className="product-form-actions"><button type="button" className="soft" onClick={close}>إلغاء</button><button className="primary">
         {product ? "حفظ التعديلات" : "حفظ المنتج"}
-      </button>
+      </button></div>
     </form>
   );
 }
@@ -1492,28 +1481,12 @@ function MultiStockForm({
       <div className="form-row">
         <label>
           {mode === "transfer" ? "من" : "المخزن"}
-          <select value={from} onChange={(e) => setFrom(e.target.value)}>
-            <option value="">اختر المخزن</option>
-            {data.warehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect value={from} onChange={setFrom} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} />
         </label>
         {mode === "transfer" && (
           <label>
             إلى
-            <select value={to} onChange={(e) => setTo(e.target.value)}>
-              <option value="">اختر الوجهة</option>
-              {data.warehouses
-                .filter((w) => w.id !== from)
-                .map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-            </select>
+            <SearchableSelect value={to} onChange={setTo} placeholder="اختر الوجهة" searchPlaceholder="ابحث عن مخزن الوجهة" options={data.warehouses.filter(w => w.id !== from).map(w => ({ value: w.id, label: w.name }))} />
           </label>
         )}
       </div>
