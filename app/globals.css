@@ -988,7 +988,7 @@ body { background: var(--canvas); }
 .warehouse-chip span { display: grid; }
 .warehouse-chip small { color: var(--muted); font-size: 10px; }
 .warehouse-chip strong { font-size: 14px; }
-.sidebar nav { display: flex; align-items: center; gap: 3px; min-width: 0; flex: 1; overflow-x: auto; scrollbar-width: thin; }
+.sidebar nav { display: flex; align-items: center; gap: 3px; min-width: 0; flex: 1; overflow: visible; }
 .nav { width: auto; min-width: max-content; min-height: 56px; padding: 9px 11px; color: #53615f; border: 2px solid transparent; border-radius: 13px; font-size: 12px; }
 .nav svg { width: 22px; height: 22px; }
 .nav:hover, .nav.active { color: var(--brand); background: var(--soft); }
@@ -1100,6 +1100,20 @@ input, select, .combobox-trigger { border-color: var(--border); }
 .product-form-head h2 { margin: 3px 0 0; font-size: 19px; }
 .product-form-head small { color: var(--accent); font-weight: 800; }
 .product-form-actions { justify-content: flex-end; padding-top: 7px; border-top: 1px solid var(--border); }
+.draft-line { display: grid; gap: 12px; }
+.confirm-line { border: 1px solid #111; }
+
+/* Keep the existing visual language while making every primary card edge clear. */
+.panel, .hero, .line, .invoice-preview, .invoice-preview-item,
+.party-card, .party-grid, .stats, .stat, .document, .modal-card,
+.warehouse-chip, .date-chip, .product-row, .list-row,
+.nav-popover, .combobox-popover, .search-results {
+  border-color: #111;
+}
+.panel, .hero, .line, .party-card, .stat, .document,
+.warehouse-chip, .date-chip, .nav-popover, .combobox-popover,
+.search-results { border-width: 1px; border-style: solid; }
+.modal-card { border: 1px solid #111; }
 @media (max-width: 760px) {
   .nav-menu { width: 100%; }
   .nav-menu > .nav { width: 100%; }
