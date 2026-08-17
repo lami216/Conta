@@ -14,6 +14,12 @@ const num = (v: unknown) => typeof v === "number" ? v : Number(v);
 const positive = (v: unknown, label: string, allowZero = false) => {
   const n = num(v); if (!Number.isFinite(n) || (allowZero ? n < 0 : n <= 0)) throw new CommandError(`${label} غير صالح`); return n;
 };
+const optionalNumber = (v: unknown, label: string, integer = false) => {
+  if (v === "" || v == null) return null;
+  const n = positive(v, label, true);
+  if (integer && (!Number.isInteger(n) || n <= 0)) throw new CommandError(`${label} غير صالح`);
+  return n;
+};
 const lines = (body: Input): Line[] => {
   if (!Array.isArray(body.lines) || !body.lines.length) throw new CommandError("يجب إضافة منتج واحد على الأقل");
   const seen = new Set<string>();
@@ -69,17 +75,16 @@ export async function execute(db: Db, session: ClientSession, body: Input) {
   if (type === "warehouse.update") { const name = text(body.name), warehouseId = text(body.id); if (!name) throw new CommandError("اسم المخزن مطلوب"); const r = await warehouses(db).updateOne({ _id: warehouseId }, { $set: { name } }, { session }); if (!r.matchedCount) throw new CommandError("المخزن غير موجود", 404); return warehouseId; }
   if (type === "warehouse.default") { const warehouseId = text(body.warehouseId); if (!await warehouses(db).findOne({ _id: warehouseId }, { session })) throw new CommandError("المخزن غير موجود", 404); await warehouses(db).updateMany({}, { $set: { isSalesDefault: false } }, { session }); await warehouses(db).updateOne({ _id: warehouseId }, { $set: { isSalesDefault: true } }, { session }); return warehouseId; }
   if (type === "product.create" || type === "product.update") {
-    const name = text(body.name), sku = text(body.sku), barcode = text(body.barcode), pieceCost = positive(body.pieceCost, "سعر الشراء", true), piecesPerCarton = positive(body.piecesPerCarton, "عدد الأفراد");
-    if (!name || !sku || !Number.isInteger(piecesPerCarton)) throw new CommandError("الاسم والرمز وعدد أفراد صحيح مطلوبة");
-    const optionalPrice = (v: unknown) => v === "" || v == null ? null : positive(v, "سعر البيع", true);
-    const values = { name, sku, barcode, pieceCost, piecePrice: optionalPrice(body.piecePrice), piecesPerCarton };
+    const name = text(body.name), sku = text(body.sku), barcode = text(body.barcode);
+    if (!name) throw new CommandError("اسم المنتج مطلوب");
+    const values = { name, sku, barcode, pieceCost: optionalNumber(body.pieceCost, "سعر الشراء"), piecePrice: optionalNumber(body.piecePrice, "سعر البيع"), piecesPerCarton: optionalNumber(body.piecesPerCarton, "عدد الأفراد", true) };
     if (type === "product.create") { const product = { id: id("product"), ...values, stocks: {}, createdAt: new Date() }; await db.collection("products").insertOne(product, { session }); return product.id; }
     const productId = text(body.id), r = await db.collection("products").updateOne({ id: productId }, { $set: values }, { session }); if (!r.matchedCount) throw new CommandError("المنتج غير موجود", 404); return productId;
   }
   if (type === "sale.post" || type === "purchase.post") {
     const input = lines(body), isSale = type === "sale.post", { warehouse, party, warehouseId, partyId } = await refs(db, session, body, !isSale || text(body.paymentMethod) === "note"), map = await products(db, session, input), paymentMethod = text(body.paymentMethod) || "cash";
     const calculated = input.map(line => { const p = map.get(line.productId)!; let unitPrice: number, total: number; if (isSale) { const price = positive(line.piecePrice, "سعر الفرد", true); total = Math.round(line.quantity * price); unitPrice = price; } else { unitPrice = positive(line.unitPrice, "سعر الشراء", true); total = Math.round(unitPrice * line.quantity); } return { id: id("line"), productId: line.productId, description: p.name, quantity: line.quantity, unitPrice, lineTotal: total, ...(isSale ? { pricingMode: "piece" } : {}) }; });
-    const total = calculated.reduce((s, l) => s + l.lineTotal, 0), requestedPaid = body.paidAmount == null ? (paymentMethod === "note" ? 0 : total) : positive(body.paidAmount, "المبلغ المدفوع", true); if (requestedPaid > total) throw new CommandError("المبلغ المدفوع أكبر من الإجمالي"); const due = total - requestedPaid;
+    const total = calculated.reduce((s, l) => s + l.lineTotal, 0), requestedPaid = paymentMethod === "note" ? 0 : body.paidAmount == null ? total : positive(body.paidAmount, "المبلغ المدفوع", true); if (requestedPaid > total) throw new CommandError("المبلغ المدفوع أكبر من الإجمالي"); const due = total - requestedPaid;
     if (due > 0 && !party) throw new CommandError("يجب اختيار طرف عند وجود مبلغ مستحق");
     const doc = { ...baseDocument(isSale ? "sale" : "purchase", isSale ? "SAL" : "PUR"), partyId: partyId || null, partyName: party?.name ?? null, warehouseId, warehouseName: warehouse.name, destinationWarehouseId: null, destinationWarehouseName: null, parentDocumentId: null, paymentMethod, title: null, total, dueTotal: due, paidTotal: requestedPaid, lines: calculated };
     for (const line of input) await changeStock(db, session, map.get(line.productId)!, warehouse, isSale ? -line.quantity : line.quantity, doc, isSale ? "sale" : "purchase");
