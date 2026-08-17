@@ -383,8 +383,7 @@ function LineEditor({
   onRemove: () => void;
   mode: "sale" | "purchase" | "transfer" | "adjust";
 }) {
-  const qty = val(line.quantity),
-    cartons = Math.floor(qty / product.piecesPerCarton);
+  const qty = val(line.quantity);
   return (
     <div className="line">
       <div className="line-title">
@@ -427,8 +426,6 @@ function LineEditor({
             />
           </label>
         )}
-        {mode === "sale" && cartons > 0 && <label>طريقة التسعير<select value={line.pricingMode} onChange={e => onChange({ ...line, pricingMode: e.target.value as "piece" | "carton" })}><option value="piece">سعر الفرد</option><option value="carton">سعر الكرتون</option></select></label>}
-        {mode === "sale" && cartons > 0 && line.pricingMode === "carton" && <label>سعر الكرتون<Num value={line.cartonPrice} onChange={v => onChange({ ...line, cartonPrice: v })} /></label>}
         {mode === "purchase" && (
           <label>
             سعر الشراء للفرد
@@ -441,14 +438,9 @@ function LineEditor({
       </div>
       {mode === "sale" && (
         <b className="line-total">
+          إجمالي المنتج: {" "}
           {money(
-            saleLineTotal(
-              qty,
-              product.piecesPerCarton,
-              val(line.piecePrice),
-              val(line.cartonPrice),
-              line.pricingMode,
-            ),
+            saleLineTotal(qty, product.piecesPerCarton, val(line.piecePrice), 0, "piece"),
           )}
         </b>
       )}
@@ -467,6 +459,7 @@ function Pos({
 }) {
   const [query, setQuery] = useState(""),
     [lines, setLines] = useState<DraftLine[]>([]),
+    [editingLine, setEditingLine] = useState<DraftLine | null>(null),
     [payment, setPayment] = useState("cash"),
     [paidAmount, setPaidAmount] = useState(""),
     [partyId, setPartyId] = useState(""),
@@ -479,21 +472,22 @@ function Pos({
             {
               l,
               p,
-              total: saleLineTotal(
-                val(l.quantity),
-                p.piecesPerCarton,
-                val(l.piecePrice),
-                val(l.cartonPrice),
-                l.pricingMode,
-              ),
+              total: saleLineTotal(val(l.quantity), p.piecesPerCarton, val(l.piecePrice), 0, "piece"),
             },
           ]
         : [];
     }),
     total = details.reduce((s, x) => s + x.total, 0);
   function add(p: Product) {
-    setLines((x) => [lineFor(p), ...x.filter((l) => l.productId !== p.id)]);
+    const confirmed = lines.find((line) => line.productId === p.id);
+    setEditingLine(confirmed ? { ...confirmed, pricingMode: "piece" } : lineFor(p));
     setQuery("");
+  }
+  function confirmLine() {
+    if (!editingLine) return;
+    const confirmed = { ...editingLine, pricingMode: "piece" as const };
+    setLines((current) => [confirmed, ...current.filter((line) => line.productId !== confirmed.productId)]);
+    setEditingLine(null);
   }
   async function submit() {
     const id = await run(
@@ -507,8 +501,7 @@ function Pos({
           productId: l.productId,
           quantity: val(l.quantity),
           piecePrice: val(l.piecePrice),
-          cartonPrice: val(l.cartonPrice),
-          pricingMode: l.pricingMode,
+          pricingMode: "piece",
         })),
       },
       "تم اعتماد فاتورة البيع",
@@ -533,32 +526,23 @@ function Pos({
             setQuery={setQuery}
             onPick={add}
           />
-          <div
-            className={
-              lines.length > 3 ? "invoice-lines scroll" : "invoice-lines"
-            }
-          >
-            {lines.length ? (
-              details.map(({ l, p }) => (
+          <div className="invoice-lines">
+            {editingLine ? (
+              (() => {
+                const product = data.products.find((item) => item.id === editingLine.productId);
+                return product ? <div className="draft-line">
                 <LineEditor
-                  key={l.productId}
-                  line={l}
-                  product={p}
+                  line={editingLine}
+                  product={product}
                   mode="sale"
-                  onChange={(x) =>
-                    setLines((s) =>
-                      s.map((a) => (a.productId === x.productId ? x : a)),
-                    )
-                  }
-                  onRemove={() =>
-                    setLines((s) =>
-                      s.filter((a) => a.productId !== l.productId),
-                    )
-                  }
+                  onChange={setEditingLine}
+                  onRemove={() => setEditingLine(null)}
                 />
-              ))
+                <button className="primary wide confirm-line" disabled={val(editingLine.quantity) <= 0 || val(editingLine.piecePrice) < 0} onClick={confirmLine}>تأكيد وإضافة للفاتورة</button>
+              </div> : null;
+              })()
             ) : (
-              <Empty text="ابحث عن منتج لإضافته إلى الفاتورة" />
+              <Empty text="ابحث عن منتج لتحريره ثم أكّد إضافته إلى الفاتورة" />
             )}
           </div>
         </div>
@@ -1356,7 +1340,6 @@ function ProductForm({
   const [name, setName] = useState(product?.name ?? ""),
     [cost, setCost] = useState(String(product?.pieceCost ?? "")),
     [price, setPrice] = useState(String(product?.piecePrice ?? "")),
-    [carton, setCarton] = useState(String(product?.cartonPrice ?? "")),
     [pack, setPack] = useState(String(product?.piecesPerCarton ?? 1)),
     [sku, setSku] = useState(product?.sku ?? ""),
     [barcode, setBarcode] = useState(product?.barcode ?? "");
@@ -1381,7 +1364,6 @@ function ProductForm({
             name,
             pieceCost: val(cost),
             piecePrice: price,
-            cartonPrice: carton,
             piecesPerCarton: val(pack),
             sku,
             barcode,
@@ -1404,10 +1386,6 @@ function ProductForm({
       <label>
         سعر البيع للفرد (اختياري)
         <Num value={price} onChange={setPrice} />
-      </label>
-      <label>
-        سعر بيع الكرتون (اختياري)
-        <Num value={carton} onChange={setCarton} />
       </label>
       <label>
         عدد الأفراد داخل الكرتون
