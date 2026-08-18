@@ -1246,3 +1246,31 @@ input, select, .combobox-trigger { border-color: var(--border); }
   .invoice-table-row > span, .invoice-table-row > strong { padding: 7px 4px; font-size: 9px; }
   .invoice-item-edit { opacity: 1; }
 }
+
+/* Invoice line cards: header and cards intentionally share one grid definition. */
+.purchase-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.invoice-preview-list { --invoice-columns: minmax(110px, 1.35fr) minmax(90px, 1fr) minmax(85px, .9fr) minmax(95px, 1fr); gap: 9px; padding: 8px; }
+.invoice-table-row { grid-template-columns: var(--invoice-columns); }
+.invoice-table-head { border-radius: 8px; overflow: hidden; }
+.invoice-preview-item, .invoice-preview-item:last-child {
+  padding: 3px; border: 1px solid #9dbbb5; border-radius: 11px; background: #fff;
+  box-shadow: 0 2px 7px rgba(13, 42, 39, .05); transition: border-color .16s, background .16s, box-shadow .16s;
+}
+.invoice-preview-item > span, .invoice-preview-item > strong { border-left: 0; }
+.invoice-preview-item:hover, .invoice-preview-item.selected, .invoice-preview-item:focus-visible {
+  outline: none; border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 5px 16px rgba(13, 112, 101, .14);
+}
+.invoice-item-name, .invoice-item-total { border: 0; background: transparent; }
+.invoice-item-edit { padding: 5px 8px; border-color: var(--accent); opacity: 0; }
+.invoice-item-edit span { display: inline; }
+.invoice-preview-item:hover .invoice-item-edit, .invoice-preview-item.selected .invoice-item-edit, .invoice-preview-item:focus-within .invoice-item-edit { opacity: 1; }
+.invoice-card-head > div { display: flex; align-items: center; gap: 8px; }
+.clear-draft { border: 0; color: #a12530; background: transparent; font-size: 10px; font-weight: 800; text-decoration: underline; }
+.note-hint { margin: 0; padding: 10px; border: 1px solid #d4dfdc; border-radius: 9px; color: var(--text-muted); background: var(--surface-muted); font-size: 11px; }
+@media (max-width: 1050px) { .purchase-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) {
+  .invoice-preview-list { --invoice-columns: minmax(92px, 1.25fr) minmax(72px, 1fr) minmax(72px, .9fr) minmax(78px, 1fr); overflow-x: auto; }
+  .invoice-table-row { min-width: 390px; }
+  .invoice-preview-item:not(.selected) .invoice-item-edit { opacity: 0; }
+  .invoice-preview-item.selected .invoice-item-edit { opacity: 1; }
+}

@@ -28,6 +28,8 @@ export function initializeMongo(): Promise<Db> {
         database.collection("documents").createIndex({ kind: 1, occurredAt: -1 }),
         database.collection("stockMovements").createIndex({ warehouseId: 1, productId: 1, occurredAt: -1 }),
         database.collection("auditEvents").createIndex({ createdAt: -1 }),
+        database.collection("financialMovements").createIndex({ documentId: 1, type: 1 }, { unique: true }),
+        database.collection("financialMovements").createIndex({ paymentMethod: 1, occurredAt: -1 }),
       ]);
       const warehouses = database.collection<{ _id: string; name: string; isSalesDefault: boolean; createdAt: Date }>("warehouses");
       await warehouses.updateOne({ _id: "wh-main" }, { $setOnInsert: { name: "المخزن الرئيسي", isSalesDefault: false, createdAt: new Date() } }, { upsert: true });

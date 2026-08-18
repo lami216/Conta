@@ -34,6 +34,9 @@ export interface Product {
   sku: string;
   barcode: string;
   pieceCost: number | null;
+  /** Cost from the newest posted purchase; manual pieceCost is never authoritative. */
+  lastPurchaseCost?: number | null;
+  lastPurchaseAt?: string | null;
   piecePrice: number | null;
   cartonPrice: number | null;
   piecesPerCarton?: number | null;
@@ -87,6 +90,8 @@ export interface BootstrapData {
   products: Product[];
   documents: DocumentRecord[];
   movements: Movement[];
+  financialMovements: FinancialMovement[];
+  paymentAccounts: Array<{ paymentMethod: Exclude<PaymentMethod, "note">; balance: number }>;
   recurringExpenses: Array<{
     id: string;
     title: string;
@@ -95,6 +100,18 @@ export interface BootstrapData {
     startsOn: string;
     active: boolean;
   }>;
+}
+export interface FinancialMovement {
+  id: string;
+  paymentMethod: Exclude<PaymentMethod, "note">;
+  direction: "in" | "out";
+  amount: number;
+  documentId: string;
+  documentNumber: string;
+  partyId: string | null;
+  partyName: string | null;
+  type: string;
+  occurredAt: string;
 }
 export const paymentMethods: Array<{
   id: Exclude<PaymentMethod, "note">;
