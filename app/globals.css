@@ -1545,3 +1545,85 @@ body { overflow-x: hidden; background: #eef1f5; color: var(--text); }
   .purchase-grid .invoice-card, .pos-grid .invoice-card { height: 100%; max-height: 100%; }
   .invoice-preview { overflow-y: auto; overscroll-behavior: contain; }
 }
+
+/* 2026 workspace pass: an overflow-safe RTL frame and stronger visual layers. */
+.app-shell > main, .content { overflow-x: clip; }
+.content { margin-inline: auto; }
+.panel { border: 1px solid var(--border); box-shadow: 0 7px 22px rgba(23, 32, 51, .06); }
+input, select, .combobox-trigger { border-color: #9faab8; }
+.section-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; padding: 8px 12px; border-inline-start: 5px solid var(--section-color); border-radius: 9px; background: var(--section-soft); }
+.section-title h3 { margin: 1px 0 0; color: var(--section-color); font-size: 16px; }
+.section-title small { color: var(--text-muted); font-size: 9px; font-weight: 800; }
+
+/* Each top-level destination is a compact, visibly separated section tab. */
+.sidebar nav { gap: 7px; }
+.nav { border: 1px solid color-mix(in srgb, var(--nav-color, #687585) 58%, white); color: var(--nav-color, #465364); background: var(--nav-soft, #f4f6f8); }
+.nav:hover { color: var(--nav-color, var(--brand)); border-color: var(--nav-color, var(--brand)); background: var(--nav-soft, var(--soft)); transform: translateY(-1px); }
+.nav.active { color: var(--nav-color, var(--section-color)); border-color: var(--nav-color, var(--section-color)); background: var(--nav-soft, var(--section-soft)); box-shadow: inset 0 -3px var(--nav-color, var(--section-color)); }
+.sidebar nav > :nth-child(1) { --nav-color: var(--color-sales); --nav-soft: #e6f5f2; }
+.sidebar nav > :nth-child(2) { --nav-color: var(--color-invoices); --nav-soft: #e9f1fb; }
+.sidebar nav > :nth-child(3) { --nav-color: var(--color-warehouses); --nav-soft: #efedfb; }
+.sidebar nav > :nth-child(4) { --nav-color: var(--color-products); --nav-soft: #fff0e4; }
+.sidebar nav > :nth-child(5) { --nav-color: var(--color-parties); --nav-soft: #e5f5f6; }
+.sidebar nav > :nth-child(6) { --nav-color: var(--color-reports); --nav-soft: #e9edf5; }
+.nav-menu .nav-popover { --section-color: var(--nav-color); --section-soft: var(--nav-soft); border-color: var(--nav-color); background: color-mix(in srgb, var(--nav-soft) 35%, white); }
+.nav-popover button + button { border-top: 1px solid color-mix(in srgb, var(--section-color) 22%, white); }
+
+/* Expenses: two compact work areas above a dedicated, internally scrolling log. */
+.expense-workspace { grid-template-rows: auto minmax(0, 1fr) !important; }
+.expense-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-width: 0; }
+.expense-toolbar > div { display: grid; }
+.expense-toolbar > div > small { color: var(--text-muted); font-size: 10px; font-weight: 800; }
+.expense-toolbar .heading { margin: 0; }
+.expense-toolbar > span { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border: 1px solid var(--color-expenses); border-radius: 10px; color: var(--color-expenses); background: #fff; font-weight: 800; }
+.expense-toolbar svg { width: 17px; }
+.expense-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(340px, .9fr); grid-template-rows: auto minmax(0, 1fr); gap: 12px; min-width: 0; min-height: 0; }
+.expense-form, .expense-recurring, .expense-history { min-width: 0; min-height: 0; overflow: hidden; }
+.expense-form { display: grid; gap: 10px; align-content: start; }
+.expense-fields { display: grid; grid-template-columns: minmax(160px, 1.4fr) repeat(3, minmax(120px, 1fr)); gap: 9px; }
+.expense-save { justify-self: end; min-width: 180px; }
+.expense-recurring { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 8px; }
+.expense-history { grid-column: 1 / -1; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); gap: 7px; }
+.expense-history .search { width: min(470px, 100%); }
+.expense-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.expense-history-head, .expense-doc { display: grid; grid-template-columns: 110px minmax(160px, 1.4fr) 120px minmax(150px, 1fr) 120px; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; text-align: right; }
+.expense-history-head { position: sticky; top: 0; z-index: 2; color: #fff; border-radius: 8px; background: var(--color-expenses); font-size: 10px; font-weight: 800; }
+.expense-doc { min-height: 45px; border: 1px solid transparent; border-bottom-color: var(--border); background: #fff; font-size: 11px; }
+.expense-doc:hover { border-color: var(--color-expenses); background: var(--section-soft); }
+
+/* Inventory starts as a summary and expands to a list/details browser in place. */
+.warehouse-workspace { grid-template-rows: auto auto !important; align-content: start; }
+.inventory-panel { display: grid; grid-template-rows: auto auto !important; border-color: var(--color-warehouses) !important; }
+.inventory-panel.browser-open { grid-template-rows: auto auto minmax(0, 1fr) !important; height: 100%; min-height: 0; }
+.inventory-browser { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; min-height: 0; padding-top: 4px; }
+.inventory-browser.has-details { grid-template-columns: minmax(390px, 2fr) minmax(0, 3fr); }
+.inventory-list-panel, .product-movement-panel { min-width: 0; min-height: 0; border: 1px solid var(--border); border-radius: 11px; background: #fff; overflow: hidden; }
+.inventory-list-panel { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding: 8px; }
+.inventory-list-panel > .search { margin-bottom: 7px; }
+.inventory-row { border: 1px solid transparent; border-bottom-color: var(--border); }
+.inventory-row:hover { border-color: var(--color-warehouses); box-shadow: inset -5px 0 var(--color-warehouses); }
+.inventory-row.selected { color: #49389e; border-color: var(--color-warehouses); background: #e8e3fb; box-shadow: inset -6px 0 var(--color-warehouses); }
+.inventory-selection-empty { display: grid; place-content: center; justify-items: center; gap: 8px; min-height: 220px; color: var(--text-muted); border: 2px dashed color-mix(in srgb, var(--color-warehouses) 45%, white); border-radius: 11px; background: #faf9ff; }
+.inventory-selection-empty svg { width: 42px; color: var(--color-warehouses); }
+.product-movement-panel { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); padding: 11px; border-color: var(--color-warehouses); }
+.product-movement-panel .movement-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.product-movement-panel .movement-timeline > button { grid-template-columns: 68px minmax(0, 1fr); border: 1px solid transparent; border-bottom-color: var(--border); }
+.product-movement-panel .movement-timeline > button:hover { border-color: var(--color-warehouses); background: var(--section-soft); }
+.movement-main { display: grid; gap: 3px; min-width: 0; }
+
+@media (max-width: 1050px) {
+  .content { padding-inline: 12px; }
+  .expense-grid, .inventory-browser.has-details { grid-template-columns: minmax(0, 1fr); }
+  .expense-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .expense-history { grid-column: auto; }
+  .expense-history-head, .expense-doc { min-width: 720px; }
+  .expense-history > .expense-scroll { overflow-x: auto; }
+  .product-movement-panel { max-height: 620px; }
+}
+@media (max-width: 620px) {
+  .expense-fields { grid-template-columns: 1fr; }
+  .expense-save { width: 100%; }
+  .inventory-toolbar { align-items: flex-start; flex-direction: column; }
+  .inventory-toolbar > div { width: 100%; }
+  .inventory-toolbar button { flex: 1; }
+}
