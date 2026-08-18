@@ -1627,3 +1627,53 @@ input, select, .combobox-trigger { border-color: #9faab8; }
   .inventory-toolbar > div { width: 100%; }
   .inventory-toolbar button { flex: 1; }
 }
+
+/* Project-wide safe viewport: logical padding keeps every RTL view inside both edges. */
+html, body, #__next, .app-shell, .app-shell > main {
+  min-width: 0;
+  max-width: 100%;
+}
+body { overflow-x: clip; }
+.app-shell > main, .content, .content > section,
+.pos-grid, .purchase-grid, .expense-grid, .warehouse-workspace,
+.stock-workspace, .workspace-page, .panel, .scroll-panel {
+  min-width: 0;
+  min-height: 0;
+}
+.content {
+  width: 100%;
+  max-width: 100%;
+  padding-inline-start: 16px;
+  padding-inline-end: 22px;
+}
+.app-shell header.page-bar {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding-inline-start: 18px;
+  padding-inline-end: 22px;
+}
+.date-chip { flex: 0 0 auto; white-space: nowrap; }
+.sidebar { max-width: 100%; }
+.sidebar nav { overflow: visible; }
+
+/* Keep the complete desktop navigation in its fixed-height application row. */
+@media (min-width: 1051px) and (max-width: 1450px) {
+  .sidebar { gap: 8px; padding-inline: 12px; }
+  .brand { gap: 7px; }
+  .brand > b { width: 44px; height: 44px; font-size: 21px; }
+  .brand strong { font-size: 23px; }
+  .brand span { font-size: 10px; }
+  .warehouse-chip { min-width: 145px; gap: 7px; padding-inline: 9px; }
+  .warehouse-chip svg { width: 20px; }
+  .sidebar nav { gap: 3px; }
+  .nav { min-height: 50px; gap: 5px; padding-inline: 6px; }
+  .nav svg { width: 18px; height: 18px; }
+  .side-foot { gap: 4px; padding-inline: 6px; }
+  .owner-mark { width: 28px; height: 28px; }
+}
+
+@media (max-width: 1050px) {
+  .content { padding-inline-start: 12px; padding-inline-end: 16px; }
+  .app-shell header.page-bar { padding-inline: 14px 16px; }
+}

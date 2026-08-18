@@ -25,6 +25,8 @@ import {
   X,
 } from "lucide-react";
 import {
+  formatDate,
+  formatDateTime,
   kindLabels,
   money,
   number,
@@ -179,11 +181,11 @@ export default function ContaApp() {
     if (found) setDoc(found);
   };
   const activeWarehouse = data.warehouses.find((w) => w.isSalesDefault);
-  const today = new Intl.DateTimeFormat("ar-MR", {
+  const today = formatDate(new Date(), {
     day: "numeric",
     month: "long",
     year: "numeric",
-  }).format(new Date());
+  });
   return (
     <div className={`app-shell section-${view}`} dir="rtl">
       <aside className={menu ? "sidebar open" : "sidebar"}>
@@ -832,7 +834,7 @@ function Expenses({
   const expenseDocs = data.documents.filter((d) => d.kind === "expense" && (!historyQuery.trim() || `${d.title ?? ""} ${d.number}`.toLocaleLowerCase("ar").includes(historyQuery.trim().toLocaleLowerCase("ar"))));
   return (
     <section className="expense-workspace workspace-page">
-      <div className="expense-toolbar"><div><small>إدارة التدفقات الخارجة</small><Heading title="فواتير المصاريف" /></div><span><CalendarDays /> {new Date(date).toLocaleDateString("ar-MR")}</span></div>
+      <div className="expense-toolbar"><div><small>إدارة التدفقات الخارجة</small><Heading title="فواتير المصاريف" /></div><span><CalendarDays /> {formatDate(date)}</span></div>
       <div className="expense-grid">
       <form
         className="panel expense-form"
@@ -921,7 +923,7 @@ function Expenses({
           <div className="section-title"><div><small>المستندات المسجلة</small><h3>سجل فواتير المصاريف</h3></div></div>
           <label className="search"><Search /><input value={historyQuery} onChange={e => setHistoryQuery(e.target.value)} placeholder="بحث بالعنوان أو رقم المستند" /></label>
           <div className="expense-history-head"><span>التاريخ</span><span>العنوان</span><span>المبلغ</span><span>الحالة / الدفع</span><span>المستند</span></div>
-          <div className="expense-scroll">{expenseDocs.map(document => <button className="expense-doc" key={document.id} onClick={() => openDoc(document.id)}><span>{new Date(document.occurredAt).toLocaleDateString("ar-MR")}</span><strong>{document.title ?? "مصروف"}</strong><b>{money(document.total)}</b><span><small>{document.status === "posted" ? "معتمد" : document.status}</small> · {paymentMethods.find(x => x.id === document.paymentMethod)?.label ?? "—"}</span><span dir="ltr">{document.number}</span></button>)}{!expenseDocs.length && <Empty text="لا توجد فواتير مطابقة" />}</div>
+          <div className="expense-scroll">{expenseDocs.map(document => <button className="expense-doc" key={document.id} onClick={() => openDoc(document.id)}><span>{formatDate(document.occurredAt)}</span><strong>{document.title ?? "مصروف"}</strong><b>{money(document.total)}</b><span><small>{document.status === "posted" ? "معتمد" : document.status}</small> · {paymentMethods.find(x => x.id === document.paymentMethod)?.label ?? "—"}</span><span dir="ltr">{document.number}</span></button>)}{!expenseDocs.length && <Empty text="لا توجد فواتير مطابقة" />}</div>
         </div>
       </div>
     </section>
@@ -1172,7 +1174,7 @@ function ProductMovementPanel({ product, selectedWarehouseId, data, filter, setF
   const movementDocs = docs.filter(document => filter === "all" || document.kind === filter).sort((a,b) => +new Date(b.occurredAt) - +new Date(a.occurredAt));
   const labels: Record<string, string> = { purchase: "شراء", sale: "بيع", transfer: "تحويل", adjustment: "تصحيح", return: "إرجاع", opening: "رصيد افتتاحي" };
   const party = (document: DocumentRecord) => document.partyName || data.parties.find(p => p.id === document.partyId)?.name || (document.kind === "sale" ? "بيع مباشر" : "غير محدد");
-  return <div className="product-movement-panel" aria-label={`حركة ${product.name}`}><div className="product-form-head"><div><small>تفاصيل المنتج وحركته</small><h2>{product.name}</h2></div><button className="icon" aria-label="إغلاق التفاصيل" onClick={close}><X /></button></div><div className="movement-summary"><span><small>في هذا المخزن</small><b>{number(selectedQty)} فرد</b></span><span><small>جميع المخازن</small><b>{number(current)} فرد</b></span><span><small>آخر سعر شراء فعلي</small><b>{product.lastPurchaseCost == null ? "تكلفة غير معروفة" : money(product.lastPurchaseCost)}</b></span><span><small>قيمة المنتج هنا</small><b>{product.lastPurchaseCost == null ? "تكلفة غير معروفة" : money(selectedQty * product.lastPurchaseCost)}</b></span><span><small>شراء / بيع</small><b>{number(purchases)} / {number(sales)}</b></span><span><small>تحويل / تصحيح</small><b>{number(transfers)} / {number(adjustments)}</b></span></div><div className="movement-filters">{[["all","الكل"],["purchase","شراء"],["sale","بيع"],["transfer","تحويل"],["adjustment","تصحيح"]].map(([id,label]) => <button key={id} className={filter === id ? "choice selected" : "choice"} onClick={() => setFilter(id)}>{label}</button>)}</div><div className="movement-timeline">{movementDocs.map(document => { const line = document.lines.find(item => item.productId === product.id)!; const movement = data.movements.find(move => move.documentId === document.id && move.productId === product.id && move.warehouseId === (document.warehouseId ?? selectedWarehouseId)); return <button key={document.id} onClick={() => openDoc(document.id)}><span className={`movement-badge ${document.kind}`}>{labels[document.kind] ?? document.kind}</span><span className="movement-main"><b>{new Date(document.occurredAt).toLocaleDateString("ar-MR")} · <span dir="ltr">{document.number}</span></b><small>{document.kind === "purchase" ? `المورد: ${party(document)}` : document.kind === "sale" ? `العميل: ${party(document)}` : document.kind === "transfer" ? `${document.warehouseName ?? "—"} ← ${document.destinationWarehouseName ?? "—"}` : `المخزن: ${document.warehouseName ?? movement?.warehouseName ?? "—"}`}</small><small>{document.kind === "adjustment" ? `الرصيد السابق: ${number(movement?.balanceBefore ?? 0)} · الجديد: ${number(movement?.balanceAfter ?? 0)} · الفرق: ${number(movement?.quantityDelta ?? line.quantity)} · السبب: ${document.title ?? "غير محدد"}` : `الكمية: ${number(line.quantity)} فرد${document.kind === "purchase" || document.kind === "sale" ? ` · سعر الفرد: ${money(line.unitPrice)} · الإجمالي: ${money(line.lineTotal)}` : ""}`}</small><small>{document.kind === "purchase" ? `مخزن الاستلام: ${document.warehouseName ?? "—"}` : document.kind === "sale" ? `مخزن الصرف: ${document.warehouseName ?? "—"}` : ""}</small></span></button>})}{!movementDocs.length && <Empty text="لا توجد حركات فعلية ضمن هذا الفلتر" />}</div></div>;
+  return <div className="product-movement-panel" aria-label={`حركة ${product.name}`}><div className="product-form-head"><div><small>تفاصيل المنتج وحركته</small><h2>{product.name}</h2></div><button className="icon" aria-label="إغلاق التفاصيل" onClick={close}><X /></button></div><div className="movement-summary"><span><small>في هذا المخزن</small><b>{number(selectedQty)} فرد</b></span><span><small>جميع المخازن</small><b>{number(current)} فرد</b></span><span><small>آخر سعر شراء فعلي</small><b>{product.lastPurchaseCost == null ? "تكلفة غير معروفة" : money(product.lastPurchaseCost)}</b></span><span><small>قيمة المنتج هنا</small><b>{product.lastPurchaseCost == null ? "تكلفة غير معروفة" : money(selectedQty * product.lastPurchaseCost)}</b></span><span><small>شراء / بيع</small><b>{number(purchases)} / {number(sales)}</b></span><span><small>تحويل / تصحيح</small><b>{number(transfers)} / {number(adjustments)}</b></span></div><div className="movement-filters">{[["all","الكل"],["purchase","شراء"],["sale","بيع"],["transfer","تحويل"],["adjustment","تصحيح"]].map(([id,label]) => <button key={id} className={filter === id ? "choice selected" : "choice"} onClick={() => setFilter(id)}>{label}</button>)}</div><div className="movement-timeline">{movementDocs.map(document => { const line = document.lines.find(item => item.productId === product.id)!; const movement = data.movements.find(move => move.documentId === document.id && move.productId === product.id && move.warehouseId === (document.warehouseId ?? selectedWarehouseId)); return <button key={document.id} onClick={() => openDoc(document.id)}><span className={`movement-badge ${document.kind}`}>{labels[document.kind] ?? document.kind}</span><span className="movement-main"><b>{formatDate(document.occurredAt)} · <span dir="ltr">{document.number}</span></b><small>{document.kind === "purchase" ? `المورد: ${party(document)}` : document.kind === "sale" ? `العميل: ${party(document)}` : document.kind === "transfer" ? `${document.warehouseName ?? "—"} ← ${document.destinationWarehouseName ?? "—"}` : `المخزن: ${document.warehouseName ?? movement?.warehouseName ?? "—"}`}</small><small>{document.kind === "adjustment" ? `الرصيد السابق: ${number(movement?.balanceBefore ?? 0)} · الجديد: ${number(movement?.balanceAfter ?? 0)} · الفرق: ${number(movement?.quantityDelta ?? line.quantity)} · السبب: ${document.title ?? "غير محدد"}` : `الكمية: ${number(line.quantity)} فرد${document.kind === "purchase" || document.kind === "sale" ? ` · سعر الفرد: ${money(line.unitPrice)} · الإجمالي: ${money(line.lineTotal)}` : ""}`}</small><small>{document.kind === "purchase" ? `مخزن الاستلام: ${document.warehouseName ?? "—"}` : document.kind === "sale" ? `مخزن الصرف: ${document.warehouseName ?? "—"}` : ""}</small></span></button>})}{!movementDocs.length && <Empty text="لا توجد حركات فعلية ضمن هذا الفلتر" />}</div></div>;
 }
 
 function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
@@ -1777,7 +1779,7 @@ function Recent({
             <strong>{d.partyName ?? d.title ?? kindLabels[d.kind]}</strong>
             <small>
               {d.number} ·{" "}
-              {new Date(d.occurredAt).toLocaleString("ar-MR-u-nu-latn")}
+              {formatDateTime(d.occurredAt)}
             </small>
           </span>
           <span className="status">
