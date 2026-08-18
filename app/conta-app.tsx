@@ -641,7 +641,7 @@ function Pos({
             )}
           </div>
 
-          <div className="invoice-meta-row" aria-label="نوع الفاتورة">
+          <div className="invoice-checkout-footer"><div className="invoice-meta-row" aria-label="نوع الفاتورة">
             <button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}>
               <Banknote /><span><small>طريقة التحصيل</small><b>دفع مباشر</b></span>
             </button>
@@ -681,6 +681,7 @@ function Pos({
           >
             إتمام البيع
           </button>
+          </div>
         </div>
       </div>
       <InvoiceQuickBrowser
@@ -797,11 +798,12 @@ function Purchases({ data, run, openDoc }: { data: BootstrapData; run: RunComman
       <div className="panel checkout invoice-card">
         <div className="invoice-card-head"><h3>فاتورة الشراء الحالية</h3><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={clearDraft}>مسح الفاتورة</button>}</div></div>
         <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="invoice-preview-list" role="table"><div className="invoice-table-row invoice-table-head"><span>الاسم</span><span>الكمية</span><span>السعر</span><span>المجموع</span></div>{details.map(({line, product}) => <div key={product.id} tabIndex={0} onClick={() => setSelectedLine(product.id)} className={`invoice-preview-item invoice-table-row${selectedLine === product.id ? " selected" : ""}`}><span className="invoice-item-name"><b>{product.name}</b><button className="invoice-item-edit" onClick={event => { event.stopPropagation(); edit(line); }}><PencilLine /><span>تعديل</span></button></span><span>{quantity(val(line.quantity), product.piecesPerCarton)}</span><span dir="ltr">{money(val(line.unitPrice))}</span><strong className="invoice-item-total">{money(val(line.quantity) * val(line.unitPrice))}</strong></div>)}</div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b><small>يمكن إضافة عدة منتجات قبل الاعتماد</small></div>}</div>
-        <div className="invoice-meta-row"><button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}><Banknote /><span><small>نوع التسوية</small><b>دفع مباشر</b></span></button><button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع التسوية</small><b>ملاحظة</b></span></button></div>
+        <div className="invoice-checkout-footer"><div className="invoice-meta-row"><button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}><Banknote /><span><small>نوع التسوية</small><b>دفع مباشر</b></span></button><button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع التسوية</small><b>ملاحظة</b></span></button></div>
         {payment !== "note" && <div className="payment-section"><span className="payment-label">الدفع من حساب</span><div className="pay-grid">{paymentMethods.map(method => <PaymentMethodButton key={method.id} id={method.id} label={method.label} selected={payment === method.id} onSelect={setPayment} />)}</div></div>}
         {payment === "note" && <p className="note-hint">ستسجل الفاتورة كاملة دينًا علينا للمورد، دون حركة نقدية.</p>}
         <div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div>
         <button className="primary wide" disabled={!locked || !warehouseId || !lines.length} onClick={() => void submit()}>اعتماد الفاتورة كاملة</button>
+        </div>
       </div>
     </div>
     <InvoiceQuickBrowser title="فواتير الشراء" docs={data.documents.filter(d => d.kind === "purchase")} openDoc={openDoc} />
@@ -1143,8 +1145,7 @@ function Warehouses({ data, run, openDoc }: { data: BootstrapData; run: RunComma
       <div className="inventory-toolbar"><Heading title="جرد المخزن" /><div><button className="soft" onClick={() => window.print()}><Printer /> طباعة الجرد</button><button className="primary" onClick={() => setProductModal(true)}><Plus /> إضافة منتج</button></div></div>
       <div className="inventory-stats"><span><small>عدد المنتجات</small><b>{number(data.products.length)}</b></span><span><small>إجمالي الأفراد</small><b>{number(totalPieces)}</b></span><span><small>القيمة المعروفة</small><b>{money(knownValue)}</b></span><span><small>بدون تكلفة فعلية</small><b>{number(missingCost)}</b></span></div>
       <label className="search"><Search /><input value={q} onChange={e => setQ(e.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label>
-      <div className="inventory-table inventory-table-head"><span>اسم المنتج</span><span>الكود</span><span>سعر الشراء</span><span>الكمية الحالية</span><span>قيمة المخزون</span></div>
-      <div className="warehouse-scroll inventory-body">{products.map(product => <button className="inventory-table inventory-row" key={product.id} onClick={() => { setDetailProduct(product); setMovementFilter("all"); }}><strong>{product.name}</strong><span dir="ltr">{product.sku || product.barcode || "—"}</span><span>{product.lastPurchaseCost == null ? "—" : money(product.lastPurchaseCost)}</span><b>{number(qty(product))} فرد</b><span>{product.lastPurchaseCost == null ? "—" : money(qty(product) * product.lastPurchaseCost)}</span></button>)}{!products.length && <Empty text="لا توجد منتجات مطابقة للبحث" />}</div>
+      <div className="warehouse-scroll inventory-body"><div className="inventory-table inventory-table-head"><span>اسم المنتج</span><span>الكود</span><span>سعر الشراء</span><span>الكمية الحالية</span><span>قيمة المخزون</span></div>{products.map(product => <button aria-pressed={detailProduct?.id === product.id} className={`inventory-table inventory-row${detailProduct?.id === product.id ? " selected" : ""}`} key={product.id} onClick={() => { setDetailProduct(product); setMovementFilter("all"); }}><strong>{product.name}</strong><span dir="ltr">{product.sku || product.barcode || "—"}</span><span>{product.lastPurchaseCost == null ? "—" : money(product.lastPurchaseCost)}</span><b>{number(qty(product))} فرد</b><span>{product.lastPurchaseCost == null ? "—" : money(qty(product) * product.lastPurchaseCost)}</span></button>)}{!products.length && <Empty text="لا توجد منتجات مطابقة للبحث" />}</div>
       <div className="inventory-footer"><span>{missingCost ? "قيمة المخزون المعروفة" : "قيمة المخزن الحالية"}<small>{missingCost ? `${number(missingCost)} منتجات ذات مخزون بدون سعر شراء فعلي` : "كل المنتجات ذات المخزون لها تكلفة فعلية"}</small></span><strong>{money(knownValue)}</strong></div>
     </div>
     {detailProduct && <ProductMovementModal product={detailProduct} data={data} filter={movementFilter} setFilter={setMovementFilter} close={() => setDetailProduct(null)} openDoc={openDoc} />}
