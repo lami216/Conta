@@ -45,6 +45,7 @@ type View =
   | "warehouses"
   | "transfers"
   | "adjustments"
+  | "products"
   | "records"
   | "reports";
 type RunCommand = (
@@ -81,15 +82,19 @@ function useSessionDraft<T>(key: string, initial: T) {
 }
 const nav: Array<{ id: View; label: string; icon: typeof ShoppingCart }> = [
   { id: "pos", label: "نقطة البيع", icon: ShoppingCart },
-  { id: "expenses", label: "فواتير المصاريف", icon: WalletCards },
-  { id: "parties", label: "العملاء والملاحظات", icon: Users },
+  { id: "products", label: "المنتجات", icon: PackagePlus },
+  { id: "parties", label: "العملاء والموردون", icon: Users },
   { id: "reports", label: "التقارير", icon: Receipt },
 ];
-const warehouseNav: Array<{ id: View; label: string; icon: typeof Boxes }> = [
-  { id: "warehouses", label: "تفاصيل المخزن", icon: Boxes },
+const invoiceNav: Array<{ id: View; label: string; icon: typeof Receipt }> = [
+  { id: "records", label: "فواتير البيع", icon: ReceiptText },
   { id: "purchases", label: "فواتير الشراء", icon: PackagePlus },
-  { id: "transfers", label: "التحويلات", icon: ArrowLeftRight },
-  { id: "adjustments", label: "تصحيح المخازن", icon: ClipboardCheck },
+  { id: "expenses", label: "فواتير المصاريف", icon: WalletCards },
+];
+const warehouseNav: Array<{ id: View; label: string; icon: typeof Boxes }> = [
+  { id: "warehouses", label: "تفاصيل المخازن", icon: Boxes },
+  { id: "transfers", label: "التحويلات بين المخازن", icon: ArrowLeftRight },
+  { id: "adjustments", label: "تصحيح المخزون", icon: ClipboardCheck },
 ];
 const val = (v: string) => (v === "" ? 0 : Number(v)),
   lineFor = (p: Product): DraftLine => ({
@@ -111,21 +116,24 @@ export default function ContaApp() {
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [menu, setMenu] = useState(false),
+    [invoiceMenu, setInvoiceMenu] = useState(false),
     [warehouseMenu, setWarehouseMenu] = useState(false),
     [doc, setDoc] = useState<DocumentRecord | null>(null),
     [partyDetail, setPartyDetail] = useState<Party | null>(null),
     [adjustmentPrefill, setAdjustmentPrefill] = useState<AdjustmentPrefill | null>(null);
   const warehouseMenuRef = useRef<HTMLDivElement>(null);
+  const invoiceMenuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const close = (event: PointerEvent) => {
       if (!warehouseMenuRef.current?.contains(event.target as Node)) setWarehouseMenu(false);
+      if (!invoiceMenuRef.current?.contains(event.target as Node)) setInvoiceMenu(false);
     };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
   }, []);
   const navigate = (id: View) => {
     if (id !== "adjustments") setAdjustmentPrefill(null);
-    setView(id); setDoc(null); setPartyDetail(null); setMenu(false); setWarehouseMenu(false);
+    setView(id); setDoc(null); setPartyDetail(null); setMenu(false); setWarehouseMenu(false); setInvoiceMenu(false);
   };
   const openStockAdjustment = (prefill: AdjustmentPrefill) => {
     setAdjustmentPrefill(prefill);
@@ -204,6 +212,14 @@ export default function ContaApp() {
               <span>{n.label}</span>
             </button>
           ))}
+          <div className="nav-menu" ref={invoiceMenuRef}>
+            <button className={invoiceNav.some(n => n.id === view) ? "nav active" : "nav"} aria-expanded={invoiceMenu} onClick={() => setInvoiceMenu(x => !x)}>
+              <ReceiptText /><span>الفواتير</span><ChevronDown className="chevron" />
+            </button>
+            {invoiceMenu && <div className="nav-popover">
+              {invoiceNav.map(n => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => navigate(n.id)}><n.icon /><span>{n.label}</span></button>)}
+            </div>}
+          </div>
           <div className="nav-menu" ref={warehouseMenuRef}>
             <button className={warehouseNav.some(n => n.id === view) ? "nav active" : "nav"} aria-expanded={warehouseMenu} onClick={() => setWarehouseMenu(x => !x)}>
               <Boxes /><span>المخازن</span><ChevronDown className="chevron" />
@@ -226,7 +242,7 @@ export default function ContaApp() {
           <button className="icon mobile" onClick={() => setMenu(true)}>
             <Menu />
           </button>
-          <h1>{[...nav, ...warehouseNav].find((n) => n.id === view)?.label}</h1>
+          <h1>{[...nav, ...invoiceNav, ...warehouseNav].find((n) => n.id === view)?.label}</h1>
           <div className="date-chip"><CalendarDays /><span>{today}</span></div>
           <button className="icon refresh" title="تحديث البيانات" aria-label="تحديث البيانات" onClick={() => void reload()}><RefreshCw /></button>
         </header>
@@ -263,6 +279,7 @@ export default function ContaApp() {
               {view === "parties" && (
                 <Parties data={data} run={run} openParty={setPartyDetail} />
               )}{" "}
+              {view === "products" && <Products data={data} run={run} />}{" "}
               {view === "warehouses" && (
                 <Warehouses data={data} run={run} openDoc={openDoc} />
               )}{" "}
@@ -666,11 +683,10 @@ function Pos({
           </button>
         </div>
       </div>
-      <Recent
-        title="فواتير بيع أخيرة"
+      <InvoiceQuickBrowser
+        title="فواتير البيع"
         docs={data.documents.filter((d) => d.kind === "sale")}
         openDoc={openDoc}
-        dateFilter
       />
     </section>
   );
@@ -788,7 +804,7 @@ function Purchases({ data, run, openDoc }: { data: BootstrapData; run: RunComman
         <button className="primary wide" disabled={!locked || !warehouseId || !lines.length} onClick={() => void submit()}>اعتماد الفاتورة كاملة</button>
       </div>
     </div>
-    <Recent title="مشتريات أخيرة" docs={data.documents.filter(d => d.kind === "purchase")} openDoc={openDoc} />
+    <InvoiceQuickBrowser title="فواتير الشراء" docs={data.documents.filter(d => d.kind === "purchase")} openDoc={openDoc} />
   </section>;
 }
 function Expenses({
@@ -1287,6 +1303,42 @@ function Warehouses({
     </section>
   );
 }
+function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
+  const [query, setQuery] = useState("");
+  const [editing, setEditing] = useState<Product | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const normalized = query.trim().toLocaleLowerCase("ar");
+  const products = data.products.filter(product => !normalized || `${product.name} ${product.sku} ${product.barcode}`.toLocaleLowerCase("ar").includes(normalized));
+  const openForm = (product: Product | null) => { setEditing(product); setFormOpen(true); };
+  return <section className="workspace-page products-page">
+    <div className="toolbar workspace-toolbar">
+      <label className="search"><Search /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="بحث سريع بالاسم أو الرمز أو الباركود" /></label>
+      <button className="primary" onClick={() => openForm(null)}><Plus /> إضافة منتج</button>
+    </div>
+    <div className="panel scroll-panel product-management">
+      <div className="product-table product-table-head" role="row">
+        <span>الاسم</span><span>الرمز / الباركود</span><span>سعر البيع</span><span>آخر شراء</span><span>المخزون</span><span>الكرتون</span><span>إجراءات</span>
+      </div>
+      <div className="scroll-body" role="table" aria-label="كل المنتجات">
+        {products.map(product => {
+          const stock = Object.values(product.stocks).reduce((sum, value) => sum + Number(value), 0);
+          return <div className="product-table" role="row" key={product.id}>
+            <strong>{product.name}</strong>
+            <span><b dir="ltr">{product.sku || "—"}</b><small dir="ltr">{product.barcode || "—"}</small></span>
+            <span>{product.piecePrice == null ? "—" : money(product.piecePrice)}</span>
+            <span>{product.lastPurchaseCost == null ? "—" : money(product.lastPurchaseCost)}</span>
+            <span>{quantity(stock, product.piecesPerCarton)}</span>
+            <span>{product.piecesPerCarton ? `${number(product.piecesPerCarton)} فرد` : "—"}</span>
+            <span className="table-actions"><button className="soft" onClick={() => openForm(product)}>تعديل</button><button className="link" onClick={() => openForm(product)}>عرض التفاصيل</button></span>
+          </div>;
+        })}
+        {!products.length && <Empty text="لا توجد منتجات مطابقة للبحث" />}
+      </div>
+    </div>
+    {formOpen && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={editing ? `تعديل ${editing.name}` : "إضافة منتج"}><div className="modal-card product-modal"><ProductForm run={run} product={editing} close={() => setFormOpen(false)} /></div></div>}
+  </section>;
+}
+
 function ProductForm({
   run,
   close,
@@ -1512,7 +1564,7 @@ function Records({
   data: BootstrapData;
   openDoc: (id: string) => void;
 }) {
-  const [kind, setKind] = useState(""),
+  const [kind, setKind] = useState("sale"),
     [q, setQ] = useState(""),
     [from, setFrom] = useState(""),
     [to, setTo] = useState("");
@@ -1768,6 +1820,19 @@ function Linked({
       ))}
     </div>
   ) : null;
+}
+
+function InvoiceQuickBrowser({ title, docs, openDoc }: { title: string; docs: DocumentRecord[]; openDoc: (id: string) => void }) {
+  const localDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const [day, setDay] = useState(() => localDay(new Date()));
+  const visible = docs.filter(document => localDay(new Date(document.occurredAt)) === day);
+  return <aside className="panel quick-invoices" aria-label={`الوصول السريع إلى ${title}`}>
+    <div className="quick-invoice-head"><div><small>وصول سريع</small><h3>{title}</h3></div><label><span>اختر اليوم</span><input type="date" dir="ltr" value={day} onChange={event => setDay(event.target.value)} /></label></div>
+    <div className="quick-invoice-list">
+      {visible.slice(0, 100).map(document => <button key={document.id} onClick={() => openDoc(document.id)}><span><strong dir="ltr">{document.number}</strong><small>{document.partyName ?? document.title ?? "بدون طرف"}</small></span><b>{money(document.total)}</b></button>)}
+      {!visible.length && <Empty text="لا توجد فواتير في هذا اليوم" />}
+    </div>
+  </aside>;
 }
 
 function Recent({
