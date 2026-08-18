@@ -12,7 +12,9 @@
   --amber: #b87513;
   --shadow: 0 12px 34px rgba(20, 49, 47, 0.07);
 }
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 html,
@@ -1466,3 +1468,29 @@ input, select, .combobox-trigger { border-color: var(--border); }
   .inventory-body { overflow: visible !important; }
   .inventory-table { break-inside: avoid; }
 }
+
+/* Authoritative viewport boundary (kept last to win the component cascade). */
+@media (min-width: 1051px) {
+  .app-shell { display: grid; grid-template-rows: 102px minmax(0, 1fr); height: 100vh; height: 100dvh; padding-top: 0; overflow: hidden; }
+  .sidebar { position: relative; inset: auto; grid-row: 1; width: 100%; height: auto; }
+  .app-shell > main { grid-row: 2; height: auto; min-height: 0; overflow: hidden; }
+  .pos-grid > .panel, .purchase-grid > .panel,
+  .pos-grid > .panel:first-child, .purchase-grid > .panel:first-child { min-width: 0; min-height: 0; overflow: hidden; }
+  .invoice-card { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-width: 0; min-height: 0; overflow: hidden; }
+  .invoice-checkout-footer { display: grid; gap: 7px; min-width: 0; padding-top: 7px; background: var(--panel); }
+  .invoice-checkout-footer .meta-option { min-height: 42px; }
+  .invoice-checkout-footer .invoice-total { margin: 0; }
+  .invoice-checkout-footer .payment-section { gap: 4px; }
+  .inventory-panel { grid-template-rows: auto auto auto minmax(0, 1fr) auto; overflow: hidden; }
+  .inventory-body { min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+  .inventory-table-head { position: sticky; top: 0; z-index: 3; }
+}
+
+/* Whole-row feedback for interactive data lists. */
+.inventory-row { cursor: pointer; transition: background-color 140ms ease, box-shadow 140ms ease, color 140ms ease; }
+.inventory-row:hover { background: #e8f3f1; box-shadow: inset -4px 0 #72b7ae; }
+.inventory-row.selected, .inventory-row[aria-pressed="true"] { color: #075c54; background: #d7eee9; box-shadow: inset -5px 0 var(--brand); }
+.scroll-body > .product-table:not(.product-table-head), .party-card, .list-row.clickable,
+.quick-invoice-list > button, .movement-timeline > button { transition: background-color 140ms ease, box-shadow 140ms ease; }
+.scroll-body > .product-table:not(.product-table-head):hover, .party-card:hover, .list-row.clickable:hover,
+.quick-invoice-list > button:hover, .movement-timeline > button:hover { background: var(--soft); box-shadow: inset -3px 0 var(--brand); }
