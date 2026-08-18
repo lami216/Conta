@@ -428,7 +428,7 @@ function LineEditor({
           <small>
             {mode === "purchase" && qty
               ? `يعادل ${quantity(qty, product.piecesPerCarton)}`
-              : `المتاح: ${number(mode === "sale" ? (availableStock ?? 0) : Object.values(product.stocks).reduce((a, b) => a + b, 0))} فرد`}
+              : `المتاح: ${number(mode === "sale" || mode === "adjust" ? (availableStock ?? 0) : Object.values(product.stocks).reduce((a, b) => a + b, 0))} فرد`}
           </small>
         </span>
         <button className="icon danger" onClick={onRemove}>
@@ -1138,6 +1138,7 @@ function Warehouses({
   const [wh, setWh] = useState(data.warehouses[0]?.id ?? ""),
     [q, setQ] = useState(""),
     [newName, setNewName] = useState(""),
+    [managementOpen, setManagementOpen] = useState(false),
     [productModal, setProductModal] = useState(false),
     [editingProduct, setEditingProduct] = useState<Product | null>(null),
     [rename, setRename] = useState(""),
@@ -1158,13 +1159,13 @@ function Warehouses({
         (!to || m.occurredAt.slice(0, 10) <= to),
     );
   return (
-    <section>
-      <div className="warehouse-head">
+    <section className="warehouse-workspace">
+      <div className="warehouse-head panel">
         <label>
           المخزن النشط
           <SearchableSelect value={wh} onChange={(value) => { setWh(value); setQ(""); setRename(""); }} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} />
         </label>
-        <button
+        <div className="warehouse-actions"><span className={active?.isSalesDefault ? "status" : "status muted-status"}>{active?.isSalesDefault ? "مخزن البيع الافتراضي" : "مخزن مسجل"}</span><button
           className="soft"
           disabled={active?.isSalesDefault}
           onClick={() =>
@@ -1175,16 +1176,9 @@ function Warehouses({
           }
         >
           جعله مخزن البيع الافتراضي
-        </button>
+        </button><button className="primary" onClick={() => setManagementOpen(true)}>إدارة المخزن</button></div>
       </div>
-      <div className="hero">
-        <div>
-          <span>المخزن المختار</span>
-          <h2>{active?.name}</h2>
-        </div>
-        <b>{active?.isSalesDefault ? "مخزن البيع الافتراضي" : "مخزن مسجل"}</b>
-      </div>
-      <div className="panel mini-form">
+      {managementOpen && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="إدارة المخزن"><div className="modal-card warehouse-management"><div className="product-form-head"><div><small>إعدادات غير متكررة</small><h2>إدارة {active?.name ?? "المخزن"}</h2></div><button className="icon" aria-label="إغلاق" onClick={() => setManagementOpen(false)}><X /></button></div><div className="mini-form">
         <input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
@@ -1220,13 +1214,14 @@ function Warehouses({
         >
           حفظ اسم المخزن
         </button>
-      </div>
+      </div></div></div>}
       {productModal && (
         <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={editingProduct ? "تعديل المنتج" : "إضافة منتج جديد"}>
           <div className="modal-card product-modal"><ProductForm run={run} product={editingProduct} close={() => setProductModal(false)} /></div>
         </div>
       )}
-      <div className="panel">
+      <div className="warehouse-panels">
+      <div className="panel warehouse-data-panel">
         <Heading title="حركة المنتجات" />
         <div className="filters">
           <SearchableSelect value={moveProduct} onChange={setMoveProduct} allowEmpty placeholder="كل المنتجات" searchPlaceholder="ابحث عن منتج" options={data.products.map(p => ({ value: p.id, label: p.name, search: `${p.sku} ${p.barcode}` }))} />
@@ -1243,7 +1238,7 @@ function Warehouses({
             onChange={(e) => setTo(e.target.value)}
           />
         </div>
-        {moves.map((m) => (
+        <div className="warehouse-scroll">{moves.map((m) => (
           <button
             className="list-row clickable"
             key={m.id}
@@ -1263,9 +1258,9 @@ function Warehouses({
               {m.balanceBefore} ← {m.balanceAfter}
             </small>
           </button>
-        ))}
+        ))}</div>
       </div>
-      <div className="panel">
+      <div className="panel warehouse-data-panel">
         <div className="section-toolbar"><Heading title="منتجات المخزن" /><button className="primary" onClick={() => { setEditingProduct(null); setProductModal(true); }}><Plus /> إضافة منتج</button></div>
         <label className="search">
           <Search />
@@ -1275,7 +1270,7 @@ function Warehouses({
             placeholder="ابحث لتظهر المنتجات"
           />
         </label>
-        {products.map((p) => (
+        <div className="warehouse-scroll">{products.map((p) => (
           <div className="product-row" key={p.id}>
             <span>
               <strong>{p.name}</strong>
@@ -1298,7 +1293,8 @@ function Warehouses({
         ))}
         {!q && (
           <Empty text="لن نعرض كتالوجًا بطول فاتورة الكهرباء. ابدأ بالبحث." />
-        )}
+        )}</div>
+      </div>
       </div>
     </section>
   );
@@ -1471,7 +1467,7 @@ function MultiStockForm({
     openDoc(id);
   }
   return (
-    <div className="panel form-stack">
+    <div className="panel form-stack stock-operation-panel">
       <div className="form-row">
         <label>
           {mode === "transfer" ? "من" : "المخزن"}
@@ -1495,12 +1491,13 @@ function MultiStockForm({
           setQ("");
         }}
       />
-      {lines.map((l) => (
+      <div className="stock-draft" aria-label="المنتجات الجاري تنفيذ العملية عليها">{lines.map((l) => (
         <LineEditor
           key={l.productId}
           line={l}
           product={data.products.find((p) => p.id === l.productId)!}
           mode={mode}
+          availableStock={mode === "adjust" ? Number(data.products.find((p) => p.id === l.productId)?.stocks[from] ?? 0) : undefined}
           onChange={(x) =>
             setLines((s) => s.map((a) => (a.productId === x.productId ? x : a)))
           }
@@ -1508,16 +1505,16 @@ function MultiStockForm({
             setLines((s) => s.filter((a) => a.productId !== l.productId))
           }
         />
-      ))}
+      ))}{!lines.length && <Empty text={mode === "transfer" ? "أضف المنتجات إلى مسودة التحويل" : "اختر منتجًا لتسجيل رصيده الفعلي"} />}</div>
       {mode === "adjust" && (
         <label>سبب التصحيح<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="مثال: نتيجة الجرد الفعلي" /></label>
       )}
       <button
-        className="primary"
+        className="primary stock-primary-action"
         disabled={!from || (mode === "transfer" && !to) || !lines.length || (mode === "adjust" && !reason.trim())}
         onClick={() => void submit()}
       >
-        {mode === "transfer" ? "اعتماد التحويل" : "حفظ عملية التصحيح"}
+        {mode === "transfer" ? "اعتماد التحويل" : "اعتماد التصحيح"}
       </button>
     </div>
   );
@@ -1528,9 +1525,9 @@ function Transfer(p: {
   openDoc: (id: string) => void;
 }) {
   return (
-    <section>
-      <Heading title="تحويل مرن بين أي مخزنين" />
-      <MultiStockForm {...p} mode="transfer" />
+    <section className="stock-workspace">
+      <div className="stock-workspace-main"><Heading title="تحويل مرن بين أي مخزنين" />
+      <MultiStockForm {...p} mode="transfer" /></div>
       <Recent
         title="سجل التحويلات"
         docs={p.data.documents.filter((d) => d.kind === "transfer")}
@@ -1546,9 +1543,9 @@ function Adjustment(p: {
   prefill?: AdjustmentPrefill | null;
 }) {
   return (
-    <section>
-      <Heading title="تصحيح المخزون بالجرد الفعلي" />
-      <MultiStockForm {...p} mode="adjust" />
+    <section className="stock-workspace adjustment-workspace">
+      <div className="stock-workspace-main"><Heading title="تصحيح المخزون بالجرد الفعلي" />
+      <MultiStockForm {...p} mode="adjust" /></div>
       <Recent
         title="سجل التصحيحات"
         docs={p.data.documents.filter((d) => d.kind === "adjustment")}
