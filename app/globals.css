@@ -1494,3 +1494,54 @@ input, select, .combobox-trigger { border-color: var(--border); }
 .quick-invoice-list > button, .movement-timeline > button { transition: background-color 140ms ease, box-shadow 140ms ease; }
 .scroll-body > .product-table:not(.product-table-head):hover, .party-card:hover, .list-row.clickable:hover,
 .quick-invoice-list > button:hover, .movement-timeline > button:hover { background: var(--soft); box-shadow: inset -3px 0 var(--brand); }
+
+/* Functional ERP identity and a single overflow-safe application frame. */
+:root {
+  --color-sales: #087f6f;
+  --color-invoices: #2563a9;
+  --color-warehouses: #5b4bb7;
+  --color-products: #c45f12;
+  --color-parties: #087f8c;
+  --color-expenses: #c2414c;
+  --color-reports: #243f73;
+  --color-owner: #a16207;
+  --success: #15803d;
+  --warning: #c56a08;
+  --danger: #c83245;
+  --info: #2563a9;
+  --surface: #fff;
+  --surface-muted: #f1f3f6;
+  --border: #b8c1cc;
+  --text: #172033;
+  --text-muted: #5e6878;
+}
+html, body, .app-shell, .app-shell > main, .content, .content > section { width: 100%; max-width: 100%; min-width: 0; }
+body { overflow-x: hidden; background: #eef1f5; color: var(--text); }
+.app-shell { --section-color: var(--color-sales); --section-soft: #e6f5f2; }
+.section-purchases, .section-records { --section-color: var(--color-invoices); --section-soft: #e9f1fb; }
+.section-expenses { --section-color: var(--color-expenses); --section-soft: #fbecef; }
+.section-warehouses, .section-transfers, .section-adjustments { --section-color: var(--color-warehouses); --section-soft: #efedfb; }
+.section-products { --section-color: var(--color-products); --section-soft: #fff0e4; }
+.section-parties { --section-color: var(--color-parties); --section-soft: #e5f5f6; }
+.section-reports { --section-color: var(--color-reports); --section-soft: #e9edf5; }
+.app-shell .page-bar { border-bottom: 3px solid var(--section-color); }
+.app-shell .page-bar h1, .app-shell .heading h2 { color: var(--section-color); }
+.app-shell .primary { background: var(--section-color); border-color: var(--section-color); color: #fff; }
+.app-shell .primary:hover { filter: brightness(.88); }
+.app-shell .panel { border-color: color-mix(in srgb, var(--section-color) 50%, var(--border)); border-top-width: 3px; }
+.app-shell .invoice-table-head, .app-shell .inventory-table-head, .app-shell .product-table-head { background: var(--section-color); color: #fff; }
+.app-shell .invoice-preview-item:hover, .app-shell .invoice-preview-item.selected,
+.app-shell .inventory-row:hover, .app-shell .inventory-row.selected { border-color: var(--section-color); background: var(--section-soft); }
+.nav.active { color: var(--section-color); border-color: var(--section-color); background: var(--section-soft); }
+.nav-popover { border-top: 4px solid var(--section-color); }
+.nav-popover button:hover, .nav-popover button.active { color: var(--section-color); background: var(--section-soft); }
+.date-filter { display: grid; gap: 5px; min-width: 165px; color: var(--text-muted); font-size: 11px; font-weight: 800; }
+.filters { align-items: end; }
+.invoice-card { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+.invoice-checkout-footer { min-width: 0; }
+.content *, .panel > *, .pos-grid > *, .purchase-grid > *, .filters > *, .form-row > * { min-width: 0; max-width: 100%; }
+@media (min-width: 1051px) {
+  .content { padding-inline: clamp(20px, 2.4vw, 38px); }
+  .purchase-grid .invoice-card, .pos-grid .invoice-card { height: 100%; max-height: 100%; }
+  .invoice-preview { overflow-y: auto; overscroll-behavior: contain; }
+}

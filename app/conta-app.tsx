@@ -87,9 +87,9 @@ const nav: Array<{ id: View; label: string; icon: typeof ShoppingCart }> = [
   { id: "reports", label: "التقارير", icon: Receipt },
 ];
 const invoiceNav: Array<{ id: View; label: string; icon: typeof Receipt }> = [
-  { id: "records", label: "فواتير البيع", icon: ReceiptText },
   { id: "purchases", label: "فواتير الشراء", icon: PackagePlus },
   { id: "expenses", label: "فواتير المصاريف", icon: WalletCards },
+  { id: "records", label: "سجل الفواتير", icon: ReceiptText },
 ];
 const warehouseNav: Array<{ id: View; label: string; icon: typeof Boxes }> = [
   { id: "warehouses", label: "تفاصيل المخازن", icon: Boxes },
@@ -185,7 +185,7 @@ export default function ContaApp() {
     year: "numeric",
   }).format(new Date());
   return (
-    <div className="app-shell" dir="rtl">
+    <div className={`app-shell section-${view}`} dir="rtl">
       <aside className={menu ? "sidebar open" : "sidebar"}>
         <div className="brand">
           <b>C</b>
@@ -287,7 +287,7 @@ export default function ContaApp() {
                 <Transfer data={data} run={run} openDoc={openDoc} />
               )}{" "}
               {view === "adjustments" && (
-                <Adjustment data={data} run={run} openDoc={openDoc} prefill={adjustmentPrefill} />
+                <Adjustment data={data} run={run} openDoc={openDoc} prefill={adjustmentPrefill} clearPrefill={() => setAdjustmentPrefill(null)} />
               )}{" "}
               {view === "records" && <Records data={data} openDoc={openDoc} />}{" "}
               {view === "reports" && (
@@ -469,6 +469,12 @@ function LineEditor({
               value={line.unitPrice}
               onChange={(v) => onChange({ ...line, unitPrice: v })}
             />
+          </label>
+        )}
+        {mode === "adjust" && val(line.actualQuantity) > (availableStock ?? 0) && product.lastPurchaseCost == null && (
+          <label>
+            تكلفة الشراء للفرد
+            <Num value={line.unitPrice} onChange={(v) => onChange({ ...line, unitPrice: v })} />
           </label>
         )}
       </div>
@@ -685,7 +691,7 @@ function Pos({
         </div>
       </div>
       <InvoiceQuickBrowser
-        title="فواتير البيع"
+        title="سجل الفواتير"
         docs={data.documents.filter((d) => d.kind === "sale")}
         openDoc={openDoc}
       />
@@ -1132,8 +1138,9 @@ function Warehouses({ data, run, openDoc }: { data: BootstrapData; run: RunComma
   const [wh, setWh] = useState(data.warehouses[0]?.id ?? ""), [q, setQ] = useState(""), [newName, setNewName] = useState(""), [managementOpen, setManagementOpen] = useState(false), [productModal, setProductModal] = useState(false), [detailProduct, setDetailProduct] = useState<Product | null>(null), [rename, setRename] = useState(""), [movementFilter, setMovementFilter] = useState("all");
   const active = data.warehouses.find(w => w.id === wh);
   const normalized = q.trim().toLocaleLowerCase("ar");
-  const products = data.products.filter(p => !normalized || `${p.name} ${p.sku} ${p.barcode}`.toLocaleLowerCase("ar").includes(normalized));
   const qty = (product: Product) => Number(product.stocks[wh] ?? 0);
+  const inventoryProducts = data.products.filter(p => qty(p) > 0);
+  const products = inventoryProducts.filter(p => !normalized || `${p.name} ${p.sku} ${p.barcode}`.toLocaleLowerCase("ar").includes(normalized));
   const knownValue = data.products.reduce((sum, product) => product.lastPurchaseCost == null ? sum : sum + qty(product) * product.lastPurchaseCost, 0);
   const missingCost = data.products.filter(product => qty(product) > 0 && product.lastPurchaseCost == null).length;
   const totalPieces = data.products.reduce((sum, product) => sum + qty(product), 0);
@@ -1143,9 +1150,9 @@ function Warehouses({ data, run, openDoc }: { data: BootstrapData; run: RunComma
     {productModal && <div className="modal-overlay" role="dialog" aria-modal="true"><div className="modal-card product-modal"><ProductForm run={run} product={null} close={() => setProductModal(false)} /></div></div>}
     <div className="panel inventory-panel">
       <div className="inventory-toolbar"><Heading title="جرد المخزن" /><div><button className="soft" onClick={() => window.print()}><Printer /> طباعة الجرد</button><button className="primary" onClick={() => setProductModal(true)}><Plus /> إضافة منتج</button></div></div>
-      <div className="inventory-stats"><span><small>عدد المنتجات</small><b>{number(data.products.length)}</b></span><span><small>إجمالي الأفراد</small><b>{number(totalPieces)}</b></span><span><small>القيمة المعروفة</small><b>{money(knownValue)}</b></span><span><small>بدون تكلفة فعلية</small><b>{number(missingCost)}</b></span></div>
+      <div className="inventory-stats"><span><small>عدد المنتجات</small><b>{number(inventoryProducts.length)}</b></span><span><small>إجمالي الأفراد</small><b>{number(totalPieces)}</b></span><span><small>القيمة المعروفة</small><b>{money(knownValue)}</b></span><span><small>بدون تكلفة فعلية</small><b>{number(missingCost)}</b></span></div>
       <label className="search"><Search /><input value={q} onChange={e => setQ(e.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label>
-      <div className="warehouse-scroll inventory-body"><div className="inventory-table inventory-table-head"><span>اسم المنتج</span><span>الكود</span><span>سعر الشراء</span><span>الكمية الحالية</span><span>قيمة المخزون</span></div>{products.map(product => <button aria-pressed={detailProduct?.id === product.id} className={`inventory-table inventory-row${detailProduct?.id === product.id ? " selected" : ""}`} key={product.id} onClick={() => { setDetailProduct(product); setMovementFilter("all"); }}><strong>{product.name}</strong><span dir="ltr">{product.sku || product.barcode || "—"}</span><span>{product.lastPurchaseCost == null ? "—" : money(product.lastPurchaseCost)}</span><b>{number(qty(product))} فرد</b><span>{product.lastPurchaseCost == null ? "—" : money(qty(product) * product.lastPurchaseCost)}</span></button>)}{!products.length && <Empty text="لا توجد منتجات مطابقة للبحث" />}</div>
+      <div className="warehouse-scroll inventory-body"><div className="inventory-table inventory-table-head"><span>اسم المنتج</span><span>الكود</span><span>سعر الشراء</span><span>الكمية الحالية</span><span>قيمة المخزون</span></div>{products.map(product => <button aria-pressed={detailProduct?.id === product.id} className={`inventory-table inventory-row${detailProduct?.id === product.id ? " selected" : ""}`} key={product.id} onClick={() => { setDetailProduct(product); setMovementFilter("all"); }}><strong>{product.name}</strong><span dir="ltr">{product.sku || product.barcode || "—"}</span><span>{product.lastPurchaseCost == null ? "تكلفة غير معروفة" : money(product.lastPurchaseCost)}</span><b>{number(qty(product))} فرد</b><span>{product.lastPurchaseCost == null ? "تكلفة غير معروفة" : money(qty(product) * product.lastPurchaseCost)}</span></button>)}{!products.length && <Empty text="لا توجد منتجات مطابقة للبحث" />}</div>
       <div className="inventory-footer"><span>{missingCost ? "قيمة المخزون المعروفة" : "قيمة المخزن الحالية"}<small>{missingCost ? `${number(missingCost)} منتجات ذات مخزون بدون سعر شراء فعلي` : "كل المنتجات ذات المخزون لها تكلفة فعلية"}</small></span><strong>{money(knownValue)}</strong></div>
     </div>
     {detailProduct && <ProductMovementModal product={detailProduct} data={data} filter={movementFilter} setFilter={setMovementFilter} close={() => setDetailProduct(null)} openDoc={openDoc} />}
@@ -1296,12 +1303,14 @@ function MultiStockForm({
   run,
   openDoc,
   prefill,
+  clearPrefill,
 }: {
   data: BootstrapData;
   mode: "transfer" | "adjust";
   run: RunCommand;
   openDoc: (id: string) => void;
   prefill?: AdjustmentPrefill | null;
+  clearPrefill?: () => void;
 }) {
   const [from, setFrom] = useSessionDraft(`${mode}-from`, prefill?.warehouseId ?? ""),
     [to, setTo] = useSessionDraft(`${mode}-to`, ""),
@@ -1311,6 +1320,13 @@ function MultiStockForm({
       const product = data.products.find((item) => item.id === prefill?.productId);
       return product ? [lineFor(product)] : [];
     })());
+  useEffect(() => {
+    if (mode !== "adjust" || !prefill) return;
+    const product = data.products.find(item => item.id === prefill.productId);
+    setFrom(prefill.warehouseId);
+    setLines(product ? [{ ...lineFor(product), actualQuantity: "", unitPrice: "" }] : []);
+    setReason("");
+  }, [data.products, mode, prefill, setFrom, setLines, setReason]);
   async function submit() {
     const body =
       mode === "transfer"
@@ -1330,6 +1346,7 @@ function MultiStockForm({
             lines: lines.map((l) => ({
               productId: l.productId,
               actualQuantity: val(l.actualQuantity),
+              purchaseCost: l.unitPrice === "" ? null : val(l.unitPrice),
             })),
           };
     const id = await run(
@@ -1337,8 +1354,16 @@ function MultiStockForm({
       mode === "transfer" ? "تم التحويل بين المخازن" : "تم تسجيل تصحيح المخزون",
     );
     setLines([]);
+    setReason("");
+    setQ("");
+    if (mode === "adjust") clearPrefill?.();
     openDoc(id);
   }
+  const invalidAdjustment = mode === "adjust" && lines.some(line => {
+    const product = data.products.find(item => item.id === line.productId);
+    const before = Number(product?.stocks[from] ?? 0);
+    return line.actualQuantity === "" || (val(line.actualQuantity) > before && product?.lastPurchaseCost == null && val(line.unitPrice) <= 0);
+  });
   return (
     <div className="panel form-stack stock-operation-panel">
       <div className="form-row">
@@ -1359,7 +1384,7 @@ function MultiStockForm({
         setQuery={setQ}
         onPick={(p) => {
           setLines((x) =>
-            x.some((l) => l.productId === p.id) ? x : [...x, lineFor(p)],
+            x.some((l) => l.productId === p.id) ? x : [...x, mode === "adjust" ? { ...lineFor(p), unitPrice: "" } : lineFor(p)],
           );
           setQ("");
         }}
@@ -1384,7 +1409,7 @@ function MultiStockForm({
       )}
       <button
         className="primary stock-primary-action"
-        disabled={!from || (mode === "transfer" && !to) || !lines.length || (mode === "adjust" && !reason.trim())}
+        disabled={!from || (mode === "transfer" && !to) || !lines.length || (mode === "adjust" && (!reason.trim() || invalidAdjustment))}
         onClick={() => void submit()}
       >
         {mode === "transfer" ? "اعتماد التحويل" : "اعتماد التصحيح"}
@@ -1414,6 +1439,7 @@ function Adjustment(p: {
   run: RunCommand;
   openDoc: (id: string) => void;
   prefill?: AdjustmentPrefill | null;
+  clearPrefill?: () => void;
 }) {
   return (
     <section className="stock-workspace adjustment-workspace">
@@ -1467,18 +1493,14 @@ function Records({
             </option>
           ))}
         </select>
-        <input
-          type="date"
-          dir="ltr"
-          value={from}
+        <label className="date-filter"><span>تاريخ من</span><input
+          type="date" dir="ltr" value={from}
           onChange={(e) => setFrom(e.target.value)}
-        />
-        <input
-          type="date"
-          dir="ltr"
-          value={to}
+        /></label>
+        <label className="date-filter"><span>تاريخ إلى</span><input
+          type="date" dir="ltr" value={to}
           onChange={(e) => setTo(e.target.value)}
-        />
+        /></label>
       </div>
       <Recent title="كل السجلات القابلة للتتبع" docs={docs} openDoc={openDoc} />
     </section>
