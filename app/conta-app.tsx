@@ -828,11 +828,14 @@ function Expenses({
     [amount, setAmount] = useSessionDraft("expense-amount", ""),
     [date, setDate] = useSessionDraft("expense-date", new Date().toISOString().slice(0, 10)),
     [frequency, setFrequency] = useSessionDraft("expense-frequency", "once");
+  const [historyQuery, setHistoryQuery] = useState("");
+  const expenseDocs = data.documents.filter((d) => d.kind === "expense" && (!historyQuery.trim() || `${d.title ?? ""} ${d.number}`.toLocaleLowerCase("ar").includes(historyQuery.trim().toLocaleLowerCase("ar"))));
   return (
-    <section>
-      <Heading title="فاتورة مصروفات جديدة" />
+    <section className="expense-workspace workspace-page">
+      <div className="expense-toolbar"><div><small>إدارة التدفقات الخارجة</small><Heading title="فواتير المصاريف" /></div><span><CalendarDays /> {new Date(date).toLocaleDateString("ar-MR")}</span></div>
+      <div className="expense-grid">
       <form
-        className="panel form-row"
+        className="panel expense-form"
         onSubmit={async (e) => {
           e.preventDefault();
           const id = await run(
@@ -850,6 +853,8 @@ function Expenses({
           openDoc(id);
         }}
       >
+        <div className="section-title"><div><small>إدخال سريع</small><h3>فاتورة مصروف جديدة</h3></div></div>
+        <div className="expense-fields">
         <label>
           عنوان المصروف
           <input value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -878,11 +883,11 @@ function Expenses({
             <option value="monthly">شهري</option>
           </select>
         </label>
-        <button className="primary">حفظ الفاتورة</button>
+        </div><button className="primary expense-save">حفظ الفاتورة</button>
       </form>
-      {data.recurringExpenses.length > 0 && (
-        <div className="panel">
-          <Heading title="المصاريف المتكررة" />
+        <div className="panel expense-recurring">
+          <div className="section-title"><div><small>الاستحقاقات المجدولة</small><h3>المصاريف المتكررة</h3></div><b>{number(data.recurringExpenses.length)}</b></div>
+          <div className="expense-scroll">
           {data.recurringExpenses.map((r) => (
             <div className="list-row" key={r.id}>
               <span>
@@ -909,13 +914,16 @@ function Expenses({
               </button>
             </div>
           ))}
+          {!data.recurringExpenses.length && <Empty text="لا توجد مصاريف متكررة" />}
+          </div>
         </div>
-      )}
-      <Recent
-        title="فواتير المصاريف"
-        docs={data.documents.filter((d) => d.kind === "expense")}
-        openDoc={openDoc}
-      />
+        <div className="panel expense-history">
+          <div className="section-title"><div><small>المستندات المسجلة</small><h3>سجل فواتير المصاريف</h3></div></div>
+          <label className="search"><Search /><input value={historyQuery} onChange={e => setHistoryQuery(e.target.value)} placeholder="بحث بالعنوان أو رقم المستند" /></label>
+          <div className="expense-history-head"><span>التاريخ</span><span>العنوان</span><span>المبلغ</span><span>الحالة / الدفع</span><span>المستند</span></div>
+          <div className="expense-scroll">{expenseDocs.map(document => <button className="expense-doc" key={document.id} onClick={() => openDoc(document.id)}><span>{new Date(document.occurredAt).toLocaleDateString("ar-MR")}</span><strong>{document.title ?? "مصروف"}</strong><b>{money(document.total)}</b><span><small>{document.status === "posted" ? "معتمد" : document.status}</small> · {paymentMethods.find(x => x.id === document.paymentMethod)?.label ?? "—"}</span><span dir="ltr">{document.number}</span></button>)}{!expenseDocs.length && <Empty text="لا توجد فواتير مطابقة" />}</div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -1135,39 +1143,36 @@ function PartyPage({
 }
 
 function Warehouses({ data, run, openDoc }: { data: BootstrapData; run: RunCommand; openDoc: (id: string) => void }) {
-  const [wh, setWh] = useState(data.warehouses[0]?.id ?? ""), [q, setQ] = useState(""), [newName, setNewName] = useState(""), [managementOpen, setManagementOpen] = useState(false), [productModal, setProductModal] = useState(false), [detailProduct, setDetailProduct] = useState<Product | null>(null), [rename, setRename] = useState(""), [movementFilter, setMovementFilter] = useState("all");
+  const [wh, setWh] = useState(data.warehouses[0]?.id ?? ""), [q, setQ] = useState(""), [newName, setNewName] = useState(""), [managementOpen, setManagementOpen] = useState(false), [browserOpen, setBrowserOpen] = useState(false), [detailProduct, setDetailProduct] = useState<Product | null>(null), [rename, setRename] = useState(""), [movementFilter, setMovementFilter] = useState("all");
   const active = data.warehouses.find(w => w.id === wh);
   const normalized = q.trim().toLocaleLowerCase("ar");
   const qty = (product: Product) => Number(product.stocks[wh] ?? 0);
   const inventoryProducts = data.products.filter(p => qty(p) > 0);
   const products = inventoryProducts.filter(p => !normalized || `${p.name} ${p.sku} ${p.barcode}`.toLocaleLowerCase("ar").includes(normalized));
-  const knownValue = data.products.reduce((sum, product) => product.lastPurchaseCost == null ? sum : sum + qty(product) * product.lastPurchaseCost, 0);
-  const missingCost = data.products.filter(product => qty(product) > 0 && product.lastPurchaseCost == null).length;
-  const totalPieces = data.products.reduce((sum, product) => sum + qty(product), 0);
+  const knownValue = inventoryProducts.reduce((sum, product) => product.lastPurchaseCost == null ? sum : sum + qty(product) * product.lastPurchaseCost, 0);
+  const missingCost = inventoryProducts.filter(product => product.lastPurchaseCost == null).length;
+  const totalPieces = inventoryProducts.reduce((sum, product) => sum + qty(product), 0);
+  const chooseWarehouse = (value: string) => { setWh(value); setQ(""); setRename(""); setDetailProduct(null); };
   return <section className="warehouse-workspace">
-    <div className="warehouse-head panel"><label>المخزن النشط<SearchableSelect value={wh} onChange={value => { setWh(value); setQ(""); setRename(""); }} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><div className="warehouse-actions"><span className={active?.isSalesDefault ? "status" : "status muted-status"}>{active?.isSalesDefault ? "مخزن البيع الافتراضي" : "مخزن مسجل"}</span><button className="soft" disabled={active?.isSalesDefault} onClick={() => void run({ type: "warehouse.default", warehouseId: wh }, "تم تحديد مخزن البيع الافتراضي")}>جعله مخزن البيع الافتراضي</button><button className="primary" onClick={() => setManagementOpen(true)}>إدارة المخزن</button></div></div>
+    <div className="warehouse-head panel"><label>المخزن النشط<SearchableSelect value={wh} onChange={chooseWarehouse} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><div className="warehouse-actions"><span className={active?.isSalesDefault ? "status" : "status muted-status"}>{active?.isSalesDefault ? "مخزن البيع الافتراضي" : "مخزن مسجل"}</span><button className="soft" disabled={active?.isSalesDefault} onClick={() => void run({ type: "warehouse.default", warehouseId: wh }, "تم تحديد مخزن البيع الافتراضي")}>جعله مخزن البيع الافتراضي</button><button className="primary" onClick={() => setManagementOpen(true)}>إدارة المخزن</button></div></div>
     {managementOpen && <div className="modal-overlay" role="dialog" aria-modal="true"><div className="modal-card warehouse-management"><div className="product-form-head"><div><small>إعدادات غير متكررة</small><h2>إدارة {active?.name ?? "المخزن"}</h2></div><button className="icon" aria-label="إغلاق" onClick={() => setManagementOpen(false)}><X /></button></div><div className="mini-form"><input value={newName} onChange={e => setNewName(e.target.value)} placeholder="اسم مخزن جديد"/><button className="soft" onClick={async () => { await run({ type: "warehouse.create", name: newName }, "تمت إضافة المخزن"); setNewName(""); }}><Plus /> إضافة مخزن</button><input value={rename} onChange={e => setRename(e.target.value)} placeholder={`تعديل اسم ${active?.name ?? "المخزن"}`}/><button className="soft" disabled={!active || !rename.trim()} onClick={async () => { await run({ type: "warehouse.update", id: wh, name: rename }, "تم تعديل اسم المخزن"); setRename(""); }}>حفظ اسم المخزن</button></div></div></div>}
-    {productModal && <div className="modal-overlay" role="dialog" aria-modal="true"><div className="modal-card product-modal"><ProductForm run={run} product={null} close={() => setProductModal(false)} /></div></div>}
-    <div className="panel inventory-panel">
-      <div className="inventory-toolbar"><Heading title="جرد المخزن" /><div><button className="soft" onClick={() => window.print()}><Printer /> طباعة الجرد</button><button className="primary" onClick={() => setProductModal(true)}><Plus /> إضافة منتج</button></div></div>
+    <div className={`panel inventory-panel${browserOpen ? " browser-open" : ""}`}>
+      <div className="inventory-toolbar"><Heading title="جرد المخزن" /><div><button className="soft" onClick={() => window.print()}><Printer /> طباعة الجرد</button><button className={browserOpen ? "primary active" : "primary"} aria-expanded={browserOpen} onClick={() => { setBrowserOpen(x => !x); if (browserOpen) setDetailProduct(null); }}>{browserOpen ? "إخفاء الجرد" : "عرض الكل"}</button></div></div>
       <div className="inventory-stats"><span><small>عدد المنتجات</small><b>{number(inventoryProducts.length)}</b></span><span><small>إجمالي الأفراد</small><b>{number(totalPieces)}</b></span><span><small>القيمة المعروفة</small><b>{money(knownValue)}</b></span><span><small>بدون تكلفة فعلية</small><b>{number(missingCost)}</b></span></div>
-      <label className="search"><Search /><input value={q} onChange={e => setQ(e.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label>
-      <div className="warehouse-scroll inventory-body"><div className="inventory-table inventory-table-head"><span>اسم المنتج</span><span>الكود</span><span>سعر الشراء</span><span>الكمية الحالية</span><span>قيمة المخزون</span></div>{products.map(product => <button aria-pressed={detailProduct?.id === product.id} className={`inventory-table inventory-row${detailProduct?.id === product.id ? " selected" : ""}`} key={product.id} onClick={() => { setDetailProduct(product); setMovementFilter("all"); }}><strong>{product.name}</strong><span dir="ltr">{product.sku || product.barcode || "—"}</span><span>{product.lastPurchaseCost == null ? "تكلفة غير معروفة" : money(product.lastPurchaseCost)}</span><b>{number(qty(product))} فرد</b><span>{product.lastPurchaseCost == null ? "تكلفة غير معروفة" : money(qty(product) * product.lastPurchaseCost)}</span></button>)}{!products.length && <Empty text="لا توجد منتجات مطابقة للبحث" />}</div>
-      <div className="inventory-footer"><span>{missingCost ? "قيمة المخزون المعروفة" : "قيمة المخزن الحالية"}<small>{missingCost ? `${number(missingCost)} منتجات ذات مخزون بدون سعر شراء فعلي` : "كل المنتجات ذات المخزون لها تكلفة فعلية"}</small></span><strong>{money(knownValue)}</strong></div>
+      {browserOpen && <div className={`inventory-browser${detailProduct ? " has-details" : ""}`}><div className="inventory-list-panel"><label className="search"><Search /><input value={q} onChange={e => setQ(e.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label><div className="warehouse-scroll inventory-body"><div className="inventory-table inventory-table-head"><span>اسم المنتج</span><span>الكود</span><span>سعر الشراء</span><span>الكمية الحالية</span><span>قيمة المخزون</span></div>{products.map(product => <button aria-pressed={detailProduct?.id === product.id} className={`inventory-table inventory-row${detailProduct?.id === product.id ? " selected" : ""}`} key={product.id} onClick={() => { setDetailProduct(product); setMovementFilter("all"); }}><strong>{product.name}</strong><span dir="ltr">{product.sku || product.barcode || "—"}</span><span>{product.lastPurchaseCost == null ? "تكلفة غير معروفة" : money(product.lastPurchaseCost)}</span><b>{number(qty(product))} فرد</b><span>{product.lastPurchaseCost == null ? "تكلفة غير معروفة" : money(qty(product) * product.lastPurchaseCost)}</span></button>)}{!products.length && <Empty text="لا توجد منتجات مطابقة للبحث" />}</div><div className="inventory-footer"><span>{missingCost ? "قيمة المخزون المعروفة" : "قيمة المخزن الحالية"}<small>{missingCost ? `${number(missingCost)} منتجات ذات مخزون بدون سعر شراء فعلي` : "كل المنتجات ذات المخزون لها تكلفة فعلية"}</small></span><strong>{money(knownValue)}</strong></div></div>{detailProduct ? <ProductMovementPanel product={detailProduct} selectedWarehouseId={wh} data={data} filter={movementFilter} setFilter={setMovementFilter} close={() => setDetailProduct(null)} openDoc={openDoc} /> : <div className="inventory-selection-empty"><Boxes /><b>اختر منتجًا من القائمة</b><small>ستظهر هنا تفاصيل المخزون والحركات الفعلية</small></div>}</div>}
     </div>
-    {detailProduct && <ProductMovementModal product={detailProduct} data={data} filter={movementFilter} setFilter={setMovementFilter} close={() => setDetailProduct(null)} openDoc={openDoc} />}
   </section>;
 }
 
-function ProductMovementModal({ product, data, filter, setFilter, close, openDoc }: { product: Product; data: BootstrapData; filter: string; setFilter: (value: string) => void; close: () => void; openDoc: (id: string) => void }) {
+function ProductMovementPanel({ product, selectedWarehouseId, data, filter, setFilter, close, openDoc }: { product: Product; selectedWarehouseId: string; data: BootstrapData; filter: string; setFilter: (value: string) => void; close: () => void; openDoc: (id: string) => void }) {
   const docs = data.documents.filter(document => document.status === "posted" && document.lines.some(line => line.productId === product.id));
   const amount = (kind: string) => docs.filter(document => document.kind === kind).reduce((sum, document) => sum + document.lines.filter(line => line.productId === product.id).reduce((lineSum, line) => lineSum + Number(line.quantity), 0), 0);
-  const purchases = amount("purchase"), sales = amount("sale"), adjustments = data.movements.filter(move => move.productId === product.id && move.type === "adjustment").reduce((sum, move) => sum + Math.max(0, move.quantityDelta), 0);
-  const transfers = docs.filter(document => document.kind === "transfer").reduce((sum, document) => sum + document.lines.filter(line => line.productId === product.id).reduce((lineSum, line) => lineSum + Number(line.quantity), 0), 0);
-  const current = Object.values(product.stocks).reduce((sum, value) => sum + Number(value), 0);
-  const movementDocs = docs.filter(document => filter === "all" || document.kind === filter);
-  const labels: Record<string, string> = { purchase: "شراء", sale: "بيع", transfer: "تحويل", adjustment: "تصحيح", return: "إرجاع" };
-  return <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={`حركة ${product.name}`}><div className="modal-card movement-modal"><div className="product-form-head"><div><small>حركة المنتج على مستوى النظام</small><h2>{product.name}</h2></div><button className="icon" aria-label="إغلاق" onClick={close}><X /></button></div><div className="movement-summary"><span><small>إجمالي الداخل</small><b>{number(purchases + adjustments)} فرد</b></span><span><small>المشتريات</small><b>{number(purchases)} فرد</b></span><span><small>المبيعات</small><b>{number(sales)} فرد</b></span><span><small>التحويلات بين المخازن</small><b>{number(transfers)} فرد</b><small>دخل {number(transfers)} · خرج {number(transfers)}</small></span><span><small>المخزون الحالي</small><b>{number(current)} فرد</b></span></div><div className="warehouse-breakdown"><b>توزيع المخزون الحالي</b>{data.warehouses.map(warehouse => <span key={warehouse.id}>{warehouse.name}<strong>{number(product.stocks[warehouse.id] ?? 0)} فرد</strong></span>)}<span className="breakdown-total">الإجمالي<strong>{number(current)} فرد</strong></span></div><div className="movement-filters">{[["all","الكل"],["purchase","شراء"],["sale","بيع"],["transfer","تحويل"],["adjustment","تصحيح"]].map(([id,label]) => <button key={id} className={filter === id ? "choice selected" : "choice"} onClick={() => setFilter(id)}>{label}</button>)}</div><div className="movement-timeline">{movementDocs.map(document => { const line = document.lines.find(item => item.productId === product.id)!; return <button key={document.id} onClick={() => openDoc(document.id)}><span className={`movement-badge ${document.kind}`}>{labels[document.kind] ?? document.kind}</span><span><b>{new Date(document.occurredAt).toLocaleDateString("ar-MR")}</b><small>{document.number} · {document.warehouseName ?? "كل المخازن"}{document.destinationWarehouseName ? ` ← ${document.destinationWarehouseName}` : ""}</small></span><strong>{number(line.quantity)} فرد</strong><small>{document.kind === "purchase" || document.kind === "sale" ? money(line.unitPrice) : ""}</small></button>})}{!movementDocs.length && <Empty text="لا توجد حركات فعلية ضمن هذا الفلتر" />}</div></div></div>;
+  const purchases = amount("purchase"), sales = amount("sale"), adjustments = amount("adjustment"), transfers = amount("transfer");
+  const current = Object.values(product.stocks).reduce((sum, value) => sum + Number(value), 0), selectedQty = Number(product.stocks[selectedWarehouseId] ?? 0);
+  const movementDocs = docs.filter(document => filter === "all" || document.kind === filter).sort((a,b) => +new Date(b.occurredAt) - +new Date(a.occurredAt));
+  const labels: Record<string, string> = { purchase: "شراء", sale: "بيع", transfer: "تحويل", adjustment: "تصحيح", return: "إرجاع", opening: "رصيد افتتاحي" };
+  const party = (document: DocumentRecord) => document.partyName || data.parties.find(p => p.id === document.partyId)?.name || (document.kind === "sale" ? "بيع مباشر" : "غير محدد");
+  return <div className="product-movement-panel" aria-label={`حركة ${product.name}`}><div className="product-form-head"><div><small>تفاصيل المنتج وحركته</small><h2>{product.name}</h2></div><button className="icon" aria-label="إغلاق التفاصيل" onClick={close}><X /></button></div><div className="movement-summary"><span><small>في هذا المخزن</small><b>{number(selectedQty)} فرد</b></span><span><small>جميع المخازن</small><b>{number(current)} فرد</b></span><span><small>آخر سعر شراء فعلي</small><b>{product.lastPurchaseCost == null ? "تكلفة غير معروفة" : money(product.lastPurchaseCost)}</b></span><span><small>قيمة المنتج هنا</small><b>{product.lastPurchaseCost == null ? "تكلفة غير معروفة" : money(selectedQty * product.lastPurchaseCost)}</b></span><span><small>شراء / بيع</small><b>{number(purchases)} / {number(sales)}</b></span><span><small>تحويل / تصحيح</small><b>{number(transfers)} / {number(adjustments)}</b></span></div><div className="movement-filters">{[["all","الكل"],["purchase","شراء"],["sale","بيع"],["transfer","تحويل"],["adjustment","تصحيح"]].map(([id,label]) => <button key={id} className={filter === id ? "choice selected" : "choice"} onClick={() => setFilter(id)}>{label}</button>)}</div><div className="movement-timeline">{movementDocs.map(document => { const line = document.lines.find(item => item.productId === product.id)!; const movement = data.movements.find(move => move.documentId === document.id && move.productId === product.id && move.warehouseId === (document.warehouseId ?? selectedWarehouseId)); return <button key={document.id} onClick={() => openDoc(document.id)}><span className={`movement-badge ${document.kind}`}>{labels[document.kind] ?? document.kind}</span><span className="movement-main"><b>{new Date(document.occurredAt).toLocaleDateString("ar-MR")} · <span dir="ltr">{document.number}</span></b><small>{document.kind === "purchase" ? `المورد: ${party(document)}` : document.kind === "sale" ? `العميل: ${party(document)}` : document.kind === "transfer" ? `${document.warehouseName ?? "—"} ← ${document.destinationWarehouseName ?? "—"}` : `المخزن: ${document.warehouseName ?? movement?.warehouseName ?? "—"}`}</small><small>{document.kind === "adjustment" ? `الرصيد السابق: ${number(movement?.balanceBefore ?? 0)} · الجديد: ${number(movement?.balanceAfter ?? 0)} · الفرق: ${number(movement?.quantityDelta ?? line.quantity)} · السبب: ${document.title ?? "غير محدد"}` : `الكمية: ${number(line.quantity)} فرد${document.kind === "purchase" || document.kind === "sale" ? ` · سعر الفرد: ${money(line.unitPrice)} · الإجمالي: ${money(line.lineTotal)}` : ""}`}</small><small>{document.kind === "purchase" ? `مخزن الاستلام: ${document.warehouseName ?? "—"}` : document.kind === "sale" ? `مخزن الصرف: ${document.warehouseName ?? "—"}` : ""}</small></span></button>})}{!movementDocs.length && <Empty text="لا توجد حركات فعلية ضمن هذا الفلتر" />}</div></div>;
 }
 
 function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
