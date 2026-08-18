@@ -1337,3 +1337,63 @@ input, select, .combobox-trigger { border-color: var(--border); }
   .workspace-toolbar { align-items: stretch; flex-direction: column; }
   .quick-invoices { max-height: 360px; }
 }
+
+/* Compact desktop workspaces. Primary forms/actions stay in the fixed frame; only
+   growing datasets (drafts, history and catalogues) own a scrollbar. */
+@media (min-width: 1051px) {
+  .app-shell header.page-bar { min-height: 54px; padding: 7px 24px; }
+  .page-bar h1 { font-size: clamp(20px, 1.7vw, 26px); }
+  .date-chip { padding: 7px 10px; font-size: 10px; }
+  .content { padding: 10px 20px 14px; }
+  .content > section:not(.warehouse-workspace):not(.stock-workspace):not(.workspace-page):not(:has(> .quick-invoices)) {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  input, select, .combobox-trigger { min-height: 40px; padding-block: 7px; }
+  .search { min-height: 42px; }
+  .primary, .soft, .warn { min-height: 40px; padding: 7px 13px; }
+  .panel { padding: 14px; }
+  .heading { padding: 0 2px; }
+  .heading h2 { margin-block: 0; font-size: 18px; }
+  .form-stack { gap: 10px; }
+  .line { padding: 9px 11px; border-radius: 10px; }
+  .line-fields { margin-top: 7px; }
+
+  .warehouse-workspace {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .warehouse-head { align-items: center; padding: 10px 14px; }
+  .warehouse-head label { min-width: 280px; max-width: 460px; }
+  .warehouse-actions { display: flex; align-items: center; gap: 8px; }
+  .muted-status { color: var(--muted); background: var(--surface-muted); }
+  .warehouse-management { width: min(720px, calc(100vw - 32px)); }
+  .warehouse-management .mini-form { margin-top: 16px; }
+  .warehouse-panels { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 12px; min-height: 0; }
+  .warehouse-data-panel { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-width: 0; min-height: 0; padding: 12px; overflow: hidden; }
+  .warehouse-data-panel .section-toolbar { margin-bottom: 5px; }
+  .warehouse-data-panel > .search { margin-bottom: 6px; }
+  .warehouse-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+  .warehouse-scroll .empty { min-height: 130px; }
+  .warehouse-scroll .list-row, .warehouse-scroll .product-row { min-height: 52px; padding: 8px 5px; }
+  .warehouse-data-panel .filters { flex-wrap: nowrap; margin-bottom: 5px; }
+
+  .stock-workspace { grid-template-columns: minmax(0, 1.55fr) minmax(290px, .7fr); grid-template-rows: minmax(0, 1fr); gap: 12px !important; }
+  .stock-workspace-main { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 7px; min-width: 0; min-height: 0; }
+  .stock-operation-panel { grid-template-rows: auto auto minmax(0, 1fr) auto auto; min-height: 0; overflow: hidden; }
+  .stock-operation-panel .form-row { flex-wrap: nowrap; }
+  .stock-draft { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-inline-end: 3px; }
+  .stock-draft .empty { min-height: 100%; }
+  .stock-draft .line + .line { margin-top: 7px; }
+  .stock-primary-action { position: relative; z-index: 1; width: 100%; }
+  .stock-workspace > .records { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; padding: 12px; overflow-y: auto; }
+  .stock-workspace > .records .list-row { grid-template-columns: minmax(110px, 1fr) auto; gap: 7px; min-height: 52px; padding: 8px 3px; }
+  .stock-workspace > .records .list-row > :last-child { display: none; }
+  .adjustment-workspace .stock-operation-panel { grid-template-rows: auto auto minmax(0, 1fr) auto auto; }
+}
+
+@media (max-width: 1050px) {
+  .warehouse-workspace, .stock-workspace { height: auto; overflow: visible; }
+  .warehouse-panels, .stock-workspace { display: grid; grid-template-columns: 1fr; }
+  .warehouse-scroll, .stock-draft { max-height: 420px; overflow-y: auto; }
+  .warehouse-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+}
