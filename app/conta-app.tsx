@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeftRight,
   Banknote,
@@ -1126,185 +1126,57 @@ function PartyPage({
   );
 }
 
-function Warehouses({
-  data,
-  run,
-  openDoc,
-}: {
-  data: BootstrapData;
-  run: RunCommand;
-  openDoc: (id: string) => void;
-}) {
-  const [wh, setWh] = useState(data.warehouses[0]?.id ?? ""),
-    [q, setQ] = useState(""),
-    [newName, setNewName] = useState(""),
-    [managementOpen, setManagementOpen] = useState(false),
-    [productModal, setProductModal] = useState(false),
-    [editingProduct, setEditingProduct] = useState<Product | null>(null),
-    [rename, setRename] = useState(""),
-    [moveProduct, setMoveProduct] = useState(""),
-    [from, setFrom] = useState(""),
-    [to, setTo] = useState("");
-  const active = data.warehouses.find((w) => w.id === wh),
-    products = q
-      ? data.products.filter((p) =>
-          `${p.name} ${p.sku}`.toLowerCase().includes(q.toLowerCase()),
-        )
-      : [],
-    moves = data.movements.filter(
-      (m) =>
-        m.warehouseId === wh &&
-        (!moveProduct || m.productId === moveProduct) &&
-        (!from || m.occurredAt.slice(0, 10) >= from) &&
-        (!to || m.occurredAt.slice(0, 10) <= to),
-    );
-  return (
-    <section className="warehouse-workspace">
-      <div className="warehouse-head panel">
-        <label>
-          المخزن النشط
-          <SearchableSelect value={wh} onChange={(value) => { setWh(value); setQ(""); setRename(""); }} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} />
-        </label>
-        <div className="warehouse-actions"><span className={active?.isSalesDefault ? "status" : "status muted-status"}>{active?.isSalesDefault ? "مخزن البيع الافتراضي" : "مخزن مسجل"}</span><button
-          className="soft"
-          disabled={active?.isSalesDefault}
-          onClick={() =>
-            void run(
-              { type: "warehouse.default", warehouseId: wh },
-              "تم تحديد مخزن البيع الافتراضي",
-            )
-          }
-        >
-          جعله مخزن البيع الافتراضي
-        </button><button className="primary" onClick={() => setManagementOpen(true)}>إدارة المخزن</button></div>
-      </div>
-      {managementOpen && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="إدارة المخزن"><div className="modal-card warehouse-management"><div className="product-form-head"><div><small>إعدادات غير متكررة</small><h2>إدارة {active?.name ?? "المخزن"}</h2></div><button className="icon" aria-label="إغلاق" onClick={() => setManagementOpen(false)}><X /></button></div><div className="mini-form">
-        <input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          placeholder="اسم مخزن جديد"
-        />
-        <button
-          className="soft"
-          onClick={async () => {
-            await run(
-              { type: "warehouse.create", name: newName },
-              "تمت إضافة المخزن",
-            );
-            setNewName("");
-          }}
-        >
-          <Plus /> إضافة مخزن
-        </button>
-        <input
-          value={rename}
-          onChange={(e) => setRename(e.target.value)}
-          placeholder={`تعديل اسم ${active?.name ?? "المخزن"}`}
-        />
-        <button
-          className="soft"
-          disabled={!active || !rename.trim()}
-          onClick={async () => {
-            await run(
-              { type: "warehouse.update", id: wh, name: rename },
-              "تم تعديل اسم المخزن",
-            );
-            setRename("");
-          }}
-        >
-          حفظ اسم المخزن
-        </button>
-      </div></div></div>}
-      {productModal && (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={editingProduct ? "تعديل المنتج" : "إضافة منتج جديد"}>
-          <div className="modal-card product-modal"><ProductForm run={run} product={editingProduct} close={() => setProductModal(false)} /></div>
-        </div>
-      )}
-      <div className="warehouse-panels">
-      <div className="panel warehouse-data-panel">
-        <Heading title="حركة المنتجات" />
-        <div className="filters">
-          <SearchableSelect value={moveProduct} onChange={setMoveProduct} allowEmpty placeholder="كل المنتجات" searchPlaceholder="ابحث عن منتج" options={data.products.map(p => ({ value: p.id, label: p.name, search: `${p.sku} ${p.barcode}` }))} />
-          <input
-            type="date"
-            dir="ltr"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-          <input
-            type="date"
-            dir="ltr"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-          />
-        </div>
-        <div className="warehouse-scroll">{moves.map((m) => (
-          <button
-            className="list-row clickable"
-            key={m.id}
-            onClick={() => openDoc(m.documentId)}
-          >
-            <span>
-              <strong>{m.productName}</strong>
-              <small>
-                {m.type} · {m.documentNumber}
-              </small>
-            </span>
-            <b className={m.quantityDelta >= 0 ? "green" : "red"}>
-              {m.quantityDelta >= 0 ? "+" : ""}
-              {number(m.quantityDelta)}
-            </b>
-            <small>
-              {m.balanceBefore} ← {m.balanceAfter}
-            </small>
-          </button>
-        ))}</div>
-      </div>
-      <div className="panel warehouse-data-panel">
-        <div className="section-toolbar"><Heading title="منتجات المخزن" /><button className="primary" onClick={() => { setEditingProduct(null); setProductModal(true); }}><Plus /> إضافة منتج</button></div>
-        <label className="search">
-          <Search />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="ابحث لتظهر المنتجات"
-          />
-        </label>
-        <div className="warehouse-scroll">{products.map((p) => (
-          <div className="product-row" key={p.id}>
-            <span>
-              <strong>{p.name}</strong>
-              <small>{p.sku}</small>
-            </span>
-            <b>{quantity(p.stocks[wh] ?? 0, p.piecesPerCarton)}</b>
-            <span>
-              {p.piecePrice == null ? "بدون سعر بيع" : money(p.piecePrice)}
-            </span>
-            <button
-              className="soft"
-              onClick={() => {
-                setEditingProduct(p);
-                setProductModal(true);
-              }}
-            >
-              تعديل
-            </button>
-          </div>
-        ))}
-        {!q && (
-          <Empty text="لن نعرض كتالوجًا بطول فاتورة الكهرباء. ابدأ بالبحث." />
-        )}</div>
-      </div>
-      </div>
-    </section>
-  );
+function Warehouses({ data, run, openDoc }: { data: BootstrapData; run: RunCommand; openDoc: (id: string) => void }) {
+  const [wh, setWh] = useState(data.warehouses[0]?.id ?? ""), [q, setQ] = useState(""), [newName, setNewName] = useState(""), [managementOpen, setManagementOpen] = useState(false), [productModal, setProductModal] = useState(false), [detailProduct, setDetailProduct] = useState<Product | null>(null), [rename, setRename] = useState(""), [movementFilter, setMovementFilter] = useState("all");
+  const active = data.warehouses.find(w => w.id === wh);
+  const normalized = q.trim().toLocaleLowerCase("ar");
+  const products = data.products.filter(p => !normalized || `${p.name} ${p.sku} ${p.barcode}`.toLocaleLowerCase("ar").includes(normalized));
+  const qty = (product: Product) => Number(product.stocks[wh] ?? 0);
+  const knownValue = data.products.reduce((sum, product) => product.lastPurchaseCost == null ? sum : sum + qty(product) * product.lastPurchaseCost, 0);
+  const missingCost = data.products.filter(product => qty(product) > 0 && product.lastPurchaseCost == null).length;
+  const totalPieces = data.products.reduce((sum, product) => sum + qty(product), 0);
+  return <section className="warehouse-workspace">
+    <div className="warehouse-head panel"><label>المخزن النشط<SearchableSelect value={wh} onChange={value => { setWh(value); setQ(""); setRename(""); }} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><div className="warehouse-actions"><span className={active?.isSalesDefault ? "status" : "status muted-status"}>{active?.isSalesDefault ? "مخزن البيع الافتراضي" : "مخزن مسجل"}</span><button className="soft" disabled={active?.isSalesDefault} onClick={() => void run({ type: "warehouse.default", warehouseId: wh }, "تم تحديد مخزن البيع الافتراضي")}>جعله مخزن البيع الافتراضي</button><button className="primary" onClick={() => setManagementOpen(true)}>إدارة المخزن</button></div></div>
+    {managementOpen && <div className="modal-overlay" role="dialog" aria-modal="true"><div className="modal-card warehouse-management"><div className="product-form-head"><div><small>إعدادات غير متكررة</small><h2>إدارة {active?.name ?? "المخزن"}</h2></div><button className="icon" aria-label="إغلاق" onClick={() => setManagementOpen(false)}><X /></button></div><div className="mini-form"><input value={newName} onChange={e => setNewName(e.target.value)} placeholder="اسم مخزن جديد"/><button className="soft" onClick={async () => { await run({ type: "warehouse.create", name: newName }, "تمت إضافة المخزن"); setNewName(""); }}><Plus /> إضافة مخزن</button><input value={rename} onChange={e => setRename(e.target.value)} placeholder={`تعديل اسم ${active?.name ?? "المخزن"}`}/><button className="soft" disabled={!active || !rename.trim()} onClick={async () => { await run({ type: "warehouse.update", id: wh, name: rename }, "تم تعديل اسم المخزن"); setRename(""); }}>حفظ اسم المخزن</button></div></div></div>}
+    {productModal && <div className="modal-overlay" role="dialog" aria-modal="true"><div className="modal-card product-modal"><ProductForm run={run} product={null} close={() => setProductModal(false)} /></div></div>}
+    <div className="panel inventory-panel">
+      <div className="inventory-toolbar"><Heading title="جرد المخزن" /><div><button className="soft" onClick={() => window.print()}><Printer /> طباعة الجرد</button><button className="primary" onClick={() => setProductModal(true)}><Plus /> إضافة منتج</button></div></div>
+      <div className="inventory-stats"><span><small>عدد المنتجات</small><b>{number(data.products.length)}</b></span><span><small>إجمالي الأفراد</small><b>{number(totalPieces)}</b></span><span><small>القيمة المعروفة</small><b>{money(knownValue)}</b></span><span><small>بدون تكلفة فعلية</small><b>{number(missingCost)}</b></span></div>
+      <label className="search"><Search /><input value={q} onChange={e => setQ(e.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label>
+      <div className="inventory-table inventory-table-head"><span>اسم المنتج</span><span>الكود</span><span>سعر الشراء</span><span>الكمية الحالية</span><span>قيمة المخزون</span></div>
+      <div className="warehouse-scroll inventory-body">{products.map(product => <button className="inventory-table inventory-row" key={product.id} onClick={() => { setDetailProduct(product); setMovementFilter("all"); }}><strong>{product.name}</strong><span dir="ltr">{product.sku || product.barcode || "—"}</span><span>{product.lastPurchaseCost == null ? "—" : money(product.lastPurchaseCost)}</span><b>{number(qty(product))} فرد</b><span>{product.lastPurchaseCost == null ? "—" : money(qty(product) * product.lastPurchaseCost)}</span></button>)}{!products.length && <Empty text="لا توجد منتجات مطابقة للبحث" />}</div>
+      <div className="inventory-footer"><span>{missingCost ? "قيمة المخزون المعروفة" : "قيمة المخزن الحالية"}<small>{missingCost ? `${number(missingCost)} منتجات ذات مخزون بدون سعر شراء فعلي` : "كل المنتجات ذات المخزون لها تكلفة فعلية"}</small></span><strong>{money(knownValue)}</strong></div>
+    </div>
+    {detailProduct && <ProductMovementModal product={detailProduct} data={data} filter={movementFilter} setFilter={setMovementFilter} close={() => setDetailProduct(null)} openDoc={openDoc} />}
+  </section>;
 }
+
+function ProductMovementModal({ product, data, filter, setFilter, close, openDoc }: { product: Product; data: BootstrapData; filter: string; setFilter: (value: string) => void; close: () => void; openDoc: (id: string) => void }) {
+  const docs = data.documents.filter(document => document.status === "posted" && document.lines.some(line => line.productId === product.id));
+  const amount = (kind: string) => docs.filter(document => document.kind === kind).reduce((sum, document) => sum + document.lines.filter(line => line.productId === product.id).reduce((lineSum, line) => lineSum + Number(line.quantity), 0), 0);
+  const purchases = amount("purchase"), sales = amount("sale"), adjustments = data.movements.filter(move => move.productId === product.id && move.type === "adjustment").reduce((sum, move) => sum + Math.max(0, move.quantityDelta), 0);
+  const transfers = docs.filter(document => document.kind === "transfer").reduce((sum, document) => sum + document.lines.filter(line => line.productId === product.id).reduce((lineSum, line) => lineSum + Number(line.quantity), 0), 0);
+  const current = Object.values(product.stocks).reduce((sum, value) => sum + Number(value), 0);
+  const movementDocs = docs.filter(document => filter === "all" || document.kind === filter);
+  const labels: Record<string, string> = { purchase: "شراء", sale: "بيع", transfer: "تحويل", adjustment: "تصحيح", return: "إرجاع" };
+  return <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={`حركة ${product.name}`}><div className="modal-card movement-modal"><div className="product-form-head"><div><small>حركة المنتج على مستوى النظام</small><h2>{product.name}</h2></div><button className="icon" aria-label="إغلاق" onClick={close}><X /></button></div><div className="movement-summary"><span><small>إجمالي الداخل</small><b>{number(purchases + adjustments)} فرد</b></span><span><small>المشتريات</small><b>{number(purchases)} فرد</b></span><span><small>المبيعات</small><b>{number(sales)} فرد</b></span><span><small>التحويلات بين المخازن</small><b>{number(transfers)} فرد</b><small>دخل {number(transfers)} · خرج {number(transfers)}</small></span><span><small>المخزون الحالي</small><b>{number(current)} فرد</b></span></div><div className="warehouse-breakdown"><b>توزيع المخزون الحالي</b>{data.warehouses.map(warehouse => <span key={warehouse.id}>{warehouse.name}<strong>{number(product.stocks[warehouse.id] ?? 0)} فرد</strong></span>)}<span className="breakdown-total">الإجمالي<strong>{number(current)} فرد</strong></span></div><div className="movement-filters">{[["all","الكل"],["purchase","شراء"],["sale","بيع"],["transfer","تحويل"],["adjustment","تصحيح"]].map(([id,label]) => <button key={id} className={filter === id ? "choice selected" : "choice"} onClick={() => setFilter(id)}>{label}</button>)}</div><div className="movement-timeline">{movementDocs.map(document => { const line = document.lines.find(item => item.productId === product.id)!; return <button key={document.id} onClick={() => openDoc(document.id)}><span className={`movement-badge ${document.kind}`}>{labels[document.kind] ?? document.kind}</span><span><b>{new Date(document.occurredAt).toLocaleDateString("ar-MR")}</b><small>{document.number} · {document.warehouseName ?? "كل المخازن"}{document.destinationWarehouseName ? ` ← ${document.destinationWarehouseName}` : ""}</small></span><strong>{number(line.quantity)} فرد</strong><small>{document.kind === "purchase" || document.kind === "sale" ? money(line.unitPrice) : ""}</small></button>})}{!movementDocs.length && <Empty text="لا توجد حركات فعلية ضمن هذا الفلتر" />}</div></div></div>;
+}
+
 function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Product | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [sort, setSort] = useState<{ key: "price" | "cost" | "stock"; direction: "asc" | "desc" } | null>(null);
   const normalized = query.trim().toLocaleLowerCase("ar");
-  const products = data.products.filter(product => !normalized || `${product.name} ${product.sku} ${product.barcode}`.toLocaleLowerCase("ar").includes(normalized));
+  const filteredProducts = useMemo(() => data.products.filter(product => !normalized || `${product.name} ${product.sku} ${product.barcode}`.toLocaleLowerCase("ar").includes(normalized)), [data.products, normalized]);
+  const stockOf = (product: Product) => Object.values(product.stocks).reduce((sum, value) => sum + Number(value), 0);
+  const products = useMemo(() => !sort ? filteredProducts : [...filteredProducts].sort((a, b) => {
+    const av = sort.key === "price" ? a.piecePrice : sort.key === "cost" ? a.lastPurchaseCost : stockOf(a), bv = sort.key === "price" ? b.piecePrice : sort.key === "cost" ? b.lastPurchaseCost : stockOf(b);
+    if (av == null) return bv == null ? 0 : 1; if (bv == null) return -1;
+    return (av - bv) * (sort.direction === "asc" ? 1 : -1);
+  }), [filteredProducts, sort]);
+  const toggleSort = (key: "price" | "cost" | "stock") => setSort(current => ({ key, direction: current?.key === key && current.direction === "asc" ? "desc" : "asc" }));
+  const sortHeader = (id: "price" | "cost" | "stock", label: string) => <button className={sort?.key === id ? "sort-header active" : "sort-header"} onClick={() => toggleSort(id)}>{label}{sort?.key === id && <span>{sort.direction === "asc" ? "↑" : "↓"}</span>}</button>;
   const openForm = (product: Product | null) => { setEditing(product); setFormOpen(true); };
   return <section className="workspace-page products-page">
     <div className="toolbar workspace-toolbar">
@@ -1313,7 +1185,7 @@ function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
     </div>
     <div className="panel scroll-panel product-management">
       <div className="product-table product-table-head" role="row">
-        <span>الاسم</span><span>الرمز / الباركود</span><span>سعر البيع</span><span>آخر شراء</span><span>المخزون</span><span>الكرتون</span><span>إجراءات</span>
+        <span>الاسم</span><span>الرمز / الباركود</span>{sortHeader("price", "سعر البيع")}{sortHeader("cost", "آخر شراء")}{sortHeader("stock", "المخزون")}<span>الكرتون</span><span>إجراءات</span>
       </div>
       <div className="scroll-body" role="table" aria-label="كل المنتجات">
         {products.map(product => {
@@ -1323,7 +1195,7 @@ function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
             <span><b dir="ltr">{product.sku || "—"}</b><small dir="ltr">{product.barcode || "—"}</small></span>
             <span>{product.piecePrice == null ? "—" : money(product.piecePrice)}</span>
             <span>{product.lastPurchaseCost == null ? "—" : money(product.lastPurchaseCost)}</span>
-            <span>{quantity(stock, product.piecesPerCarton)}</span>
+            <span>{number(stock)} فرد</span>
             <span>{product.piecesPerCarton ? `${number(product.piecesPerCarton)} فرد` : "—"}</span>
             <span className="table-actions"><button className="soft" onClick={() => openForm(product)}>تعديل</button><button className="link" onClick={() => openForm(product)}>عرض التفاصيل</button></span>
           </div>;
