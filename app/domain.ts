@@ -139,16 +139,43 @@ export function western(value: number | string) {
     .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
     .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
 }
-export function money(value: number) {
-  return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} MRU`;
+const DISPLAY_LOCALE = "fr-FR-u-nu-latn";
+const numberFormatter = new Intl.NumberFormat(DISPLAY_LOCALE, {
+  maximumFractionDigits: 0,
+  numberingSystem: "latn",
+});
+
+/** Format display values with Latin digits without changing stored data. */
+export function formatNumber(value: number) {
+  return western(numberFormatter.format(value));
 }
-export function number(value: number) {
-  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(
-    value,
-  );
+export function formatQuantity(value: number) {
+  return formatNumber(value);
 }
+export function formatMoney(value: number) {
+  return `${formatNumber(value)} MRU`;
+}
+export function formatDate(
+  value: Date | string | number,
+  options: Intl.DateTimeFormatOptions = { day: "2-digit", month: "2-digit", year: "numeric" },
+) {
+  return western(new Intl.DateTimeFormat(DISPLAY_LOCALE, {
+    ...options,
+    numberingSystem: "latn",
+  }).format(new Date(value)));
+}
+export function formatDateTime(value: Date | string | number) {
+  return formatDate(value, {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+// Existing view-facing names share the same central formatting policy.
+export const money = formatMoney;
+export const number = formatNumber;
 export function quantity(value: number, pack?: number | null) {
-  if (!Number.isInteger(pack) || (pack ?? 0) <= 0) return `${number(value)} فرد`;
+  if (!Number.isInteger(pack) || (pack ?? 0) <= 0) return `${formatQuantity(value)} فرد`;
   const validPack = pack as number;
   const cartons = Math.floor(value / validPack);
   const pieces = value % validPack;
