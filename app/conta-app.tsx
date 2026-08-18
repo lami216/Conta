@@ -51,6 +51,7 @@ type RunCommand = (
   body: Record<string, unknown>,
   message: string,
 ) => Promise<string>;
+type AdjustmentPrefill = { productId: string; warehouseId: string };
 type DraftLine = {
   productId: string;
   quantity: string;
@@ -102,7 +103,8 @@ export default function ContaApp() {
     [menu, setMenu] = useState(false),
     [warehouseMenu, setWarehouseMenu] = useState(false),
     [doc, setDoc] = useState<DocumentRecord | null>(null),
-    [partyDetail, setPartyDetail] = useState<Party | null>(null);
+    [partyDetail, setPartyDetail] = useState<Party | null>(null),
+    [adjustmentPrefill, setAdjustmentPrefill] = useState<AdjustmentPrefill | null>(null);
   const warehouseMenuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const close = (event: PointerEvent) => {
@@ -112,7 +114,12 @@ export default function ContaApp() {
     return () => document.removeEventListener("pointerdown", close);
   }, []);
   const navigate = (id: View) => {
+    if (id !== "adjustments") setAdjustmentPrefill(null);
     setView(id); setDoc(null); setPartyDetail(null); setMenu(false); setWarehouseMenu(false);
+  };
+  const openStockAdjustment = (prefill: AdjustmentPrefill) => {
+    setAdjustmentPrefill(prefill);
+    navigate("adjustments");
   };
   async function reload() {
     setLoading(true);
@@ -235,7 +242,7 @@ export default function ContaApp() {
           ) : (
             <>
               {view === "pos" && (
-                <Pos data={data} run={run} openDoc={openDoc} />
+                <Pos data={data} run={run} openDoc={openDoc} openStockAdjustment={openStockAdjustment} />
               )}{" "}
               {view === "purchases" && (
                 <Purchases data={data} run={run} openDoc={openDoc} />
@@ -253,7 +260,7 @@ export default function ContaApp() {
                 <Transfer data={data} run={run} openDoc={openDoc} />
               )}{" "}
               {view === "adjustments" && (
-                <Adjustment data={data} run={run} openDoc={openDoc} />
+                <Adjustment data={data} run={run} openDoc={openDoc} prefill={adjustmentPrefill} />
               )}{" "}
               {view === "records" && <Records data={data} openDoc={openDoc} />}{" "}
               {view === "reports" && (
@@ -376,12 +383,14 @@ function LineEditor({
   onChange,
   onRemove,
   mode,
+  availableStock,
 }: {
   line: DraftLine;
   product: Product;
   onChange: (x: DraftLine) => void;
   onRemove: () => void;
   mode: "sale" | "purchase" | "transfer" | "adjust";
+  availableStock?: number;
 }) {
   const qty = val(line.quantity);
   return (
@@ -392,7 +401,7 @@ function LineEditor({
           <small>
             {mode === "purchase" && qty
               ? `يعادل ${quantity(qty, product.piecesPerCarton)}`
-              : `المتاح: ${number(Object.values(product.stocks).reduce((a, b) => a + b, 0))} فرد`}
+              : `المتاح: ${number(mode === "sale" ? (availableStock ?? 0) : Object.values(product.stocks).reduce((a, b) => a + b, 0))} فرد`}
           </small>
         </span>
         <button className="icon danger" onClick={onRemove}>
@@ -452,17 +461,21 @@ function Pos({
   data,
   run,
   openDoc,
+  openStockAdjustment,
 }: {
   data: BootstrapData;
   run: RunCommand;
   openDoc: (id: string) => void;
+  openStockAdjustment: (prefill: AdjustmentPrefill) => void;
 }) {
   const [query, setQuery] = useState(""),
     [lines, setLines] = useState<DraftLine[]>([]),
     [editingLine, setEditingLine] = useState<DraftLine | null>(null),
     [payment, setPayment] = useState("cash"),
     [partyId, setPartyId] = useState(""),
-    [quick, setQuick] = useState(false);
+    [quick, setQuick] = useState(false),
+    [stockError, setStockError] = useState<{ productId: string; available: number } | null>(null),
+    [stockNotice, setStockNotice] = useState("");
   const wh = data.warehouses.find((w) => w.isSalesDefault),
     details = lines.flatMap((l) => {
       const p = data.products.find((x) => x.id === l.productId);
@@ -480,10 +493,25 @@ function Pos({
   function add(p: Product) {
     const confirmed = lines.find((line) => line.productId === p.id);
     setEditingLine(confirmed ? { ...confirmed, pricingMode: "piece" } : lineFor(p));
+    if (confirmed) setLines((current) => current.filter((line) => line.productId !== p.id));
+    setStockError(null);
     setQuery("");
+  }
+  function editLine(line: DraftLine) {
+    setLines((current) => current.filter((item) => item.productId !== line.productId));
+    setEditingLine({ ...line, pricingMode: "piece" });
+    setStockError(null);
   }
   function confirmLine() {
     if (!editingLine) return;
+    const product = data.products.find((item) => item.id === editingLine.productId);
+    const available = Number(product?.stocks?.[wh?.id ?? ""] ?? 0);
+    if (!product || !wh || val(editingLine.quantity) > available) {
+      setStockError({ productId: editingLine.productId, available });
+      setStockNotice(`المخزون غير كافٍ. المتاح: ${number(available)}`);
+      window.setTimeout(() => setStockNotice(""), 2600);
+      return;
+    }
     const confirmed = { ...editingLine, pricingMode: "piece" as const };
     setLines((current) => [confirmed, ...current.filter((line) => line.productId !== confirmed.productId)]);
     setEditingLine(null);
@@ -513,13 +541,7 @@ function Pos({
   }
   return (
     <section>
-      <div className="hero">
-        <div>
-          <span>فاتورة جديدة</span>
-          <h2>بيع من {wh?.name ?? "مخزن البيع"}</h2>
-        </div>
-        <b>{money(total)}</b>
-      </div>
+      {stockNotice && <div className="toast stock-toast">{stockNotice}</div>}
       <div className="pos-grid">
         <div className="panel">
           <SearchProducts
@@ -537,9 +559,17 @@ function Pos({
                   line={editingLine}
                   product={product}
                   mode="sale"
-                  onChange={setEditingLine}
-                  onRemove={() => setEditingLine(null)}
+                  availableStock={Number(product.stocks?.[wh?.id ?? ""] ?? 0)}
+                  onChange={(next) => {
+                    setEditingLine(next);
+                    if (stockError && val(next.quantity) <= Number(product.stocks?.[wh?.id ?? ""] ?? 0)) setStockError(null);
+                  }}
+                  onRemove={() => { setEditingLine(null); setStockError(null); }}
                 />
+                {stockError?.productId === editingLine.productId && <div className="stock-error-inline">
+                  <span>المتاح في مخزن البيع: {number(stockError.available)} فرد</span>
+                  {wh && <button type="button" className="soft" onClick={() => openStockAdjustment({ productId: editingLine.productId, warehouseId: wh.id })}>تصحيح المخزون</button>}
+                </div>}
                 <button className="primary wide confirm-line" disabled={val(editingLine.quantity) <= 0 || val(editingLine.piecePrice) < 0} onClick={confirmLine}>تأكيد وإضافة للفاتورة</button>
               </div> : null;
               })()
@@ -556,11 +586,15 @@ function Pos({
 
           <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>
             {lines.length ? (
-              <div className="invoice-preview-list">
+              <div className="invoice-preview-list" role="table" aria-label="منتجات الفاتورة">
+                <div className="invoice-table-row invoice-table-head" role="row">
+                  <span>الاسم</span><span>الكمية</span><span>السعر</span><span>توتال</span>
+                </div>
                 {details.map(({ l, p, total: lineTotal }) => (
-                  <div className="invoice-preview-item" key={p.id}>
-                    <span className="invoice-item-name"><b>{p.name}</b><small>{quantity(val(l.quantity), p.piecesPerCarton)}</small></span>
-                    <button type="button" className="invoice-item-edit" aria-label={`تعديل ${p.name}`} onClick={() => setEditingLine({ ...l })}><PencilLine /> تعديل</button>
+                  <div className="invoice-preview-item invoice-table-row" role="row" key={p.id}>
+                    <span className="invoice-item-name"><b>{p.name}</b><button type="button" className="invoice-item-edit" aria-label={`تعديل ${p.name}`} onClick={() => editLine(l)}><PencilLine /><span>تعديل</span></button></span>
+                    <span>{quantity(val(l.quantity), p.piecesPerCarton)}</span>
+                    <span dir="ltr">{money(val(l.piecePrice))}</span>
                     <strong className="invoice-item-total">{money(lineTotal)}</strong>
                   </div>
                 ))}
@@ -1414,17 +1448,22 @@ function MultiStockForm({
   mode,
   run,
   openDoc,
+  prefill,
 }: {
   data: BootstrapData;
   mode: "transfer" | "adjust";
   run: RunCommand;
   openDoc: (id: string) => void;
+  prefill?: AdjustmentPrefill | null;
 }) {
-  const [from, setFrom] = useState(""),
+  const [from, setFrom] = useState(prefill?.warehouseId ?? ""),
     [to, setTo] = useState(""),
     [q, setQ] = useState(""),
     [reason, setReason] = useState(""),
-    [lines, setLines] = useState<DraftLine[]>([]);
+    [lines, setLines] = useState<DraftLine[]>(() => {
+      const product = data.products.find((item) => item.id === prefill?.productId);
+      return product ? [lineFor(product)] : [];
+    });
   async function submit() {
     const body =
       mode === "transfer"
@@ -1526,6 +1565,7 @@ function Adjustment(p: {
   data: BootstrapData;
   run: RunCommand;
   openDoc: (id: string) => void;
+  prefill?: AdjustmentPrefill | null;
 }) {
   return (
     <section>
@@ -1703,17 +1743,17 @@ function DocumentDetail({
         <table>
           <thead>
             <tr>
-              <th>البيان</th>
+              <th>الاسم</th>
               <th>الكمية</th>
-              <th>سعر الوحدة</th>
-              <th>الإجمالي</th>
+              <th>السعر</th>
+              <th>توتال</th>
             </tr>
           </thead>
           <tbody>
             {document.lines.map((l) => (
               <tr key={l.id}>
                 <td>{l.description}</td>
-                <td>{number(l.quantity)}</td>
+                <td>{quantity(l.quantity, data.products.find((product) => product.id === l.productId)?.piecesPerCarton)}</td>
                 <td>{money(l.unitPrice)}</td>
                 <td>{money(l.lineTotal)}</td>
               </tr>
