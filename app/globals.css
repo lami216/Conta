@@ -938,6 +938,56 @@ th {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* Balanced POS workspace and aligned invoice table */
+.pos-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.invoice-preview.has-items { max-height: 250px; }
+.invoice-preview-list { gap: 0; padding: 0; }
+.invoice-table-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 1.35fr) minmax(90px, 1fr) minmax(78px, .9fr) minmax(88px, 1fr);
+  align-items: stretch;
+  gap: 0;
+}
+.invoice-table-head {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  color: #fff;
+  background: #17201f;
+  font-size: 10px;
+  font-weight: 800;
+}
+.invoice-table-row > span, .invoice-table-row > strong {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 8px 7px;
+  border-left: 1px solid #111;
+  overflow-wrap: anywhere;
+}
+.invoice-table-row > :last-child { border-left: 0; }
+.invoice-preview-item {
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid #111;
+  border-radius: 0;
+  background: #fff;
+  font-size: 10px;
+}
+.invoice-preview-item:last-child { border-bottom: 0; }
+.invoice-item-name, .invoice-item-total { border: 0; border-radius: 0; background: transparent; }
+.invoice-item-name { position: relative; justify-content: space-between; gap: 4px; }
+.invoice-item-edit { flex: 0 0 auto; padding: 3px; border-color: #111; }
+.invoice-item-edit span { display: none; }
+.stock-error-inline { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 10px; border: 1px solid #111; border-radius: 9px; color: #8f2630; background: #fff4f5; font-size: 11px; font-weight: 800; }
+.stock-error-inline .soft { min-height: 34px; padding: 5px 9px; border-color: #111; }
+@media (max-width: 1050px) { .pos-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) {
+  .invoice-table-row { grid-template-columns: minmax(82px, 1.25fr) minmax(72px, 1fr) minmax(65px, .85fr) minmax(72px, 1fr); }
+  .invoice-table-row > span, .invoice-table-row > strong { padding: 7px 4px; font-size: 9px; }
+  .invoice-item-edit { opacity: 1; }
+}
 @media print {
   .sidebar,
   header,
@@ -1146,4 +1196,53 @@ input, select, .combobox-trigger { border-color: var(--border); }
   .section-toolbar { align-items: stretch; flex-direction: column; }
   .invoice-item-edit { opacity: 1; }
   .invoice-card .pay-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+/* Balanced POS workspace and aligned invoice table */
+.pos-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.invoice-preview.has-items { max-height: 250px; }
+.invoice-preview-list { gap: 0; padding: 0; }
+.invoice-table-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 1.35fr) minmax(90px, 1fr) minmax(78px, .9fr) minmax(88px, 1fr);
+  align-items: stretch;
+  gap: 0;
+}
+.invoice-table-head {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  color: #fff;
+  background: #17201f;
+  font-size: 10px;
+  font-weight: 800;
+}
+.invoice-table-row > span, .invoice-table-row > strong {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 8px 7px;
+  border-left: 1px solid #111;
+  overflow-wrap: anywhere;
+}
+.invoice-table-row > :last-child { border-left: 0; }
+.invoice-preview-item {
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid #111;
+  border-radius: 0;
+  background: #fff;
+  font-size: 10px;
+}
+.invoice-preview-item:last-child { border-bottom: 0; }
+.invoice-item-name, .invoice-item-total { border: 0; border-radius: 0; background: transparent; }
+.invoice-item-name { position: relative; justify-content: space-between; gap: 4px; }
+.invoice-item-edit { flex: 0 0 auto; padding: 3px; border-color: #111; }
+.invoice-item-edit span { display: none; }
+.stock-error-inline { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 10px; border: 1px solid #111; border-radius: 9px; color: #8f2630; background: #fff4f5; font-size: 11px; font-weight: 800; }
+.stock-error-inline .soft { min-height: 34px; padding: 5px 9px; border-color: #111; }
+@media (max-width: 1050px) { .pos-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) {
+  .invoice-table-row { grid-template-columns: minmax(82px, 1.25fr) minmax(72px, 1fr) minmax(65px, .85fr) minmax(72px, 1fr); }
+  .invoice-table-row > span, .invoice-table-row > strong { padding: 7px 4px; font-size: 9px; }
+  .invoice-item-edit { opacity: 1; }
 }
