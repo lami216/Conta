@@ -1274,3 +1274,66 @@ input, select, .combobox-trigger { border-color: var(--border); }
   .invoice-preview-item:not(.selected) .invoice-item-edit { opacity: 0; }
   .invoice-preview-item.selected .invoice-item-edit { opacity: 1; }
 }
+
+/* Desktop workspace: the page frame stays put and data scrolls inside its panel. */
+@media (min-width: 1051px) {
+  html, body { height: 100%; overflow: hidden; }
+  .app-shell { height: 100dvh; min-height: 0; overflow: hidden; }
+  .app-shell > main { display: grid; grid-template-rows: auto minmax(0, 1fr); height: calc(100dvh - 102px); min-height: 0; }
+  .app-shell header.page-bar { min-height: 68px; padding-block: 10px; }
+  .page-bar h1 { font-size: clamp(23px, 2vw, 31px); }
+  .content { min-height: 0; padding: 12px 24px 18px; overflow: hidden; }
+  .content > section { height: 100%; min-height: 0; gap: 12px; overflow: hidden; }
+  .content > section:has(> .quick-invoices) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 260px); grid-template-rows: minmax(0, 1fr); }
+  .content > section:has(> .quick-invoices) > .heading { display: none; }
+  .pos-grid, .purchase-grid { min-height: 0; height: 100%; gap: 12px; align-items: stretch; }
+  .pos-grid > .panel, .purchase-grid > .panel { min-height: 0; padding: 14px; overflow: hidden; }
+  .pos-grid > .panel:first-child, .purchase-grid > .panel:first-child { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+  .purchase-grid > .panel:first-child { grid-template-rows: auto auto auto minmax(0, 1fr); }
+  .invoice-lines { height: auto; min-height: 0; overflow-y: auto; }
+  .invoice-card { min-height: 0; height: 100%; padding: 14px; gap: 8px; }
+  .invoice-preview, .invoice-preview.has-items { min-height: 0; max-height: none; flex: 1; overflow-y: auto; }
+  .invoice-card .choice { min-height: 46px; }
+  .invoice-card .invoice-total { padding: 7px 2px 2px; }
+  .invoice-card .invoice-total strong { font-size: 24px; }
+  .quick-invoices { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: 12px; overflow: hidden; }
+  .quick-invoice-list, .scroll-body, .party-grid, .records { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .party-grid { display: block; }
+}
+
+.quick-invoice-head { display: grid; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.quick-invoice-head small, .quick-invoice-head label span { color: var(--muted); font-size: 10px; font-weight: 700; }
+.quick-invoice-head h3 { margin: 2px 0 0; font-size: 15px; }
+.quick-invoice-head label { display: grid; gap: 4px; }
+.quick-invoice-head input { min-height: 38px; padding: 6px 8px; }
+.quick-invoice-list { display: grid; align-content: start; gap: 6px; padding-top: 8px; }
+.quick-invoice-list > button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 9px; border: 1px solid var(--line); border-radius: 9px; text-align: right; background: #fff; }
+.quick-invoice-list > button:hover, .quick-invoice-list > button:focus-visible { border-color: var(--brand); background: var(--soft); outline: 2px solid color-mix(in srgb, var(--brand) 20%, transparent); }
+.quick-invoice-list > button span { display: grid; gap: 2px; min-width: 0; }
+.quick-invoice-list small { overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.quick-invoice-list b { color: var(--brand); font-size: 11px; white-space: nowrap; }
+
+.workspace-page { display: grid !important; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+.workspace-toolbar { flex-wrap: nowrap; }
+.workspace-toolbar .search { flex: 1; }
+.scroll-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: 0; overflow: hidden; }
+.product-table { display: grid; grid-template-columns: minmax(160px, 1.4fr) minmax(125px, 1fr) repeat(4, minmax(90px, .75fr)) minmax(165px, 1fr); align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 12px; }
+.product-table-head { position: sticky; z-index: 2; top: 0; color: #fff; background: #17201f; font-size: 10px; font-weight: 800; }
+.product-table span { min-width: 0; }
+.product-table span:has(> small) { display: grid; gap: 2px; }
+.product-table small { color: var(--muted); }
+.table-actions { display: flex; gap: 5px; }
+.table-actions button { min-height: 34px; padding: 5px 8px; font-size: 10px; }
+.product-modal { width: min(760px, calc(100vw - 30px)); }
+
+@media (max-width: 1050px) {
+  .quick-invoices { max-height: 320px; }
+  .workspace-page { display: grid; }
+  .product-management { overflow-x: auto; }
+  .product-table { min-width: 950px; }
+}
+@media (max-width: 760px) {
+  html, body { overflow: auto; }
+  .workspace-toolbar { align-items: stretch; flex-direction: column; }
+  .quick-invoices { max-height: 360px; }
+}
