@@ -184,7 +184,6 @@ export default function ContaApp() {
     const found = data.documents.find((x) => x.id === id);
     if (found) setDoc(found);
   };
-  const activeWarehouse = data.warehouses.find((w) => w.isSalesDefault);
   const today = formatDate(new Date(), {
     day: "numeric",
     month: "long",
@@ -202,10 +201,6 @@ export default function ContaApp() {
           <button className="icon mobile" onClick={() => setMenu(false)}>
             <X />
           </button>
-        </div>
-        <div className="warehouse-chip">
-          <Boxes />
-          <span><small>مخزن البيع النشط</small><strong>{activeWarehouse?.name ?? "غير محدد"}</strong></span>
         </div>
         <nav aria-label="التنقل الرئيسي">
           {nav.slice(0, 1).map((n) => (
@@ -487,7 +482,6 @@ function Pos({
   data,
   run,
   openDoc,
-  openStockAdjustment,
 }: {
   data: BootstrapData;
   run: RunCommand;
@@ -496,12 +490,10 @@ function Pos({
 }) {
   const [query, setQuery] = useState(""),
     [lines, setLines] = useSessionDraft<DraftLine[]>("sale-lines", []),
-    [editingLine, setEditingLine] = useSessionDraft<DraftLine | null>("sale-editing", null),
     [payment, setPayment] = useSessionDraft("sale-payment", "cash"),
     [partyId, setPartyId] = useSessionDraft("sale-party", ""),
     [quick, setQuick] = useState(false),
     [selectedLine, setSelectedLine] = useState<string | null>(null),
-    [stockError, setStockError] = useState<{ productId: string; available: number } | null>(null),
     [stockNotice, setStockNotice] = useState("");
   const wh = data.warehouses.find((w) => w.isSalesDefault),
     details = lines.flatMap((l) => {
@@ -521,7 +513,7 @@ function Pos({
     const available = Number(p.stocks?.[wh?.id ?? ""] ?? 0);
     if (!wh || available <= 0) { setStockNotice("المنتج غير متوفر في مخزن البيع"); return; }
     setLines(current => current.some(line => line.productId === p.id) ? current : [lineFor(p), ...current]);
-    setStockError(null); setQuery("");
+    setQuery("");
   }
   function updateSaleLine(product: Product, patch: Partial<DraftLine>) {
     setLines(current => current.map(line => {
@@ -534,30 +526,6 @@ function Pos({
     }));
   }
 
-  function editLine(line: DraftLine) {
-    setLines((current) => current.filter((item) => item.productId !== line.productId));
-    setEditingLine({ ...line, pricingMode: "piece" });
-    setStockError(null);
-  }
-  function confirmLine() {
-    if (!editingLine) return;
-    const product = data.products.find((item) => item.id === editingLine.productId);
-    const available = Number(product?.stocks?.[wh?.id ?? ""] ?? 0);
-    if (!product || !wh || val(editingLine.quantity) > available) {
-      setStockError({ productId: editingLine.productId, available });
-      setStockNotice(`المخزون غير كافٍ. المتاح: ${number(available)}`);
-      window.setTimeout(() => setStockNotice(""), 2600);
-      return;
-    }
-    if (product.lastPurchaseCost != null && val(editingLine.piecePrice) < product.lastPurchaseCost) {
-      setStockNotice(`لا يمكن البيع تحت سعر الشراء. سعر الشراء الحالي: ${number(product.lastPurchaseCost)} MRU`);
-      window.setTimeout(() => setStockNotice(""), 3500);
-      return;
-    }
-    const confirmed = { ...editingLine, pricingMode: "piece" as const };
-    setLines((current) => [confirmed, ...current.filter((line) => line.productId !== confirmed.productId)]);
-    setEditingLine(null);
-  }
   async function submit() {
     const id = await run(
       {
@@ -576,106 +544,17 @@ function Pos({
       "تم اعتماد فاتورة البيع",
     );
     setLines([]);
-    setEditingLine(null);
     setPayment("cash");
     setPartyId("");
     openDoc(id);
   }
-  return (
-    <section>
-      {stockNotice && <div className="toast stock-toast">{stockNotice}</div>}
-      <div className="pos-grid">
-        <div className="panel">
-          <SearchProducts
-            data={data}
-            query={query}
-            setQuery={setQuery}
-            onPick={add}
-            mode="sale"
-            warehouseId={wh?.id}
-          />
-          <div className="picker-caption">انقر مرتين للإضافة مباشرة، أو حدّد المنتج ثم اضغط إضافة على اللمس.</div>
-        </div>
-        <div className="panel checkout invoice-card">
-          <div className="invoice-card-head">
-            <h3>الفاتورة</h3>
-            <div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={() => { if (confirm("هل تريد مسح الفاتورة؟")) { setLines([]); setEditingLine(null); } }}>مسح الفاتورة</button>}</div>
-          </div>
+  const invoice = <div className="panel invoice-card workspace-invoice">
+    <div className="invoice-card-head"><h3>الفاتورة</h3><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={() => { if (confirm("هل تريد مسح الفاتورة؟")) { setLines([]); } }}>مسح الفاتورة</button>}</div></div>
+    <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="invoice-preview-list" role="table" aria-label="منتجات الفاتورة"><div className="invoice-table-row invoice-table-head" role="row"><span>الاسم</span><span>الكمية</span><span>السعر</span><span>المجموع</span></div>{details.map(({ l, p, total: lineTotal }) => <div className={`invoice-preview-item invoice-table-row${selectedLine === p.id ? " selected" : ""}`} role="row" tabIndex={0} aria-selected={selectedLine === p.id} onClick={() => setSelectedLine(p.id)} key={p.id}><span className="invoice-item-name"><b>{p.name}</b><button type="button" className="row-delete" aria-label={`حذف ${p.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== p.id)); }}><X /></button></span><span><Num value={l.quantity} onChange={value => updateSaleLine(p, { quantity: value })} /></span><span><Num value={l.piecePrice} onChange={value => updateSaleLine(p, { piecePrice: value })} /></span><strong className="invoice-item-total">{money(lineTotal)}</strong></div>)}</div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b><small>أضف المنتجات لبدء فاتورة جديدة</small></div>}</div>
+  </div>;
+  const checkout = <aside className="panel workspace-checkout"><div className="checkout-head"><small>تحصيل وإتمام</small><h3>الدفع</h3></div><div className="checkout-body"><div className="invoice-meta-row" aria-label="نوع الفاتورة"><button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}><Banknote /><span><small>طريقة التحصيل</small><b>دفع مباشر</b></span></button><button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع البيع</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">طريقة الدفع</span><div className="pay-grid">{data.paymentAccounts.filter(p => p.isActive).map(p => <PaymentMethodButton key={p.id} account={p} selected={payment === p.id || payment === p.code} onSelect={setPayment} />)}</div></div>}{payment === "note" && <><label>اختيار العميل<SearchableSelect value={partyId} onChange={setPartyId} placeholder="اختر العميل" searchPlaceholder="ابحث باسم العميل أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: p.name, search: p.phone }))} /></label><button className="link" onClick={() => setQuick(!quick)}><Plus /> إضافة عميل</button>{quick && <QuickParty run={run} onDone={() => setQuick(false)} />}</>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!lines.length || !wh || (payment === "note" && !partyId)} onClick={() => void submit()}>إتمام البيع</button></div></aside>;
+  return <section className="transaction-page">{stockNotice && <div className="toast stock-toast">{stockNotice}</div>}<div className="transaction-workspace pos-workspace"><div className="workspace-discovery"><div className="panel search-panel"><div className="panel-title">بحث المنتجات</div><SearchProducts data={data} query={query} setQuery={setQuery} onPick={add} mode="sale" warehouseId={wh?.id} /><div className="picker-caption">انقر مرتين للإضافة مباشرة</div></div><InvoiceQuickBrowser title="سجل الفواتير" docs={data.documents.filter(d => d.kind === "sale")} openDoc={openDoc} /></div>{invoice}{checkout}</div></section>;
 
-          <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>
-            {lines.length ? (
-              <div className="invoice-preview-list" role="table" aria-label="منتجات الفاتورة">
-                <div className="invoice-table-row invoice-table-head" role="row">
-                  <span>الاسم</span><span>الكمية</span><span>السعر</span><span>المجموع</span>
-                </div>
-                {details.map(({ l, p, total: lineTotal }) => (
-                  <div className={`invoice-preview-item invoice-table-row${selectedLine === p.id ? " selected" : ""}`} role="row" tabIndex={0} aria-selected={selectedLine === p.id} onClick={() => setSelectedLine(p.id)} key={p.id}>
-                    <span className="invoice-item-name"><b>{p.name}</b><button type="button" className="row-delete" aria-label={`حذف ${p.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== p.id)); }}><X /></button></span>
-                    <span><Num value={l.quantity} onChange={value => updateSaleLine(p, { quantity: value })} /></span>
-                    <span><Num value={l.piecePrice} onChange={value => updateSaleLine(p, { piecePrice: value })} /></span>
-                    <strong className="invoice-item-total">{money(lineTotal)}</strong>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="empty-invoice-state">
-                <span><ReceiptText /></span>
-                <b>الفاتورة فارغة</b>
-                <small>أضف المنتجات لبدء فاتورة جديدة</small>
-              </div>
-            )}
-          </div>
-
-          <div className="invoice-checkout-footer"><div className="invoice-meta-row" aria-label="نوع الفاتورة">
-            <button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}>
-              <Banknote /><span><small>طريقة التحصيل</small><b>دفع مباشر</b></span>
-            </button>
-            <button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}>
-              <PencilLine /><span><small>نوع البيع</small><b>ملاحظة</b></span>
-            </button>
-          </div>
-
-          {payment !== "note" && <div className="payment-section">
-            <span className="payment-label">طريقة الدفع</span>
-            <div className="pay-grid">
-              {data.paymentAccounts.filter(p => p.isActive).map((p) => (
-                <PaymentMethodButton key={p.id} account={p} selected={payment === p.id || payment === p.code} onSelect={setPayment} />
-              ))}
-            </div>
-          </div>}
-          {payment === "note" && (
-            <>
-              <label>
-                اختيار العميل
-                <SearchableSelect value={partyId} onChange={setPartyId} placeholder="اختر العميل" searchPlaceholder="ابحث باسم العميل أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: p.name, search: p.phone }))} />
-              </label>
-              <button className="link" onClick={() => setQuick(!quick)}>
-                <Plus /> إضافة عميل
-              </button>
-              {quick && <QuickParty run={run} onDone={() => setQuick(false)} />}
-            </>
-          )}
-          <div className="total invoice-total">
-            <span>الإجمالي</span>
-            <strong><small>MRU</small>{money(total).replace("MRU", "").trim()}</strong>
-          </div>
-          <button
-            className="primary wide"
-            disabled={!lines.length || !wh || (payment === "note" && !partyId)}
-            onClick={() => void submit()}
-          >
-            إتمام البيع
-          </button>
-          </div>
-        </div>
-      </div>
-      <InvoiceQuickBrowser
-        title="سجل الفواتير"
-        docs={data.documents.filter((d) => d.kind === "sale")}
-        openDoc={openDoc}
-      />
-    </section>
-  );
 }
 
 const paymentIcons = {
@@ -745,7 +624,6 @@ function Purchases({ data, run, openDoc }: { data: BootstrapData; run: RunComman
   const [locked, setLocked] = useSessionDraft("purchase-locked", false);
   const [warehouseId, setWarehouseId] = useSessionDraft("purchase-warehouse", "");
   const [lines, setLines] = useSessionDraft<DraftLine[]>("purchase-lines", []);
-  const [editingLine, setEditingLine] = useSessionDraft<DraftLine | null>("purchase-editing", null);
   const [payment, setPayment] = useSessionDraft("purchase-payment", "cash");
   const [query, setQuery] = useState("");
   const [addingWh, setAddingWh] = useState(false);
@@ -758,46 +636,20 @@ function Purchases({ data, run, openDoc }: { data: BootstrapData; run: RunComman
   function pick(product: Product) {
     setLines(current => current.some(line => line.productId === product.id) ? current : [lineFor(product), ...current]); setQuery("");
   }
-  function confirmLine() {
-    if (!editingLine || val(editingLine.quantity) <= 0 || val(editingLine.unitPrice) <= 0) return;
-    setLines(current => [editingLine, ...current.filter(line => line.productId !== editingLine.productId)]);
-    setEditingLine(null);
-  }
   function clearDraft() {
     if (!confirm("هل تريد مسح فاتورة الشراء؟")) return;
-    setLines([]); setEditingLine(null); setPartyId(""); setLocked(false); setWarehouseId(""); setPayment("cash");
+    setLines([]); setPartyId(""); setLocked(false); setWarehouseId(""); setPayment("cash");
   }
   async function submit() {
     const id = await run({ type: "purchase.post", partyId, warehouseId, paymentMethod: payment, lines: lines.map(line => ({ productId: line.productId, quantity: val(line.quantity), unitPrice: val(line.unitPrice) })) }, "تم اعتماد فاتورة الشراء");
-    setLines([]); setEditingLine(null); setPartyId(""); setLocked(false); setWarehouseId(""); setPayment("cash"); openDoc(id);
+    setLines([]); setPartyId(""); setLocked(false); setWarehouseId(""); setPayment("cash"); openDoc(id);
   }
-  return <section>
-    <Heading title="فاتورة شراء جديدة" />
-    <div className="purchase-grid">
-      <div className="panel form-stack">
-        <div className="form-row">
-          <label>المورد<SearchableSelect disabled={locked} value={partyId} onChange={setPartyId} placeholder="اختر المورد" searchPlaceholder="ابحث باسم المورد أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: `${p.name} — ${p.phone}`, search: p.phone }))} /></label>
-          <button className="soft" disabled={!partyId} onClick={() => locked ? confirm("هل تريد تغيير المورد؟ ستبقى المنتجات كما هي.") && setLocked(false) : setLocked(true)}>{locked ? "تعديل المورد" : "تأكيد المورد"}</button>
-          <label>المخزن<SearchableSelect value={warehouseId} onChange={setWarehouseId} placeholder="اختر مخزن الاستلام" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label>
-          <button className="link" onClick={() => setAddingWh(!addingWh)}><Plus /> إضافة مخزن جديد</button>
-        </div>
-        {addingWh && <InlineCreate label="اسم المخزن" onSave={async name => { await run({ type: "warehouse.create", name }, "تمت إضافة المخزن"); setAddingWh(false); }} />}
-        <SearchProducts data={data} query={query} setQuery={setQuery} onPick={pick} mode="purchase" warehouseId={warehouseId} />
-        <div className="picker-caption">انقر مرتين لإضافة المنتج، ثم عدّل الكمية والسعر داخل الجدول.</div>
-      </div>
-      <div className="panel checkout invoice-card">
-        <div className="invoice-card-head"><h3>فاتورة الشراء الحالية</h3><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={clearDraft}>مسح الفاتورة</button>}</div></div>
-        <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="invoice-preview-list" role="table"><div className="invoice-table-row invoice-table-head"><span>الاسم</span><span>الكمية</span><span>السعر</span><span>المجموع</span></div>{details.map(({line, product}) => <div key={product.id} tabIndex={0} onClick={() => setSelectedLine(product.id)} className={`invoice-preview-item invoice-table-row${selectedLine === product.id ? " selected" : ""}`}><span className="invoice-item-name"><b>{product.name}</b><button className="row-delete" onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== product.id)); }}><X /></button></span><span><Num value={line.quantity} onChange={value => updatePurchaseLine(product, { quantity: value })} /></span><span><Num value={line.unitPrice} onChange={value => updatePurchaseLine(product, { unitPrice: value })} /></span><strong className="invoice-item-total">{money(val(line.quantity) * val(line.unitPrice))}</strong></div>)}</div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b><small>يمكن إضافة عدة منتجات قبل الاعتماد</small></div>}</div>
-        <div className="invoice-checkout-footer"><div className="invoice-meta-row"><button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}><Banknote /><span><small>نوع التسوية</small><b>دفع مباشر</b></span></button><button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع التسوية</small><b>ملاحظة</b></span></button></div>
-        {payment !== "note" && <div className="payment-section"><span className="payment-label">الدفع من حساب</span><div className="pay-grid">{data.paymentAccounts.filter(method => method.isActive).map(method => <PaymentMethodButton key={method.id} account={method} selected={payment === method.id || payment === method.code} onSelect={setPayment} />)}</div></div>}
-        {payment === "note" && <p className="note-hint">ستسجل الفاتورة كاملة دينًا علينا للمورد، دون حركة نقدية.</p>}
-        <div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div>
-        <button className="primary wide" disabled={!locked || !warehouseId || !lines.length} onClick={() => void submit()}>اعتماد الفاتورة كاملة</button>
-        </div>
-      </div>
-    </div>
-    <InvoiceQuickBrowser title="فواتير الشراء" docs={data.documents.filter(d => d.kind === "purchase")} openDoc={openDoc} />
-  </section>;
+  return <section className="transaction-page"><div className="transaction-workspace purchase-workspace">
+    <div className="workspace-discovery"><div className="panel search-panel"><div className="panel-title">بحث المنتجات</div><SearchProducts data={data} query={query} setQuery={setQuery} onPick={pick} mode="purchase" warehouseId={warehouseId} /><div className="picker-caption">انقر مرتين للإضافة مباشرة</div></div><InvoiceQuickBrowser title="سجل فواتير الشراء" docs={data.documents.filter(d => d.kind === "purchase")} openDoc={openDoc} /></div>
+    <div className="panel invoice-card workspace-invoice"><div className="invoice-card-head"><h3>فاتورة الشراء الحالية</h3><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={clearDraft}>مسح الفاتورة</button>}</div></div><div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="invoice-preview-list" role="table"><div className="invoice-table-row invoice-table-head"><span>الاسم</span><span>الكمية</span><span>سعر الشراء</span><span>المجموع</span></div>{details.map(({line, product}) => <div key={product.id} tabIndex={0} onClick={() => setSelectedLine(product.id)} className={`invoice-preview-item invoice-table-row${selectedLine === product.id ? " selected" : ""}`}><span className="invoice-item-name"><b>{product.name}</b><button className="row-delete" onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== product.id)); }}><X /></button></span><span><Num value={line.quantity} onChange={value => updatePurchaseLine(product, { quantity: value })} /></span><span><Num value={line.unitPrice} onChange={value => updatePurchaseLine(product, { unitPrice: value })} /></span><strong className="invoice-item-total">{money(val(line.quantity) * val(line.unitPrice))}</strong></div>)}</div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b><small>يمكن إضافة عدة منتجات قبل الاعتماد</small></div>}</div></div>
+    <aside className="panel workspace-checkout"><div className="checkout-head"><small>بيانات وتسوية</small><h3>اعتماد الشراء</h3></div><div className="checkout-body purchase-details"><label>المورد<SearchableSelect disabled={locked} value={partyId} onChange={setPartyId} placeholder="اختر المورد" searchPlaceholder="ابحث باسم المورد أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: `${p.name} — ${p.phone}`, search: p.phone }))} /></label><button className="soft" disabled={!partyId} onClick={() => locked ? confirm("هل تريد تغيير المورد؟ ستبقى المنتجات كما هي.") && setLocked(false) : setLocked(true)}>{locked ? "تعديل المورد" : "تأكيد المورد"}</button><label>مخزن الاستلام<SearchableSelect value={warehouseId} onChange={setWarehouseId} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><button className="link" onClick={() => setAddingWh(!addingWh)}><Plus /> إضافة مخزن</button>{addingWh && <InlineCreate label="اسم المخزن" onSave={async name => { await run({ type: "warehouse.create", name }, "تمت إضافة المخزن"); setAddingWh(false); }} />}<div className="invoice-meta-row"><button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}><Banknote /><span><small>نوع التسوية</small><b>دفع مباشر</b></span></button><button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع التسوية</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">الدفع من حساب</span><div className="pay-grid">{data.paymentAccounts.filter(method => method.isActive).map(method => <PaymentMethodButton key={method.id} account={method} selected={payment === method.id || payment === method.code} onSelect={setPayment} />)}</div></div>}{payment === "note" && <p className="note-hint">ستسجل الفاتورة كاملة دينًا علينا للمورد، دون حركة نقدية.</p>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!locked || !warehouseId || !lines.length} onClick={() => void submit()}>اعتماد فاتورة الشراء</button></div></aside>
+  </div></section>;
+
 }
 function Expenses({ data, run, openDoc }: { data: BootstrapData; run: RunCommand; openDoc: (id: string) => void }) {
   const [title, setTitle] = useSessionDraft("expense-title", ""),
