@@ -70,6 +70,7 @@ export interface DocumentRecord {
   occurredAt: string;
   businessDate?: string;
   dailySequence?: number;
+  recurringId?: string;
   lines: DocumentLine[];
 }
 export interface Movement {
@@ -87,6 +88,8 @@ export interface Movement {
   occurredAt: string;
 }
 export interface BootstrapData {
+  /** Informational only; product.create allocates the authoritative value atomically. */
+  nextProductCode: number;
   parties: Party[];
   warehouses: Warehouse[];
   products: Product[];

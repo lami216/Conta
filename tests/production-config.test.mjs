@@ -19,3 +19,14 @@ test("example environment binds the application to loopback", async () => {
   assert.match(env, /^MONGODB_URI=/m);
   assert.match(env, /^HOSTNAME=127\.0\.0\.1$/m);
 });
+
+test("desktop transaction workspace has physical checkout-left named areas and viewport safety", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.app-shell \{[^}]*height: 100dvh/s);
+  assert.match(css, /grid-template-areas: "checkout invoice discovery"/);
+  assert.match(css, /\.transaction-workspace \{ direction: ltr; \}/);
+  assert.match(css, /\.transaction-workspace > \* \{ direction: rtl; \}/);
+  assert.match(css, /\.workspace-discovery \{[\s\S]*grid-template-rows: minmax\(0, 55fr\) minmax\(0, 45fr\)/);
+  assert.match(css, /\.checkout-body \{[^}]*overflow-y: auto/s);
+  assert.match(css, /\.content \{ padding-bottom: 16px; \}/);
+});

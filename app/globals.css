@@ -850,6 +850,7 @@ th {
     margin-top: 10px;
   }
 }
+
 @media (max-width: 430px) {
   .invoice-card .pay-grid { grid-template-columns: repeat(3, 1fr); }
   .invoice-meta-row { grid-template-columns: 1fr 1fr; }
@@ -1814,3 +1815,22 @@ html, body { width: 100%; max-width: 100%; margin: 0; overflow-x: visible; }
   .workspace-discovery { grid-template-rows: auto auto; }
   .workspace-checkout, .workspace-invoice { min-height: 420px; }
 }
+
+/* Cascade-final desktop refinement. */
+@media (min-width: 1051px) {
+  .transaction-workspace { direction: ltr; }
+  .transaction-workspace > * { direction: rtl; }
+  .content { padding-bottom: 16px; }
+  .expense-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(112px, .38fr) minmax(180px, 1fr); }
+  .expense-form, .expense-recurring, .expense-history { grid-column: 1; }
+  .expense-form { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+  .expense-form .section-title { grid-column: 1 / -1; }
+  .expense-fields { grid-template-columns: minmax(170px, 1.35fr) repeat(4, minmax(120px, 1fr)); }
+  .expense-save { min-height: 43px; margin-bottom: 0; }
+}
+.expense-history-filters { display: grid; grid-template-columns: minmax(240px, 1fr) 150px 150px; align-items: end; gap: 8px; }
+.expense-history-filters > label:not(.search) { display: grid; gap: 3px; color: var(--text-muted); font-size: 9px; font-weight: 800; }
+.expense-history-head, .expense-doc { grid-template-columns: 105px minmax(150px, 1.3fr) 105px minmax(125px, 1fr) 100px 115px; }
+.product-code-preview input { color: var(--section-color); border-width: 2px; background: var(--section-soft); font-weight: 900; }
+.scroll-body > .product-table { transition: background-color 140ms ease, box-shadow 140ms ease; }
+.scroll-body > .product-table:hover { background: var(--section-soft); box-shadow: inset -4px 0 var(--section-color); }
