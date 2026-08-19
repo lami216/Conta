@@ -91,7 +91,7 @@ export interface BootstrapData {
   documents: DocumentRecord[];
   movements: Movement[];
   financialMovements: FinancialMovement[];
-  paymentAccounts: Array<{ paymentMethod: Exclude<PaymentMethod, "note">; balance: number }>;
+  paymentAccounts: PaymentAccount[];
   recurringExpenses: Array<{
     id: string;
     title: string;
@@ -99,7 +99,22 @@ export interface BootstrapData {
     frequency: "daily" | "monthly";
     startsOn: string;
     active: boolean;
+    currentOccurrenceKey: string;
+    currentDueDate: string;
+    currentPaymentMethodId: string | null;
   }>;
+  accountTransfers: Array<{ id: string; number: string; fromAccountId: string; toAccountId: string; amount: number; note: string; occurredAt: string }>;
+}
+export interface PaymentAccount {
+  id: string;
+  code: string;
+  name: string;
+  color: string;
+  icon: string;
+  isActive: boolean;
+  balance: number;
+  income: number;
+  expenses: number;
 }
 export interface FinancialMovement {
   id: string;
@@ -112,6 +127,8 @@ export interface FinancialMovement {
   partyName: string | null;
   type: string;
   occurredAt: string;
+  transferId?: string | null;
+  note?: string | null;
 }
 export const paymentMethods: Array<{
   id: Exclude<PaymentMethod, "note">;
