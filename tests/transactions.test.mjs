@@ -82,3 +82,18 @@ test("payments, offset, settlement, expense and invalid input preserve balance i
   await assert.rejects(command({ type: "purchase.post", warehouseId: "unknown", partyId: "party", lines: [{ productId: "p1", quantity: -1, unitPrice: 1 }] }));
   assert.equal(await db.collection("documents").countDocuments(), count);
 });
+
+test("product codes are atomic, sequential, unique, and independent from barcodes", async t => {
+  if (unavailable) return t.skip(unavailable);
+  await db.collection("products").createIndex({ sku: 1 }, { unique: true });
+  await db.collection("products").insertOne({ id: "legacy", name: "Legacy", sku: "9", barcode: "14313143", stocks: {} });
+  const firstId = await command({ type: "product.create", name: "Product A" });
+  const secondId = await command({ type: "product.create", name: "Product B" });
+  const [first, second] = await Promise.all([
+    db.collection("products").findOne({ id: firstId }),
+    db.collection("products").findOne({ id: secondId }),
+  ]);
+  assert.deepEqual([first.sku, second.sku], ["10", "11"]);
+  assert.deepEqual([first.barcode, first.pieceCost, first.piecePrice, first.piecesPerCarton], ["", null, null, null]);
+  await assert.rejects(db.collection("products").insertOne({ id: "duplicate", name: "Duplicate", sku: "11", stocks: {} }), /duplicate key/i);
+});

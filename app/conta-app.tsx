@@ -67,6 +67,7 @@ type DraftLine = {
   pricingMode: "piece" | "carton";
 };
 const empty: BootstrapData = {
+  nextProductCode: 1,
   parties: [],
   warehouses: [],
   products: [],
@@ -658,10 +659,15 @@ function Expenses({ data, run, openDoc }: { data: BootstrapData; run: RunCommand
     [frequency, setFrequency] = useSessionDraft("expense-frequency", "once"),
     [paymentMethod, setPaymentMethod] = useSessionDraft("expense-payment", "");
   const [historyQuery, setHistoryQuery] = useState("");
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
   const [paying, setPaying] = useState<string | null>(null);
   const accounts = data.paymentAccounts.filter(account => account.isActive);
   const accountName = (id: string | null) => data.paymentAccounts.find(a => a.id === id || a.code === id)?.name ?? "—";
-  const expenseDocs = data.documents.filter(d => d.kind === "expense" && (!historyQuery.trim() || `${d.title ?? ""} ${d.number}`.toLocaleLowerCase("ar").includes(historyQuery.trim().toLocaleLowerCase("ar"))));
+  const expenseDocs = data.documents.filter(d => d.kind === "expense"
+    && (!historyQuery.trim() || `${d.title ?? ""} ${d.number}`.toLocaleLowerCase("ar").includes(historyQuery.trim().toLocaleLowerCase("ar")))
+    && (!historyFrom || d.occurredAt.slice(0, 10) >= historyFrom)
+    && (!historyTo || d.occurredAt.slice(0, 10) <= historyTo));
   return <section className="expense-workspace workspace-page">
     <div className="expense-grid">
       <form className="panel expense-form" onSubmit={async event => { event.preventDefault(); const id = await run({ type: "expense.post", title, amount: val(amount), occurredAt: date, frequency, paymentMethod }, frequency === "once" ? "تم تسجيل المصروف" : "تم حفظ التذكير دون خصم"); setTitle(""); setAmount(""); if (frequency === "once") openDoc(id); }}>
@@ -674,11 +680,11 @@ function Expenses({ data, run, openDoc }: { data: BootstrapData; run: RunCommand
           {frequency === "once" && <label>وسيلة الدفع<select required value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}><option value="">اختر وسيلة الدفع</option>{accounts.map(a => <option key={a.id} value={a.id}>{a.name} — {money(a.balance)}</option>)}</select></label>}
         </div><button className="primary expense-save" disabled={!title || !amount || (frequency === "once" && !paymentMethod)}>{frequency === "once" ? "حفظ الفاتورة" : "حفظ التذكير"}</button>
       </form>
-      <div className="panel expense-recurring"><div className="section-title"><div><small>تذكيرات فقط — لا خصم تلقائي</small><h3>المصاريف المتكررة</h3></div><b>{number(data.recurringExpenses.length)}</b></div><div className="expense-scroll">
+      <div className="panel expense-recurring"><div className="section-title"><div><small>تذكيرات فقط — لا خصم تلقائي</small><h3>المصاريف المستحقة</h3></div><b>{number(data.recurringExpenses.length)}</b></div><div className="expense-scroll">
         {data.recurringExpenses.map(r => <div className="list-row" key={r.id}><span><strong>{r.title}</strong><small>{r.frequency === "daily" ? "يومي" : "شهري"} · استحقاق {formatDate(r.currentDueDate)}</small></span><b>{money(r.amount)}</b>{r.currentPaymentMethodId ? <span className="paid-badge">مدفوع · {accountName(r.currentPaymentMethodId)}</span> : <button className="soft" onClick={() => setPaying(r.id)}>تسجيل الدفع</button>}</div>)}
         {!data.recurringExpenses.length && <Empty text="لا توجد مصاريف متكررة" />}
       </div></div>
-      <div className="panel expense-history"><div className="section-title"><div><small>المستندات المسجلة</small><h3>سجل الفواتير</h3></div></div><label className="search"><Search /><input value={historyQuery} onChange={e => setHistoryQuery(e.target.value)} placeholder="بحث بالعنوان أو رقم المستند" /></label><div className="expense-history-head"><span>التاريخ</span><span>العنوان</span><span>المبلغ</span><span>الدفع</span><span>المستند</span></div><div className="expense-scroll">{expenseDocs.map(document => <button className="expense-doc" key={document.id} onClick={() => openDoc(document.id)}><span>{formatDate(document.occurredAt)}</span><strong>{document.title ?? "مصروف"}</strong><b>{money(document.total)}</b><span>{accountName(document.paymentMethod)}</span><span dir="ltr">{document.number}</span></button>)}{!expenseDocs.length && <Empty text="لا توجد فواتير مطابقة" />}</div></div>
+      <div className="panel expense-history"><div className="section-title"><div><small>المستندات المسجلة</small><h3>سجل المصاريف</h3></div></div><div className="expense-history-filters"><label className="search"><Search /><input value={historyQuery} onChange={e => setHistoryQuery(e.target.value)} placeholder="بحث بالعنوان أو رقم المستند" /></label><label>من<input dir="ltr" type="date" value={historyFrom} onChange={e => setHistoryFrom(e.target.value)} /></label><label>إلى<input dir="ltr" type="date" value={historyTo} onChange={e => setHistoryTo(e.target.value)} /></label></div><div className="expense-history-head"><span>التاريخ</span><span>العنوان</span><span>المبلغ</span><span>وسيلة الدفع</span><span>نوع المصروف</span><span>المستند</span></div><div className="expense-scroll">{expenseDocs.map(document => <button className="expense-doc" key={document.id} onClick={() => openDoc(document.id)}><span>{formatDate(document.occurredAt)}</span><strong>{document.title ?? "مصروف"}</strong><b>{money(document.total)}</b><span>{accountName(document.paymentMethod)}</span><span>{document.recurringId ? "متكرر" : "مرة واحدة"}</span><span dir="ltr">{document.number}</span></button>)}{!expenseDocs.length && <Empty text="لا توجد فواتير مطابقة" />}</div></div>
     </div>
     {paying && <div className="modal-overlay" role="dialog" aria-modal="true"><form className="modal-card payment-dialog" onSubmit={async e => { e.preventDefault(); if (!paymentMethod) return; const recurring = data.recurringExpenses.find(r => r.id === paying)!; await run({ type: "expense.materialize", recurringId: paying, dueDate: recurring.currentDueDate, paymentMethod }, "تم تسجيل دفع الاستحقاق"); setPaying(null); }}><div className="section-title"><h3>تسجيل الدفع</h3><button type="button" className="icon" onClick={() => setPaying(null)}><X /></button></div><label>تم الدفع من<select required value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}><option value="">اختر الحساب</option>{accounts.map(a => <option key={a.id} value={a.id}>{a.name} — {money(a.balance)}</option>)}</select></label><button className="primary">تأكيد الدفع</button></form></div>}
   </section>;
@@ -998,7 +1004,7 @@ function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
         {!products.length && <Empty text="لا توجد منتجات مطابقة للبحث" />}
       </div>
     </div>
-    {formOpen && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={editing ? `تعديل ${editing.name}` : "إضافة منتج"}><div className="modal-card product-modal"><ProductForm run={run} product={editing} close={() => setFormOpen(false)} /></div></div>}
+    {formOpen && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={editing ? `تعديل ${editing.name}` : "إضافة منتج"}><div className="modal-card product-modal"><ProductForm run={run} product={editing} nextCode={data.nextProductCode} close={() => setFormOpen(false)} /></div></div>}
   </section>;
 }
 
@@ -1006,16 +1012,17 @@ function ProductForm({
   run,
   close,
   product,
+  nextCode,
 }: {
   run: RunCommand;
   close: () => void;
   product: Product | null;
+  nextCode: number;
 }) {
   const [name, setName] = useState(product?.name ?? ""),
     [cost, setCost] = useState(String(product?.pieceCost ?? "")),
     [price, setPrice] = useState(String(product?.piecePrice ?? "")),
     [pack, setPack] = useState(String(product?.piecesPerCarton ?? "")),
-    [sku, setSku] = useState(product?.sku ?? ""),
     [barcode, setBarcode] = useState(product?.barcode ?? "");
   return (
     <form
@@ -1039,7 +1046,6 @@ function ProductForm({
             pieceCost: cost,
             piecePrice: price,
             piecesPerCarton: pack,
-            sku,
             barcode,
             confirmSensitive: confirmed,
           },
@@ -1065,9 +1071,9 @@ function ProductForm({
         عدد الأفراد داخل الكرتون
         <Num value={pack} onChange={setPack} />
       </label>
-      <label>
+      <label className="product-code-preview">
         رمز المنتج
-        <input dir="ltr" value={sku} onChange={(e) => setSku(e.target.value)} />
+        <input dir="ltr" readOnly aria-readonly="true" value={product?.sku || nextCode} />
       </label>
       <label>
         الباركود

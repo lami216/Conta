@@ -20,6 +20,21 @@ const optionalNumber = (v: unknown, label: string, integer = false) => {
   if (integer && (!Number.isInteger(n) || n <= 0)) throw new CommandError(`${label} غير صالح`);
   return n;
 };
+async function nextProductCode(db: Db, session: ClientSession) {
+  const counters = db.collection<{ _id: string; value: number; createdAt?: Date; updatedAt?: Date }>("counters");
+  const legacy = await db.collection("products").find(
+    { sku: { $type: "string", $regex: /^\d{1,6}$/ } }, { session, projection: { sku: 1 } },
+  ).toArray();
+  const highest = legacy.reduce((value, product) => Math.max(value, Number(product.sku)), 0);
+  await counters.updateOne(
+    { _id: "productSequence" }, { $max: { value: highest }, $setOnInsert: { createdAt: new Date() } }, { upsert: true, session },
+  );
+  const counter = await counters.findOneAndUpdate(
+    { _id: "productSequence" }, { $inc: { value: 1 }, $set: { updatedAt: new Date() } }, { returnDocument: "after", session },
+  );
+  if (!counter) throw new CommandError("تعذر توليد رمز المنتج", 409);
+  return String(counter.value);
+}
 const lines = (body: Input): Line[] => {
   if (!Array.isArray(body.lines) || !body.lines.length) throw new CommandError("يجب إضافة منتج واحد على الأقل");
   const seen = new Set<string>();
@@ -102,10 +117,10 @@ export async function execute(db: Db, session: ClientSession, body: Input) {
   if (type === "warehouse.update") { const name = text(body.name), warehouseId = text(body.id); if (!name) throw new CommandError("اسم المخزن مطلوب"); const r = await warehouses(db).updateOne({ _id: warehouseId }, { $set: { name } }, { session }); if (!r.matchedCount) throw new CommandError("المخزن غير موجود", 404); return warehouseId; }
   if (type === "warehouse.default") { const warehouseId = text(body.warehouseId); if (!await warehouses(db).findOne({ _id: warehouseId }, { session })) throw new CommandError("المخزن غير موجود", 404); await warehouses(db).updateMany({}, { $set: { isSalesDefault: false } }, { session }); await warehouses(db).updateOne({ _id: warehouseId }, { $set: { isSalesDefault: true } }, { session }); return warehouseId; }
   if (type === "product.create" || type === "product.update") {
-    const name = text(body.name), sku = text(body.sku), barcode = text(body.barcode);
+    const name = text(body.name), barcode = text(body.barcode);
     if (!name) throw new CommandError("اسم المنتج مطلوب");
-    const values = { name, sku, barcode, pieceCost: optionalNumber(body.pieceCost, "سعر الشراء"), piecePrice: optionalNumber(body.piecePrice, "سعر البيع"), piecesPerCarton: optionalNumber(body.piecesPerCarton, "عدد الأفراد", true) };
-    if (type === "product.create") { const product = { id: id("product"), ...values, stocks: {}, createdAt: new Date() }; await db.collection("products").insertOne(product, { session }); return product.id; }
+    const values = { name, barcode, pieceCost: optionalNumber(body.pieceCost, "سعر الشراء"), piecePrice: optionalNumber(body.piecePrice, "سعر البيع"), piecesPerCarton: optionalNumber(body.piecesPerCarton, "عدد الأفراد", true) };
+    if (type === "product.create") { const sku = await nextProductCode(db, session); const product = { id: id("product"), sku, ...values, stocks: {}, createdAt: new Date() }; await db.collection("products").insertOne(product, { session }); return product.id; }
     const productId = text(body.id), r = await db.collection("products").updateOne({ id: productId }, { $set: values }, { session }); if (!r.matchedCount) throw new CommandError("المنتج غير موجود", 404); return productId;
   }
   if (type === "sale.post" || type === "purchase.post") {
