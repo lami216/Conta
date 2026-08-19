@@ -22,6 +22,7 @@ import {
   ShoppingCart,
   Users,
   WalletCards,
+  CreditCard,
   X,
 } from "lucide-react";
 import {
@@ -30,13 +31,13 @@ import {
   kindLabels,
   money,
   number,
-  paymentMethods,
   quantity,
   saleLineTotal,
   type BootstrapData,
   type DocumentRecord,
   type Party,
   type Product,
+  type PaymentAccount,
 } from "./domain";
 
 type View =
@@ -49,7 +50,8 @@ type View =
   | "adjustments"
   | "products"
   | "records"
-  | "reports";
+  | "reports"
+  | "banks";
 type RunCommand = (
   body: Record<string, unknown>,
   message: string,
@@ -73,6 +75,7 @@ const empty: BootstrapData = {
   financialMovements: [],
   paymentAccounts: [],
   recurringExpenses: [],
+  accountTransfers: [],
 };
 function useSessionDraft<T>(key: string, initial: T) {
   const [value, setValue] = useState<T>(() => {
@@ -86,6 +89,7 @@ const nav: Array<{ id: View; label: string; icon: typeof ShoppingCart }> = [
   { id: "pos", label: "نقطة البيع", icon: ShoppingCart },
   { id: "products", label: "المنتجات", icon: PackagePlus },
   { id: "parties", label: "العملاء والموردون", icon: Users },
+  { id: "banks", label: "البنوك", icon: Landmark },
   { id: "reports", label: "التقارير", icon: Receipt },
 ];
 const invoiceNav: Array<{ id: View; label: string; icon: typeof Receipt }> = [
@@ -295,6 +299,7 @@ export default function ContaApp() {
               {view === "reports" && (
                 <Reports data={data} openDoc={openDoc} />
               )}{" "}
+              {view === "banks" && <Banks data={data} run={run} />}{" "}
             </>
           )}
         </div>
@@ -661,8 +666,8 @@ function Pos({
           {payment !== "note" && <div className="payment-section">
             <span className="payment-label">طريقة الدفع</span>
             <div className="pay-grid">
-              {paymentMethods.map((p) => (
-                <PaymentMethodButton key={p.id} id={p.id} label={p.label} selected={payment === p.id} onSelect={setPayment} />
+              {data.paymentAccounts.filter(p => p.isActive).map((p) => (
+                <PaymentMethodButton key={p.id} account={p} selected={payment === p.id || payment === p.code} onSelect={setPayment} />
               ))}
             </div>
           </div>}
@@ -702,6 +707,11 @@ function Pos({
 }
 
 const paymentIcons = {
+  banknote: Banknote,
+  wallet: WalletCards,
+  building: Building2,
+  landmark: Landmark,
+  card: CreditCard,
   cash: Banknote,
   bankily: WalletCards,
   masrvi: Building2,
@@ -710,22 +720,22 @@ const paymentIcons = {
   note: PencilLine,
 };
 
-function PaymentMethodButton({ id, label, selected, onSelect }: {
-  id: keyof typeof paymentIcons;
-  label: string;
+function PaymentMethodButton({ account, selected, onSelect }: {
+  account: PaymentAccount;
   selected: boolean;
   onSelect: (id: string) => void;
 }) {
-  const Icon = paymentIcons[id];
+  const Icon = paymentIcons[account.icon as keyof typeof paymentIcons] ?? WalletCards;
   return (
     <button
       type="button"
       aria-pressed={selected}
       className={selected ? "choice selected" : "choice"}
-      onClick={() => onSelect(id)}
+      style={{ "--account-color": account.color } as React.CSSProperties}
+      onClick={() => onSelect(account.id)}
     >
       <Icon />
-      <span>{label}</span>
+      <span>{account.name}</span>
     </button>
   );
 }
@@ -807,7 +817,7 @@ function Purchases({ data, run, openDoc }: { data: BootstrapData; run: RunComman
         <div className="invoice-card-head"><h3>فاتورة الشراء الحالية</h3><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={clearDraft}>مسح الفاتورة</button>}</div></div>
         <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="invoice-preview-list" role="table"><div className="invoice-table-row invoice-table-head"><span>الاسم</span><span>الكمية</span><span>السعر</span><span>المجموع</span></div>{details.map(({line, product}) => <div key={product.id} tabIndex={0} onClick={() => setSelectedLine(product.id)} className={`invoice-preview-item invoice-table-row${selectedLine === product.id ? " selected" : ""}`}><span className="invoice-item-name"><b>{product.name}</b><button className="invoice-item-edit" onClick={event => { event.stopPropagation(); edit(line); }}><PencilLine /><span>تعديل</span></button></span><span>{quantity(val(line.quantity), product.piecesPerCarton)}</span><span dir="ltr">{money(val(line.unitPrice))}</span><strong className="invoice-item-total">{money(val(line.quantity) * val(line.unitPrice))}</strong></div>)}</div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b><small>يمكن إضافة عدة منتجات قبل الاعتماد</small></div>}</div>
         <div className="invoice-checkout-footer"><div className="invoice-meta-row"><button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}><Banknote /><span><small>نوع التسوية</small><b>دفع مباشر</b></span></button><button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع التسوية</small><b>ملاحظة</b></span></button></div>
-        {payment !== "note" && <div className="payment-section"><span className="payment-label">الدفع من حساب</span><div className="pay-grid">{paymentMethods.map(method => <PaymentMethodButton key={method.id} id={method.id} label={method.label} selected={payment === method.id} onSelect={setPayment} />)}</div></div>}
+        {payment !== "note" && <div className="payment-section"><span className="payment-label">الدفع من حساب</span><div className="pay-grid">{data.paymentAccounts.filter(method => method.isActive).map(method => <PaymentMethodButton key={method.id} account={method} selected={payment === method.id || payment === method.code} onSelect={setPayment} />)}</div></div>}
         {payment === "note" && <p className="note-hint">ستسجل الفاتورة كاملة دينًا علينا للمورد، دون حركة نقدية.</p>}
         <div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div>
         <button className="primary wide" disabled={!locked || !warehouseId || !lines.length} onClick={() => void submit()}>اعتماد الفاتورة كاملة</button>
@@ -817,117 +827,63 @@ function Purchases({ data, run, openDoc }: { data: BootstrapData; run: RunComman
     <InvoiceQuickBrowser title="فواتير الشراء" docs={data.documents.filter(d => d.kind === "purchase")} openDoc={openDoc} />
   </section>;
 }
-function Expenses({
-  data,
-  run,
-  openDoc,
-}: {
-  data: BootstrapData;
-  run: RunCommand;
-  openDoc: (id: string) => void;
-}) {
+function Expenses({ data, run, openDoc }: { data: BootstrapData; run: RunCommand; openDoc: (id: string) => void }) {
   const [title, setTitle] = useSessionDraft("expense-title", ""),
     [amount, setAmount] = useSessionDraft("expense-amount", ""),
     [date, setDate] = useSessionDraft("expense-date", new Date().toISOString().slice(0, 10)),
-    [frequency, setFrequency] = useSessionDraft("expense-frequency", "once");
+    [frequency, setFrequency] = useSessionDraft("expense-frequency", "once"),
+    [paymentMethod, setPaymentMethod] = useSessionDraft("expense-payment", "");
   const [historyQuery, setHistoryQuery] = useState("");
-  const expenseDocs = data.documents.filter((d) => d.kind === "expense" && (!historyQuery.trim() || `${d.title ?? ""} ${d.number}`.toLocaleLowerCase("ar").includes(historyQuery.trim().toLocaleLowerCase("ar"))));
-  return (
-    <section className="expense-workspace workspace-page">
-      <div className="expense-toolbar"><div><small>إدارة التدفقات الخارجة</small><Heading title="فواتير المصاريف" /></div><span><CalendarDays /> {formatDate(date)}</span></div>
-      <div className="expense-grid">
-      <form
-        className="panel expense-form"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          const id = await run(
-            {
-              type: "expense.post",
-              title,
-              amount: val(amount),
-              occurredAt: date,
-              frequency,
-            },
-            "تم تسجيل المصروف",
-          );
-          setTitle("");
-          setAmount("");
-          openDoc(id);
-        }}
-      >
-        <div className="section-title"><div><small>إدخال سريع</small><h3>فاتورة مصروف جديدة</h3></div></div>
+  const [paying, setPaying] = useState<string | null>(null);
+  const accounts = data.paymentAccounts.filter(account => account.isActive);
+  const accountName = (id: string | null) => data.paymentAccounts.find(a => a.id === id || a.code === id)?.name ?? "—";
+  const expenseDocs = data.documents.filter(d => d.kind === "expense" && (!historyQuery.trim() || `${d.title ?? ""} ${d.number}`.toLocaleLowerCase("ar").includes(historyQuery.trim().toLocaleLowerCase("ar"))));
+  return <section className="expense-workspace workspace-page">
+    <div className="expense-grid">
+      <form className="panel expense-form" onSubmit={async event => { event.preventDefault(); const id = await run({ type: "expense.post", title, amount: val(amount), occurredAt: date, frequency, paymentMethod }, frequency === "once" ? "تم تسجيل المصروف" : "تم حفظ التذكير دون خصم"); setTitle(""); setAmount(""); if (frequency === "once") openDoc(id); }}>
+        <div className="section-title"><div><small>إدخال سريع</small><h3>مصروف جديد</h3></div></div>
         <div className="expense-fields">
-        <label>
-          عنوان المصروف
-          <input value={title} onChange={(e) => setTitle(e.target.value)} />
-        </label>
-        <label>
-          المبلغ
-          <Num value={amount} onChange={setAmount} />
-        </label>
-        <label>
-          التاريخ
-          <input
-            dir="ltr"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
-        </label>
-        <label>
-          التكرار
-          <select
-            value={frequency}
-            onChange={(e) => setFrequency(e.target.value)}
-          >
-            <option value="once">مرة واحدة</option>
-            <option value="daily">يومي</option>
-            <option value="monthly">شهري</option>
-          </select>
-        </label>
-        </div><button className="primary expense-save">حفظ الفاتورة</button>
+          <label>عنوان المصروف<input required value={title} onChange={e => setTitle(e.target.value)} /></label>
+          <label>المبلغ<Num value={amount} onChange={setAmount} /></label>
+          <label>تاريخ المصروف<input dir="ltr" type="date" value={date} onChange={e => setDate(e.target.value)} /></label>
+          <label>التكرار<select value={frequency} onChange={e => setFrequency(e.target.value)}><option value="once">مرة واحدة</option><option value="daily">يومي</option><option value="monthly">شهري</option></select></label>
+          {frequency === "once" && <label>وسيلة الدفع<select required value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}><option value="">اختر وسيلة الدفع</option>{accounts.map(a => <option key={a.id} value={a.id}>{a.name} — {money(a.balance)}</option>)}</select></label>}
+        </div><button className="primary expense-save" disabled={!title || !amount || (frequency === "once" && !paymentMethod)}>{frequency === "once" ? "حفظ الفاتورة" : "حفظ التذكير"}</button>
       </form>
-        <div className="panel expense-recurring">
-          <div className="section-title"><div><small>الاستحقاقات المجدولة</small><h3>المصاريف المتكررة</h3></div><b>{number(data.recurringExpenses.length)}</b></div>
-          <div className="expense-scroll">
-          {data.recurringExpenses.map((r) => (
-            <div className="list-row" key={r.id}>
-              <span>
-                <strong>{r.title}</strong>
-                <small>
-                  {r.frequency === "daily" ? "يومي" : "شهري"} منذ {r.startsOn}
-                </small>
-              </span>
-              <b>{money(r.amount)}</b>
-              <button
-                className="soft"
-                onClick={() =>
-                  void run(
-                    {
-                      type: "expense.materialize",
-                      recurringId: r.id,
-                      dueDate: new Date().toISOString().slice(0, 10),
-                    },
-                    "تم احتساب الاستحقاق دون تكرار",
-                  )
-                }
-              >
-                احتساب الاستحقاق
-              </button>
-            </div>
-          ))}
-          {!data.recurringExpenses.length && <Empty text="لا توجد مصاريف متكررة" />}
-          </div>
-        </div>
-        <div className="panel expense-history">
-          <div className="section-title"><div><small>المستندات المسجلة</small><h3>سجل فواتير المصاريف</h3></div></div>
-          <label className="search"><Search /><input value={historyQuery} onChange={e => setHistoryQuery(e.target.value)} placeholder="بحث بالعنوان أو رقم المستند" /></label>
-          <div className="expense-history-head"><span>التاريخ</span><span>العنوان</span><span>المبلغ</span><span>الحالة / الدفع</span><span>المستند</span></div>
-          <div className="expense-scroll">{expenseDocs.map(document => <button className="expense-doc" key={document.id} onClick={() => openDoc(document.id)}><span>{formatDate(document.occurredAt)}</span><strong>{document.title ?? "مصروف"}</strong><b>{money(document.total)}</b><span><small>{document.status === "posted" ? "معتمد" : document.status}</small> · {paymentMethods.find(x => x.id === document.paymentMethod)?.label ?? "—"}</span><span dir="ltr">{document.number}</span></button>)}{!expenseDocs.length && <Empty text="لا توجد فواتير مطابقة" />}</div>
-        </div>
-      </div>
-    </section>
-  );
+      <div className="panel expense-recurring"><div className="section-title"><div><small>تذكيرات فقط — لا خصم تلقائي</small><h3>المصاريف المتكررة</h3></div><b>{number(data.recurringExpenses.length)}</b></div><div className="expense-scroll">
+        {data.recurringExpenses.map(r => <div className="list-row" key={r.id}><span><strong>{r.title}</strong><small>{r.frequency === "daily" ? "يومي" : "شهري"} · استحقاق {formatDate(r.currentDueDate)}</small></span><b>{money(r.amount)}</b>{r.currentPaymentMethodId ? <span className="paid-badge">مدفوع · {accountName(r.currentPaymentMethodId)}</span> : <button className="soft" onClick={() => setPaying(r.id)}>تسجيل الدفع</button>}</div>)}
+        {!data.recurringExpenses.length && <Empty text="لا توجد مصاريف متكررة" />}
+      </div></div>
+      <div className="panel expense-history"><div className="section-title"><div><small>المستندات المسجلة</small><h3>سجل الفواتير</h3></div></div><label className="search"><Search /><input value={historyQuery} onChange={e => setHistoryQuery(e.target.value)} placeholder="بحث بالعنوان أو رقم المستند" /></label><div className="expense-history-head"><span>التاريخ</span><span>العنوان</span><span>المبلغ</span><span>الدفع</span><span>المستند</span></div><div className="expense-scroll">{expenseDocs.map(document => <button className="expense-doc" key={document.id} onClick={() => openDoc(document.id)}><span>{formatDate(document.occurredAt)}</span><strong>{document.title ?? "مصروف"}</strong><b>{money(document.total)}</b><span>{accountName(document.paymentMethod)}</span><span dir="ltr">{document.number}</span></button>)}{!expenseDocs.length && <Empty text="لا توجد فواتير مطابقة" />}</div></div>
+    </div>
+    {paying && <div className="modal-overlay" role="dialog" aria-modal="true"><form className="modal-card payment-dialog" onSubmit={async e => { e.preventDefault(); if (!paymentMethod) return; const recurring = data.recurringExpenses.find(r => r.id === paying)!; await run({ type: "expense.materialize", recurringId: paying, dueDate: recurring.currentDueDate, paymentMethod }, "تم تسجيل دفع الاستحقاق"); setPaying(null); }}><div className="section-title"><h3>تسجيل الدفع</h3><button type="button" className="icon" onClick={() => setPaying(null)}><X /></button></div><label>تم الدفع من<select required value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}><option value="">اختر الحساب</option>{accounts.map(a => <option key={a.id} value={a.id}>{a.name} — {money(a.balance)}</option>)}</select></label><button className="primary">تأكيد الدفع</button></form></div>}
+  </section>;
+}
+function Banks({ data, run }: { data: BootstrapData; run: RunCommand }) {
+  const [tab, setTab] = useState<"accounts" | "movements" | "transfers">("accounts");
+  const [editing, setEditing] = useState<PaymentAccount | null>(null);
+  const [from, setFrom] = useState(""), [to, setTo] = useState(""), [amount, setAmount] = useState(""), [note, setNote] = useState("");
+  const [accountFilter, setAccountFilter] = useState(""), [typeFilter, setTypeFilter] = useState("");
+  const active = data.paymentAccounts.filter(a => a.isActive);
+  const name = (id: string) => data.paymentAccounts.find(a => a.id === id || a.code === id)?.name ?? id;
+  const movements = data.financialMovements.filter(m => (!accountFilter || m.paymentMethod === accountFilter) && (!typeFilter || m.type === typeFilter));
+  const total = data.paymentAccounts.reduce((sum, account) => sum + account.balance, 0);
+  const today = new Date().toISOString().slice(0, 10);
+  const todayMovements = data.financialMovements.filter(m => m.occurredAt.slice(0, 10) === today);
+  return <section className="banks-workspace workspace-page">
+    <div className="bank-summary"><div><small>إجمالي السيولة</small><b>{money(total)}</b></div><div><small>إجمالي الداخل اليوم</small><b>{money(todayMovements.filter(m => m.direction === "in").reduce((s,m) => s + m.amount, 0))}</b></div><div><small>إجمالي الخارج اليوم</small><b>{money(todayMovements.filter(m => m.direction === "out").reduce((s,m) => s + m.amount, 0))}</b></div><div><small>وسائل الدفع النشطة</small><b>{number(active.length)}</b></div></div>
+    <div className="panel bank-panel"><div className="bank-tabs"><button className={tab === "accounts" ? "active" : ""} onClick={() => setTab("accounts")}>وسائل الدفع</button><button className={tab === "movements" ? "active" : ""} onClick={() => setTab("movements")}>حركة الحسابات</button><button className={tab === "transfers" ? "active" : ""} onClick={() => setTab("transfers")}>التحويلات</button></div>
+      {tab === "accounts" && <><div className="section-toolbar"><span>المعرف المحاسبي ثابت، ويمكن تعديل البيانات الظاهرة بأمان.</span><button className="primary" onClick={() => setEditing({ id: "", code: "", name: "", color: "#1677c8", icon: "wallet", isActive: true, balance: 0, income: 0, expenses: 0 })}><Plus /> إضافة وسيلة</button></div><div className="account-cards">{data.paymentAccounts.map(account => { const Icon = paymentIcons[account.icon as keyof typeof paymentIcons] ?? WalletCards; return <article className={!account.isActive ? "account-card inactive" : "account-card"} style={{ borderColor: account.color }} key={account.id}><div className="account-icon" style={{ color: account.color, background: `${account.color}18` }}><Icon /></div><span><small>{account.isActive ? "نشط" : "متوقف"}</small><strong>{account.name}</strong></span><b>{money(account.balance)}</b><div><small>الداخل {money(account.income)}</small><small>الخارج {money(account.expenses)}</small></div><button className="soft" onClick={() => setEditing(account)}>تعديل</button></article>})}</div></>}
+      {tab === "movements" && <><div className="bank-filters"><select value={accountFilter} onChange={e => setAccountFilter(e.target.value)}><option value="">كل الحسابات</option>{data.paymentAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select><select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}><option value="">كل الأنواع</option><option value="sale">بيع</option><option value="purchase">شراء</option><option value="expense">مصروف</option><option value="party-receipt">تسديد عميل</option><option value="party-payment">تسديد مورد</option><option value="transfer-in">تحويل داخل</option><option value="transfer-out">تحويل خارج</option></select></div><div className="ledger-list">{movements.map(m => <div className="ledger-row" key={m.id}><span>{formatDateTime(m.occurredAt)}</span><strong>{m.type}</strong><span>{name(m.paymentMethod)}</span><b className={m.direction}>{m.direction === "in" ? "+" : "−"}{money(m.amount)}</b><span dir="ltr">{m.documentNumber}</span></div>)}</div></>}
+      {tab === "transfers" && <div className="transfer-layout"><form className="transfer-form" onSubmit={async e => { e.preventDefault(); await run({ type: "account-transfer.post", fromAccountId: from, toAccountId: to, amount: val(amount), note }, "تم التحويل بين الحسابات"); setAmount(""); setNote(""); }}><label>من الحساب<select required value={from} onChange={e => setFrom(e.target.value)}><option value="">اختر المصدر</option>{active.map(a => <option key={a.id} value={a.id}>{a.name} — {money(a.balance)}</option>)}</select></label><label>إلى الحساب<select required value={to} onChange={e => setTo(e.target.value)}><option value="">اختر الوجهة</option>{active.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label>المبلغ<Num value={amount} onChange={setAmount} /></label><label>ملاحظة<input value={note} onChange={e => setNote(e.target.value)} /></label><button className="primary" disabled={!from || !to || from === to || !amount}>اعتماد التحويل</button></form><div className="transfer-list">{data.accountTransfers.map(t => <div className="list-row" key={t.id}><span><strong>{name(t.fromAccountId)} ← {name(t.toAccountId)}</strong><small>{formatDateTime(t.occurredAt)} · {t.number}</small></span><b>{money(t.amount)}</b></div>)}</div></div>}
+    </div>
+    {editing && <PaymentAccountDialog account={editing} close={() => setEditing(null)} run={run} />}
+  </section>;
+}
+function PaymentAccountDialog({ account, close, run }: { account: PaymentAccount; close: () => void; run: RunCommand }) {
+  const [name, setName] = useState(account.name), [color, setColor] = useState(account.color), [icon, setIcon] = useState(account.icon), [isActive, setActive] = useState(account.isActive);
+  const icons = [["banknote", Banknote], ["wallet", WalletCards], ["building", Building2], ["landmark", Landmark], ["card", CreditCard]] as const;
+  return <div className="modal-overlay" role="dialog" aria-modal="true"><form className="modal-card account-dialog" onSubmit={async e => { e.preventDefault(); await run({ type: account.id ? "payment-account.update" : "payment-account.create", id: account.id, name, color, icon, isActive }, "تم حفظ وسيلة الدفع"); close(); }}><div className="section-title"><h3>{account.id ? "تعديل وسيلة الدفع" : "وسيلة دفع جديدة"}</h3><button type="button" className="icon" onClick={close}><X /></button></div><label>الاسم<input required value={name} onChange={e => setName(e.target.value)} /></label><label>اللون<input type="color" value={color} onChange={e => setColor(e.target.value)} /></label><fieldset><legend>الأيقونة</legend><div className="icon-picker">{icons.map(([value, Icon]) => <button type="button" aria-pressed={icon === value} className={icon === value ? "selected" : ""} key={value} onClick={() => setIcon(value)}><Icon /></button>)}</div></fieldset>{account.id && <label className="active-toggle"><input type="checkbox" checked={isActive} onChange={e => setActive(e.target.checked)} /> متاحة للعمليات الجديدة</label>}<button className="primary">حفظ</button></form></div>;
 }
 
 function Parties({
@@ -1106,7 +1062,7 @@ function PartyPage({
             </select>
           </label>
         )}
-        {action === "payment" && <label>طريقة الدفع<select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>{paymentMethods.map((method) => <option key={method.id} value={method.id}>{method.label}</option>)}</select></label>}
+        {action === "payment" && <label>طريقة الدفع<select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>{data.paymentAccounts.filter(method => method.isActive).map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}</select></label>}
         <label>
           المبلغ
           <Num value={amount} onChange={setAmount} />

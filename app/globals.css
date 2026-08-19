@@ -1677,3 +1677,56 @@ body { overflow-x: clip; }
   .content { padding-inline-start: 12px; padding-inline-end: 16px; }
   .app-shell header.page-bar { padding-inline: 14px 16px; }
 }
+
+/* The application frame owns one symmetric safe area. Width includes padding;
+   no viewport masking or directional offset is used. */
+html, body { width: 100%; max-width: 100%; margin: 0; overflow-x: visible; }
+.app-shell, .app-shell > main { width: 100%; max-width: 100%; min-width: 0; }
+.app-shell header.page-bar, .content {
+  width: 100%; max-width: 100%; min-width: 0;
+  margin-inline: auto; padding-inline: 16px;
+}
+.section-banks { --section-color: #1677c8; --section-soft: #e8f4ff; }
+.choice[style] svg { color: var(--account-color); }
+.paid-badge { padding: 6px 9px; border-radius: 999px; color: #14713b; background: #e6f6eb; font-size: 10px; font-weight: 800; }
+.payment-dialog { width: min(440px, calc(100% - 32px)); display: grid; gap: 14px; }
+.banks-workspace { grid-template-rows: auto minmax(0, 1fr) !important; }
+.bank-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.bank-summary > div { display: grid; gap: 5px; padding: 14px; border: 1px solid #1677c8; border-radius: 12px; background: #fff; }
+.bank-summary small { color: var(--text-muted); font-size: 10px; font-weight: 700; }
+.bank-summary b { color: #1265aa; font-size: 18px; }
+.bank-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; min-height: 0; overflow: hidden; }
+.bank-tabs { display: flex; gap: 7px; border-bottom: 1px solid var(--border); }
+.bank-tabs button { padding: 9px 16px; border: 0; border-bottom: 3px solid transparent; color: var(--text-muted); background: transparent; font-weight: 800; }
+.bank-tabs button.active { color: #1677c8; border-color: #1677c8; }
+.account-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: start; gap: 10px; min-height: 0; overflow-y: auto; }
+.account-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 13px; border: 2px solid; border-radius: 13px; background: #fff; }
+.account-card.inactive { opacity: .58; }
+.account-card > span, .account-card > div:not(.account-icon) { display: grid; gap: 3px; }
+.account-card small { color: var(--text-muted); font-size: 9px; }
+.account-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 11px; }
+.account-icon svg { width: 22px; }
+.account-card > button { grid-column: 3; }
+.bank-filters { display: grid; grid-template-columns: repeat(2, minmax(180px, 280px)); gap: 8px; }
+.ledger-list, .transfer-list { min-height: 0; overflow-y: auto; }
+.ledger-row { display: grid; grid-template-columns: 145px minmax(100px, 1fr) minmax(110px, 1fr) 130px 130px; gap: 9px; align-items: center; padding: 10px; border-bottom: 1px solid var(--border); font-size: 11px; }
+.ledger-row b.in { color: #14713b; }.ledger-row b.out { color: #b62d3e; }
+.transfer-layout { display: grid; grid-template-columns: minmax(300px, .8fr) minmax(0, 1.2fr); gap: 14px; min-height: 0; }
+.transfer-form { display: grid; align-content: start; gap: 9px; padding: 12px; border: 1px solid var(--border); border-radius: 11px; }
+.account-dialog { width: min(500px, calc(100% - 32px)); display: grid; gap: 13px; }
+.account-dialog fieldset { border: 1px solid var(--border); border-radius: 10px; }
+.icon-picker { display: flex; gap: 8px; }.icon-picker button { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 9px; background: #fff; }.icon-picker button.selected { color: #1677c8; border-color: #1677c8; background: #e8f4ff; }
+.active-toggle { display: flex; align-items: center; gap: 8px; }.active-toggle input { width: 18px; min-height: 18px; }
+@media (min-width: 1051px) and (max-width: 1450px) {
+  .sidebar { padding-inline: 10px; gap: 6px; }
+  .sidebar nav { gap: 2px; }
+  .nav { min-height: 48px; padding-inline: 5px; font-size: 10px; }
+  .nav svg { width: 17px; height: 17px; }
+  .warehouse-chip { min-width: 132px; }
+  .side-foot form { display: none; }
+}
+@media (max-width: 900px) {
+  .bank-summary, .account-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .transfer-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) { .bank-summary, .account-cards { grid-template-columns: 1fr; } }

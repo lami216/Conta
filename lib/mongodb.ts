@@ -30,10 +30,29 @@ export function initializeMongo(): Promise<Db> {
         database.collection("auditEvents").createIndex({ createdAt: -1 }),
         database.collection("financialMovements").createIndex({ documentId: 1, type: 1 }, { unique: true }),
         database.collection("financialMovements").createIndex({ paymentMethod: 1, occurredAt: -1 }),
+        database.collection("paymentAccounts").createIndex({ id: 1 }, { unique: true }),
+        database.collection("paymentAccounts").createIndex({ code: 1 }, { unique: true }),
+        database.collection("documents").createIndex({ recurringId: 1, occurrenceKey: 1 }, { unique: true, partialFilterExpression: { recurringId: { $type: "string" }, occurrenceKey: { $type: "string" } }, name: "recurring_occurrence_unique" }),
       ]);
       const warehouses = database.collection<{ _id: string; name: string; isSalesDefault: boolean; createdAt: Date }>("warehouses");
       await warehouses.updateOne({ _id: "wh-main" }, { $setOnInsert: { name: "المخزن الرئيسي", isSalesDefault: false, createdAt: new Date() } }, { upsert: true });
       await warehouses.updateOne({ _id: "wh-boutique" }, { $setOnInsert: { name: "البوتيك", isSalesDefault: true, createdAt: new Date() } }, { upsert: true });
+      const accounts = database.collection("paymentAccounts");
+      const defaults = [
+        ["cash", "نقدي", "#16835f", "banknote"], ["bankily", "بنكيلي", "#1677c8", "wallet"],
+        ["masrvi", "مصرفي", "#6d55c7", "building"], ["sedad", "السداد", "#d07a20", "landmark"],
+        ["bimbank", "بيم", "#c14666", "card"],
+      ];
+      await Promise.all(defaults.map(([code, name, color, icon]) => accounts.updateOne(
+        { code }, { $setOnInsert: { id: `account-${code}`, code, name, color, icon, isActive: true, balance: 0, createdAt: new Date() } }, { upsert: true },
+      )));
+      const legacyBalances = await database.collection("financialMovements").aggregate([
+        { $group: { _id: "$paymentMethod", balance: { $sum: { $cond: [{ $eq: ["$direction", "in"] }, "$amount", { $multiply: ["$amount", -1] }] } } } },
+      ]).toArray();
+      await Promise.all(defaults.map(([code]) => accounts.updateOne(
+        { code, balanceInitialized: { $ne: true } },
+        { $set: { balance: Number(legacyBalances.find(row => row._id === code || row._id === `account-${code}`)?.balance ?? 0), balanceInitialized: true } },
+      )));
       log("info", "mongodb.initialization.completed");
       return database;
     } catch (error) {
