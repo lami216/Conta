@@ -6,6 +6,10 @@ export async function GET(request: Request) {
   if (!sessionFromRequest(request)) return Response.json({ error: "غير مصرح" }, { status: 401 });
   try {
     const db = await getMongo();
+    await db.collection("documents").createIndex(
+      { kind: 1, businessDate: 1, dailySequence: 1 },
+      { unique: true, partialFilterExpression: { kind: "sale", businessDate: { $type: "string" }, dailySequence: { $type: "number" } } },
+    );
     // One-time, idempotent legacy backfill. The sorted unwind makes the first line
     // for each product the newest real posted purchase price.
     const legacyCosts = await db.collection("documents").aggregate([

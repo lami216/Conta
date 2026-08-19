@@ -68,6 +68,8 @@ export interface DocumentRecord {
   dueTotal: number;
   paidTotal: number;
   occurredAt: string;
+  businessDate?: string;
+  dailySequence?: number;
   lines: DocumentLine[];
 }
 export interface Movement {
