@@ -24,9 +24,13 @@ test("desktop transaction workspace has physical checkout-left named areas and v
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /\.app-shell \{[^}]*height: 100dvh/s);
   assert.match(css, /grid-template-areas: "checkout invoice discovery"/);
-  assert.match(css, /\.transaction-workspace \{ direction: ltr; \}/);
+  assert.match(css, /\.transaction-workspace \{[^}]*direction: ltr;/s);
   assert.match(css, /\.transaction-workspace > \* \{ direction: rtl; \}/);
-  assert.match(css, /\.workspace-discovery \{[\s\S]*grid-template-rows: minmax\(0, 55fr\) minmax\(0, 45fr\)/);
+  assert.match(css, /\.workspace-discovery \{[^}]*grid-template-rows: minmax\(210px, 45fr\) minmax\(0, 55fr\)/s);
+  assert.match(css, /\.workspace-discovery > \.search-panel \{ grid-row: 1; \}/);
+  assert.match(css, /\.workspace-discovery > \.quick-invoices \{ grid-row: 2; \}/);
+  assert.doesNotMatch(css, /\.quick-invoices \{[^}]*align-self: end/s);
+  assert.doesNotMatch(css, /\.quick-invoices \{[^}]*height: 42%/s);
   assert.match(css, /\.checkout-body \{[^}]*overflow-y: auto/s);
   assert.match(css, /\.content \{ padding-bottom: 16px; \}/);
 });
