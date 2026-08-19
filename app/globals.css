@@ -1761,3 +1761,56 @@ html, body { width: 100%; max-width: 100%; margin: 0; overflow-x: visible; }
   .quick-invoices { z-index: 2; grid-column: 1; grid-row: 1; align-self: end; height: 42%; margin: 0 10px 10px 0; overflow: hidden; background: #fff; }
   .product-picker { height: 56%; }.picker-results { max-height: 174px; }
 }
+
+/* Authoritative three-region transaction layout. Core work areas are normal grid
+   cells: no offsets, transforms, absolute positioning, or viewport overlays. */
+@media (min-width: 1051px) {
+  .transaction-page { height: 100%; min-height: 0; padding: 10px !important; overflow: hidden !important; }
+  .transaction-workspace {
+    direction: rtl;
+    display: grid;
+    grid-template-areas: "checkout invoice discovery";
+    grid-template-columns: minmax(245px, 25fr) minmax(430px, 45fr) minmax(270px, 30fr);
+    gap: 10px;
+    width: 100%; height: 100%; min-width: 0; min-height: 0;
+  }
+  .workspace-checkout { grid-area: checkout; }
+  .workspace-invoice { grid-area: invoice; }
+  .workspace-discovery { grid-area: discovery; }
+  .workspace-discovery {
+    display: grid; grid-template-rows: minmax(0, 55fr) minmax(0, 45fr);
+    gap: 10px; min-width: 0; min-height: 0; overflow: hidden;
+  }
+  .search-panel { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 6px; padding: 10px !important; min-height: 0; overflow: hidden; }
+  .search-panel .product-picker { height: 100%; min-height: 0; }
+  .search-panel .picker-results { min-height: 0; max-height: none; overflow-y: auto; }
+  .workspace-discovery .quick-invoices { height: auto; margin: 0; min-width: 0; min-height: 0; overflow: hidden; }
+  .quick-invoice-list { min-width: 0; overflow-x: hidden; overflow-y: auto; }
+  .quick-invoice-list > button, .quick-invoice-list > button > * { min-width: 0; max-width: 100%; }
+  .workspace-invoice { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden; padding: 12px !important; }
+  .workspace-invoice .invoice-preview { min-height: 0; max-height: none; overflow-y: auto; }
+  .workspace-checkout { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 9px; height: 100%; min-height: 0; overflow: hidden; padding: 12px !important; }
+  .checkout-head { padding-bottom: 9px; border-bottom: 2px solid var(--section-color); }
+  .checkout-head small { color: var(--text-muted); font-size: 9px; font-weight: 800; }
+  .checkout-head h3, .panel-title { margin: 2px 0 0; color: var(--section-color); font-size: 16px; font-weight: 900; }
+  .checkout-body { display: grid; align-content: start; gap: 9px; min-height: 0; overflow-y: auto; }
+  .checkout-footer { display: grid; gap: 8px; padding-top: 9px; border-top: 2px solid var(--border); background: #fff; }
+  .checkout-footer .wide { width: 100%; min-height: 48px; }
+  .workspace-checkout .pay-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .workspace-checkout .choice { min-height: 58px; }
+  .purchase-details > label { display: grid; gap: 4px; font-size: 10px; font-weight: 800; }
+
+  .sidebar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; padding: 10px 16px; }
+  .sidebar nav { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; width: 100%; }
+  .sidebar nav > *, .nav-menu, .nav-menu > .nav { width: 100%; min-width: 0; }
+  .nav { justify-content: center; min-width: 0; min-height: 58px; padding: 7px 5px; border: 2px solid var(--nav-color, #687585); border-radius: 9px; font-size: 11px; }
+  .brand > b { width: 46px; height: 46px; }
+  .brand strong { font-size: 23px; }
+  .side-foot { min-width: 0; }
+}
+@media (max-width: 1050px) {
+  .transaction-workspace, .workspace-discovery { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .transaction-workspace { grid-template-areas: "discovery" "invoice" "checkout"; }
+  .workspace-discovery { grid-template-rows: auto auto; }
+  .workspace-checkout, .workspace-invoice { min-height: 420px; }
+}
