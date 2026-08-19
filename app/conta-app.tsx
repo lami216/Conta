@@ -364,53 +364,39 @@ function SearchableSelect({ value, onChange, options, placeholder, searchPlaceho
     </div>}
   </div>;
 }
-function SearchProducts({
-  data,
-  query,
-  setQuery,
-  onPick,
-}: {
-  data: BootstrapData;
-  query: string;
-  setQuery: (v: string) => void;
-  onPick: (p: Product) => void;
+function ProductSearchPicker({ data, query, setQuery, onPick, mode = "sale", warehouseId }: {
+  data: BootstrapData; query: string; setQuery: (value: string) => void; onPick: (product: Product) => void;
+  mode?: "sale" | "purchase" | "transfer" | "adjustment" | "inventory"; warehouseId?: string;
 }) {
-  const normalized = query.trim().toLocaleLowerCase("ar");
-  const results = normalized
-    ? data.products.map((p, index) => ({ p, index, name: p.name.toLocaleLowerCase("ar"), all: `${p.name} ${p.sku} ${p.barcode}`.toLocaleLowerCase("ar") }))
-        .filter(x => x.all.includes(normalized))
-        .sort((a, b) => {
-          const score = (x: typeof a) => x.name === normalized ? 0 : x.name.startsWith(normalized) ? 1 : x.all.startsWith(normalized) ? 2 : 3;
-          return score(a) - score(b) || a.index - b.index;
-        }).slice(0, 20).map(x => x.p)
-    : [];
-  return (
-    <div className="product-search">
-      <label className="search">
-        <Search />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="ابحث عن منتج بالاسم أو الرمز"
-        />
-      </label>
-      {query.trim() && (
-        <div className="search-results">
-          {results.map((p) => (
-            <button key={p.id} onClick={() => onPick(p)}>
-              <span>
-                <strong>{p.name}</strong>
-                <small>{p.sku}</small>
-              </span>
-              <Plus />
-            </button>
-          ))}
-          {!results.length && <div className="combobox-empty">لا توجد نتائج</div>}
-        </div>
-      )}
+  const [selected, setSelected] = useState<string | null>(null);
+  const term = query.trim().toLocaleLowerCase("ar");
+  const results = useMemo(() => term ? data.products.map((product, index) => {
+    const name = product.name.toLocaleLowerCase("ar"), sku = (product.sku ?? "").toLocaleLowerCase("ar"), barcode = (product.barcode ?? "").toLocaleLowerCase("ar");
+    const score = barcode === term || sku === term ? 0 : barcode.startsWith(term) || sku.startsWith(term) ? 1 : name.startsWith(term) ? 2 : name.includes(term) ? 3 : 4;
+    return { product, index, score, matches: `${name} ${sku} ${barcode}`.includes(term) };
+  }).filter(item => item.matches).sort((a, b) => a.score - b.score || a.index - b.index).slice(0, 30).map(item => item.product) : [], [data.products, term]);
+  const add = (product: Product) => {
+    const stock = Number(product.stocks?.[warehouseId ?? ""] ?? Object.values(product.stocks).reduce((a, b) => a + b, 0));
+    if (mode === "sale" && stock <= 0) return;
+    onPick(product); setSelected(null);
+  };
+  return <div className="product-picker">
+    <label className="search"><Search /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label>
+    <div className="picker-head"><span>المنتج / الكود</span><span>{mode === "purchase" ? "آخر شراء" : "السعر"}</span><span>المتوفر</span></div>
+    <div className="picker-results" role="listbox">
+      {results.map(product => { const stock = Number(product.stocks?.[warehouseId ?? ""] ?? Object.values(product.stocks).reduce((a, b) => a + b, 0)), disabled = mode === "sale" && stock <= 0; return <button type="button" key={product.id} role="option" disabled={disabled} aria-selected={selected === product.id} onClick={() => setSelected(product.id)} onDoubleClick={() => add(product)}>
+        <span><strong>{product.name}</strong><small dir="ltr">{product.barcode || product.sku || "—"}</small></span>
+        <b>{money(mode === "purchase" ? product.lastPurchaseCost ?? product.pieceCost ?? 0 : product.piecePrice ?? 0)}</b>
+        <span><b>{number(stock)}</b><small>{disabled ? "غير متوفر" : "فرد"}</small></span>
+        <span className="touch-add">{selected === product.id && !disabled && <span onClick={event => { event.stopPropagation(); add(product); }}>إضافة</span>}</span>
+      </button>; })}
+      {term && !results.length && <div className="combobox-empty">لا توجد نتائج</div>}
+      {!term && <div className="picker-hint">اكتب لعرض أقرب المنتجات</div>}
     </div>
-  );
+  </div>;
 }
+const SearchProducts = ProductSearchPicker;
+
 function LineEditor({
   line,
   product,
@@ -532,12 +518,22 @@ function Pos({
     }),
     total = details.reduce((s, x) => s + x.total, 0);
   function add(p: Product) {
-    const confirmed = lines.find((line) => line.productId === p.id);
-    setEditingLine(confirmed ? { ...confirmed, pricingMode: "piece" } : lineFor(p));
-    if (confirmed) setLines((current) => current.filter((line) => line.productId !== p.id));
-    setStockError(null);
-    setQuery("");
+    const available = Number(p.stocks?.[wh?.id ?? ""] ?? 0);
+    if (!wh || available <= 0) { setStockNotice("المنتج غير متوفر في مخزن البيع"); return; }
+    setLines(current => current.some(line => line.productId === p.id) ? current : [lineFor(p), ...current]);
+    setStockError(null); setQuery("");
   }
+  function updateSaleLine(product: Product, patch: Partial<DraftLine>) {
+    setLines(current => current.map(line => {
+      if (line.productId !== product.id) return line;
+      const next = { ...line, ...patch };
+      const available = Number(product.stocks?.[wh?.id ?? ""] ?? 0);
+      if (val(next.quantity) <= 0 || val(next.quantity) > available) { setStockNotice(`الكمية يجب أن تكون بين 1 و ${number(available)}`); return line; }
+      if (product.lastPurchaseCost != null && val(next.piecePrice) < product.lastPurchaseCost) { setStockNotice(`لا يمكن البيع تحت آخر تكلفة شراء: ${money(product.lastPurchaseCost)}`); return line; }
+      return next;
+    }));
+  }
+
   function editLine(line: DraftLine) {
     setLines((current) => current.filter((item) => item.productId !== line.productId));
     setEditingLine({ ...line, pricingMode: "piece" });
@@ -595,34 +591,10 @@ function Pos({
             query={query}
             setQuery={setQuery}
             onPick={add}
+            mode="sale"
+            warehouseId={wh?.id}
           />
-          <div className="invoice-lines">
-            {editingLine ? (
-              (() => {
-                const product = data.products.find((item) => item.id === editingLine.productId);
-                return product ? <div className="draft-line">
-                <LineEditor
-                  line={editingLine}
-                  product={product}
-                  mode="sale"
-                  availableStock={Number(product.stocks?.[wh?.id ?? ""] ?? 0)}
-                  onChange={(next) => {
-                    setEditingLine(next);
-                    if (stockError && val(next.quantity) <= Number(product.stocks?.[wh?.id ?? ""] ?? 0)) setStockError(null);
-                  }}
-                  onRemove={() => { setEditingLine(null); setStockError(null); }}
-                />
-                {stockError?.productId === editingLine.productId && <div className="stock-error-inline">
-                  <span>المتاح في مخزن البيع: {number(stockError.available)} فرد</span>
-                  {wh && <button type="button" className="soft" onClick={() => openStockAdjustment({ productId: editingLine.productId, warehouseId: wh.id })}>تصحيح المخزون</button>}
-                </div>}
-                <button className="primary wide confirm-line" disabled={val(editingLine.quantity) <= 0 || val(editingLine.piecePrice) < 0} onClick={confirmLine}>تأكيد وإضافة للفاتورة</button>
-              </div> : null;
-              })()
-            ) : (
-              <Empty text="ابحث عن منتج لتحريره ثم أكّد إضافته إلى الفاتورة" />
-            )}
-          </div>
+          <div className="picker-caption">انقر مرتين للإضافة مباشرة، أو حدّد المنتج ثم اضغط إضافة على اللمس.</div>
         </div>
         <div className="panel checkout invoice-card">
           <div className="invoice-card-head">
@@ -638,9 +610,9 @@ function Pos({
                 </div>
                 {details.map(({ l, p, total: lineTotal }) => (
                   <div className={`invoice-preview-item invoice-table-row${selectedLine === p.id ? " selected" : ""}`} role="row" tabIndex={0} aria-selected={selectedLine === p.id} onClick={() => setSelectedLine(p.id)} key={p.id}>
-                    <span className="invoice-item-name"><b>{p.name}</b><button type="button" className="invoice-item-edit" aria-label={`تعديل ${p.name}`} onClick={() => editLine(l)}><PencilLine /><span>تعديل</span></button></span>
-                    <span>{quantity(val(l.quantity), p.piecesPerCarton)}</span>
-                    <span dir="ltr">{money(val(l.piecePrice))}</span>
+                    <span className="invoice-item-name"><b>{p.name}</b><button type="button" className="row-delete" aria-label={`حذف ${p.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== p.id)); }}><X /></button></span>
+                    <span><Num value={l.quantity} onChange={value => updateSaleLine(p, { quantity: value })} /></span>
+                    <span><Num value={l.piecePrice} onChange={value => updateSaleLine(p, { piecePrice: value })} /></span>
                     <strong className="invoice-item-total">{money(lineTotal)}</strong>
                   </div>
                 ))}
@@ -780,11 +752,11 @@ function Purchases({ data, run, openDoc }: { data: BootstrapData; run: RunComman
   const [selectedLine, setSelectedLine] = useState<string | null>(null);
   const details = lines.flatMap(line => { const product = data.products.find(p => p.id === line.productId); return product ? [{ line, product }] : []; });
   const total = details.reduce((sum, item) => sum + Math.round(val(item.line.quantity) * val(item.line.unitPrice)), 0);
-  function edit(line: DraftLine) { setLines(current => current.filter(item => item.productId !== line.productId)); setEditingLine(line); }
+  function updatePurchaseLine(product: Product, patch: Partial<DraftLine>) {
+    setLines(current => current.map(line => line.productId === product.id ? { ...line, ...patch } : line));
+  }
   function pick(product: Product) {
-    const existing = lines.find(line => line.productId === product.id);
-    if (existing) setLines(current => current.filter(line => line.productId !== product.id));
-    setEditingLine(existing ?? lineFor(product)); setQuery("");
+    setLines(current => current.some(line => line.productId === product.id) ? current : [lineFor(product), ...current]); setQuery("");
   }
   function confirmLine() {
     if (!editingLine || val(editingLine.quantity) <= 0 || val(editingLine.unitPrice) <= 0) return;
@@ -810,12 +782,12 @@ function Purchases({ data, run, openDoc }: { data: BootstrapData; run: RunComman
           <button className="link" onClick={() => setAddingWh(!addingWh)}><Plus /> إضافة مخزن جديد</button>
         </div>
         {addingWh && <InlineCreate label="اسم المخزن" onSave={async name => { await run({ type: "warehouse.create", name }, "تمت إضافة المخزن"); setAddingWh(false); }} />}
-        <SearchProducts data={data} query={query} setQuery={setQuery} onPick={pick} />
-        <div className="invoice-lines">{editingLine ? (() => { const product = data.products.find(p => p.id === editingLine.productId); return product ? <div className="draft-line"><LineEditor line={editingLine} product={product} mode="purchase" onChange={setEditingLine} onRemove={() => setEditingLine(null)} /><button className="primary wide confirm-line" onClick={confirmLine}>تأكيد وإضافة للفاتورة</button></div> : null; })() : <Empty text="اختر منتجًا، عدّل الكمية والسعر، ثم أكّد إضافته" />}</div>
+        <SearchProducts data={data} query={query} setQuery={setQuery} onPick={pick} mode="purchase" warehouseId={warehouseId} />
+        <div className="picker-caption">انقر مرتين لإضافة المنتج، ثم عدّل الكمية والسعر داخل الجدول.</div>
       </div>
       <div className="panel checkout invoice-card">
         <div className="invoice-card-head"><h3>فاتورة الشراء الحالية</h3><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={clearDraft}>مسح الفاتورة</button>}</div></div>
-        <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="invoice-preview-list" role="table"><div className="invoice-table-row invoice-table-head"><span>الاسم</span><span>الكمية</span><span>السعر</span><span>المجموع</span></div>{details.map(({line, product}) => <div key={product.id} tabIndex={0} onClick={() => setSelectedLine(product.id)} className={`invoice-preview-item invoice-table-row${selectedLine === product.id ? " selected" : ""}`}><span className="invoice-item-name"><b>{product.name}</b><button className="invoice-item-edit" onClick={event => { event.stopPropagation(); edit(line); }}><PencilLine /><span>تعديل</span></button></span><span>{quantity(val(line.quantity), product.piecesPerCarton)}</span><span dir="ltr">{money(val(line.unitPrice))}</span><strong className="invoice-item-total">{money(val(line.quantity) * val(line.unitPrice))}</strong></div>)}</div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b><small>يمكن إضافة عدة منتجات قبل الاعتماد</small></div>}</div>
+        <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="invoice-preview-list" role="table"><div className="invoice-table-row invoice-table-head"><span>الاسم</span><span>الكمية</span><span>السعر</span><span>المجموع</span></div>{details.map(({line, product}) => <div key={product.id} tabIndex={0} onClick={() => setSelectedLine(product.id)} className={`invoice-preview-item invoice-table-row${selectedLine === product.id ? " selected" : ""}`}><span className="invoice-item-name"><b>{product.name}</b><button className="row-delete" onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== product.id)); }}><X /></button></span><span><Num value={line.quantity} onChange={value => updatePurchaseLine(product, { quantity: value })} /></span><span><Num value={line.unitPrice} onChange={value => updatePurchaseLine(product, { unitPrice: value })} /></span><strong className="invoice-item-total">{money(val(line.quantity) * val(line.unitPrice))}</strong></div>)}</div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b><small>يمكن إضافة عدة منتجات قبل الاعتماد</small></div>}</div>
         <div className="invoice-checkout-footer"><div className="invoice-meta-row"><button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}><Banknote /><span><small>نوع التسوية</small><b>دفع مباشر</b></span></button><button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع التسوية</small><b>ملاحظة</b></span></button></div>
         {payment !== "note" && <div className="payment-section"><span className="payment-label">الدفع من حساب</span><div className="pay-grid">{data.paymentAccounts.filter(method => method.isActive).map(method => <PaymentMethodButton key={method.id} account={method} selected={payment === method.id || payment === method.code} onSelect={setPayment} />)}</div></div>}
         {payment === "note" && <p className="note-hint">ستسجل الفاتورة كاملة دينًا علينا للمورد، دون حركة نقدية.</p>}
@@ -1678,14 +1650,15 @@ function Linked({
 }
 
 function InvoiceQuickBrowser({ title, docs, openDoc }: { title: string; docs: DocumentRecord[]; openDoc: (id: string) => void }) {
-  const localDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  const [day, setDay] = useState(() => localDay(new Date()));
-  const visible = docs.filter(document => localDay(new Date(document.occurredAt)) === day);
+  const localDay = (value: Date | string) => { const date = new Date(value); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; };
+  const today = localDay(new Date()), [from, setFrom] = useState(today), [to, setTo] = useState(today);
+  const ranged = from !== to;
+  const visible = docs.filter(document => { const day = document.businessDate ?? localDay(document.occurredAt); return day >= from && day <= to; });
   return <aside className="panel quick-invoices" aria-label={`الوصول السريع إلى ${title}`}>
-    <div className="quick-invoice-head"><div><small>وصول سريع</small><h3>{title}</h3></div><label><span>اختر اليوم</span><input type="date" dir="ltr" value={day} onChange={event => setDay(event.target.value)} /></label></div>
+    <div className="quick-invoice-head"><div><small>وصول سريع</small><h3>{title}</h3></div><div className="history-dates"><label>من<input type="date" dir="ltr" value={from} onChange={event => setFrom(event.target.value)} /></label><label>إلى<input type="date" dir="ltr" value={to} onChange={event => setTo(event.target.value)} /></label></div></div>
     <div className="quick-invoice-list">
-      {visible.slice(0, 100).map(document => <button key={document.id} onClick={() => openDoc(document.id)}><span><strong dir="ltr">{document.number}</strong><small>{document.partyName ?? document.title ?? "بدون طرف"}</small></span><b>{money(document.total)}</b></button>)}
-      {!visible.length && <Empty text="لا توجد فواتير في هذا اليوم" />}
+      {visible.slice(0, 100).map(document => { const note = document.paymentMethod === "note"; const heading = note ? document.partyName ?? "عميل غير محدد" : ranged ? document.number : document.dailySequence ? `رقم ${number(document.dailySequence)}` : document.number; return <button key={document.id} onClick={() => openDoc(document.id)}><span><strong dir={note ? "rtl" : "ltr"}>{heading}</strong><small>{ranged && document.dailySequence ? `رقم اليوم: ${number(document.dailySequence)} · ` : ""}{note ? document.number : document.partyName ?? "دفع مباشر"}</small></span><b>{money(document.total)}</b></button>; })}
+      {!visible.length && <Empty text="لا توجد فواتير في هذه الفترة" />}
     </div>
   </aside>;
 }
