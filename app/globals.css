@@ -1844,3 +1844,106 @@ html, body { width: 100%; max-width: 100%; margin: 0; overflow-x: visible; }
 .product-code-preview input { color: var(--section-color); border-width: 2px; background: var(--section-soft); font-weight: 900; }
 .scroll-body > .product-table { transition: background-color 140ms ease, box-shadow 140ms ease; }
 .scroll-body > .product-table:hover { background: var(--section-soft); box-shadow: inset -4px 0 var(--section-color); }
+
+/* Final viewport and ERP grid system. This is the single authority for desktop
+   sizing and record borders; growing data regions, never the document, scroll. */
+:root { --grid-line: #263238; --app-nav-height: 92px; }
+
+@media (min-width: 1051px) {
+  html, body { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
+  .app-shell {
+    display: grid;
+    grid-template-rows: var(--app-nav-height) minmax(0, 1fr);
+    width: 100%; height: 100dvh; min-height: 0;
+    padding: 0; overflow: hidden;
+  }
+  .sidebar { grid-row: 1; position: relative; inset: auto; width: 100%; height: var(--app-nav-height); min-height: 0; padding-block: 8px; }
+  .app-shell > main {
+    grid-row: 2; display: grid; grid-template-rows: 52px minmax(0, 1fr);
+    width: 100%; height: 100%; min-height: 0; overflow: hidden;
+  }
+  .app-shell header.page-bar { min-height: 0; height: 52px; padding-block: 6px; }
+  .content { width: 100%; height: 100%; min-height: 0; padding-block: 8px 12px; overflow: hidden; }
+  .content > section { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
+  .transaction-page, .workspace-page, .warehouse-workspace, .stock-workspace,
+  .banks-workspace, .expense-workspace { height: 100%; min-height: 0; overflow: hidden; }
+  .transaction-workspace, .workspace-discovery, .workspace-invoice,
+  .workspace-checkout, .product-management, .scroll-panel, .bank-panel,
+  .expense-grid, .expense-recurring, .expense-history, .inventory-panel,
+  .inventory-browser, .inventory-list-panel, .product-movement-panel {
+    height: 100%; min-height: 0; overflow: hidden;
+  }
+  .scroll-body, .records, .party-grid, .quick-invoice-list, .picker-results,
+  .invoice-preview, .warehouse-scroll, .expense-scroll, .ledger-list,
+  .transfer-list, .account-cards, .movement-timeline, .stock-draft,
+  .checkout-body, .inventory-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+}
+
+/* Native tables use a collapsed, complete grid. */
+table { width: 100%; border: 1px solid var(--grid-line); border-collapse: collapse; }
+th, td { border: 1px solid var(--grid-line); }
+
+/* Grid/flex-based record sets follow the same visual grammar as native tables. */
+.invoice-preview-list, .picker-results, .scroll-body, .expense-scroll,
+.ledger-list, .transfer-list, .quick-invoice-list, .warehouse-scroll,
+.movement-timeline, .records, .party-grid {
+  border: 1px solid var(--grid-line);
+  border-radius: 0;
+  background: #fff;
+}
+.invoice-preview-list, .quick-invoice-list { gap: 0; padding: 0; }
+
+.invoice-table-row {
+  grid-template-columns: minmax(110px, 1.45fr) minmax(74px, .8fr) minmax(78px, .9fr) minmax(88px, 1fr) 46px;
+  gap: 0;
+}
+.invoice-table-row > span, .invoice-table-row > strong {
+  min-width: 0; padding: 7px;
+  border: 0; border-inline-start: 1px solid var(--grid-line);
+}
+.invoice-table-row > :first-child { border-inline-start: 0; }
+.invoice-table-head { border: 0; border-bottom: 1px solid var(--grid-line); border-radius: 0; }
+.invoice-preview-item, .invoice-preview-item:last-child {
+  min-height: 50px; padding: 0;
+  border: 0 !important; border-bottom: 1px solid var(--grid-line) !important;
+  border-radius: 0; background: #fff;
+}
+.invoice-preview-item:last-child { border-bottom: 0 !important; }
+.invoice-preview-item > span, .invoice-preview-item > strong { border-inline-start: 1px solid var(--grid-line); }
+.invoice-preview-item > :first-child { border-inline-start: 0; }
+.invoice-item-name, .invoice-item-total { border-radius: 0; background: transparent; }
+.invoice-delete-cell { display: grid !important; place-items: center; padding: 4px !important; }
+
+.picker-head, .picker-results > button { gap: 0; }
+.picker-head > *, .picker-results > button > * { align-self: stretch; display: flex; align-items: center; padding-inline: 7px; border-inline-start: 1px solid var(--grid-line); }
+.picker-head > :first-child, .picker-results > button > :first-child { border-inline-start: 0; }
+.picker-results > button { padding: 0; border: 0; border-bottom: 1px solid var(--grid-line); border-radius: 0; }
+.picker-results > button:last-child { border-bottom: 0; }
+
+.product-table, .inventory-table, .expense-history-head, .expense-doc, .ledger-row {
+  gap: 0; padding: 0; border: 0; border-bottom: 1px solid var(--grid-line);
+}
+.product-table > *, .inventory-table > *, .expense-history-head > *,
+.expense-doc > *, .ledger-row > * { align-self: stretch; display: flex; align-items: center; min-width: 0; padding: 9px 10px; border-inline-start: 1px solid var(--grid-line); }
+.product-table > :first-child, .inventory-table > :first-child,
+.expense-history-head > :first-child, .expense-doc > :first-child,
+.ledger-row > :first-child { border-inline-start: 0; }
+.scroll-body > .product-table:last-child, .warehouse-scroll > .inventory-row:last-child,
+.expense-scroll > .expense-doc:last-child, .ledger-list > .ledger-row:last-child { border-bottom: 0; }
+.product-table-head, .inventory-table-head, .expense-history-head { border-radius: 0; }
+
+.list-row, .product-row, .party-card, .quick-invoice-list > button,
+.movement-timeline > button {
+  margin: 0; border: 0; border-bottom: 1px solid var(--grid-line); border-radius: 0;
+}
+.list-row:last-child, .product-row:last-child, .party-card:last-child,
+.quick-invoice-list > button:last-child, .movement-timeline > button:last-child { border-bottom: 0; }
+.list-row > *, .product-row > *, .quick-invoice-list > button > *,
+.movement-timeline > button > * { align-self: stretch; padding-inline: 9px; border-inline-start: 1px solid var(--grid-line); }
+.list-row > :first-child, .product-row > :first-child,
+.quick-invoice-list > button > :first-child, .movement-timeline > button > :first-child { border-inline-start: 0; }
+
+@media (max-width: 760px) {
+  .invoice-table-row { grid-template-columns: minmax(90px, 1.3fr) 70px 72px 78px 42px; }
+  .invoice-table-row { min-width: 430px; }
+}
