@@ -376,15 +376,15 @@ function ProductSearchPicker({ data, query, setQuery, onPick, mode = "sale", war
     if (mode === "sale" && stock <= 0) return;
     onPick(product); setSelected(null);
   };
-  return <div className="product-picker dense-table">
+  return <div className="product-picker erp-grid product-search-grid">
     <label className="search"><Search /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label>
-    <div className="picker-head dense-table-head"><span>المنتج / الكود</span><span>{mode === "purchase" ? "آخر شراء" : "السعر"}</span><span>المتوفر</span></div>
-    <div className="picker-results dense-table-body" role="listbox">
-      {results.map(product => { const stock = Number(product.stocks?.[warehouseId ?? ""] ?? Object.values(product.stocks).reduce((a, b) => a + b, 0)), disabled = mode === "sale" && stock <= 0; return <button type="button" key={product.id} role="option" disabled={disabled} aria-selected={selected === product.id} onClick={() => setSelected(product.id)} onDoubleClick={() => add(product)}>
-        <span><strong>{product.name}</strong><small dir="ltr">{product.barcode || product.sku || "—"}</small></span>
-        <b>{money(mode === "purchase" ? product.lastPurchaseCost ?? product.pieceCost ?? 0 : product.piecePrice ?? 0)}</b>
-        <span><b>{number(stock)}</b><small>{disabled ? "غير متوفر" : "فرد"}</small></span>
-        <span className="touch-add">{selected === product.id && !disabled && <span onClick={event => { event.stopPropagation(); add(product); }}>إضافة</span>}</span>
+    <div className="picker-head erp-grid-head"><span>الرمز</span><span>المنتج</span><span>{mode === "purchase" ? "آخر شراء" : "السعر"}</span><span>المتوفر</span><span>إضافة</span></div>
+    <div className="picker-results erp-grid-body" role="listbox">
+      {results.map(product => { const stock = Number(product.stocks?.[warehouseId ?? ""] ?? Object.values(product.stocks).reduce((a, b) => a + b, 0)), disabled = mode === "sale" && stock <= 0; return <button type="button" key={product.id} role="option" className="erp-grid-row" aria-selected={selected === product.id} onClick={() => setSelected(product.id)} onDoubleClick={() => add(product)}>
+        <span dir="ltr">{product.sku || "—"}</span><strong>{product.name}</strong>
+        <b>{number(mode === "purchase" ? product.lastPurchaseCost ?? product.pieceCost ?? 0 : product.piecePrice ?? 0)}</b>
+        <span className="erp-grid-number">{number(stock)}</span>
+        <span className="erp-grid-action"><span aria-disabled={disabled} onClick={event => { event.stopPropagation(); if (!disabled) add(product); }}>إضافة</span></span>
       </button>; })}
       {term && !results.length && <div className="combobox-empty">لا توجد نتائج</div>}
     </div>
@@ -550,7 +550,7 @@ function Pos({
   }
   const invoice = <div className="panel invoice-card workspace-invoice">
     <div className="invoice-card-head"><h3>الفاتورة</h3><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={() => { if (confirm("هل تريد مسح الفاتورة؟")) { setLines([]); } }}>مسح الفاتورة</button>}</div></div>
-    <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="invoice-preview-list dense-table" role="table" aria-label="منتجات الفاتورة"><div className="invoice-table-row invoice-table-head dense-table-head" role="row"><span>الاسم</span><span>الكمية</span><span>السعر</span><span>المجموع</span><span>حذف</span></div>{details.map(({ l, p, total: lineTotal }) => <div className={`invoice-preview-item invoice-table-row dense-table-row${selectedLine === p.id ? " selected" : ""}`} role="row" tabIndex={0} aria-selected={selectedLine === p.id} onClick={() => setSelectedLine(p.id)} key={p.id}><span className="invoice-item-name"><b>{p.name}</b></span><span><Num value={l.quantity} onChange={value => updateSaleLine(p, { quantity: value })} /></span><span><Num value={l.piecePrice} onChange={value => updateSaleLine(p, { piecePrice: value })} /></span><strong className="invoice-item-total">{money(lineTotal)}</strong><span className="invoice-delete-cell"><button type="button" className="row-delete" aria-label={`حذف ${p.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== p.id)); }}><X /></button></span></div>)}</div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b></div>}</div>
+    <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="invoice-preview-list erp-grid invoice-grid" role="table" aria-label="منتجات الفاتورة"><div className="invoice-table-row invoice-table-head erp-grid-head" role="row"><span>الاسم</span><span>الكمية</span><span>السعر</span><span>المجموع</span><span>حذف</span></div>{details.map(({ l, p, total: lineTotal }) => <div className={`invoice-preview-item invoice-table-row erp-grid-row${selectedLine === p.id ? " selected" : ""}`} role="row" tabIndex={0} aria-selected={selectedLine === p.id} onClick={() => setSelectedLine(p.id)} key={p.id}><span className="invoice-item-name"><b>{p.name}</b></span><span><Num value={l.quantity} onChange={value => updateSaleLine(p, { quantity: value })} /></span><span><Num value={l.piecePrice} onChange={value => updateSaleLine(p, { piecePrice: value })} /></span><strong className="invoice-item-total">{number(lineTotal)}</strong><span className="invoice-delete-cell"><button type="button" className="row-delete" aria-label={`حذف ${p.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== p.id)); }}><X /></button></span></div>)}</div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b></div>}</div>
   </div>;
   const checkout = <aside className="panel workspace-checkout"><div className="checkout-head"><h3>الدفع</h3></div><div className="checkout-body"><div className="invoice-meta-row" aria-label="نوع الفاتورة"><button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}><Banknote /><span><small>طريقة التحصيل</small><b>دفع مباشر</b></span></button><button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع البيع</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">طريقة الدفع</span><div className="pay-grid">{data.paymentAccounts.filter(p => p.isActive).map(p => <PaymentMethodButton key={p.id} account={p} selected={payment === p.id || payment === p.code} onSelect={setPayment} />)}</div></div>}{payment === "note" && <><label>اختيار العميل<SearchableSelect value={partyId} onChange={setPartyId} placeholder="اختر العميل" searchPlaceholder="ابحث باسم العميل أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: p.name, search: p.phone }))} /></label><button className="link" onClick={() => setQuick(!quick)}><Plus /> إضافة عميل</button>{quick && <QuickParty run={run} onDone={() => setQuick(false)} />}</>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!lines.length || !wh || (payment === "note" && !partyId)} onClick={() => void submit()}>إتمام البيع</button></div></aside>;
   return <section className="transaction-page">{stockNotice && <div className="toast stock-toast">{stockNotice}</div>}<div className="transaction-workspace pos-workspace"><div className="workspace-discovery"><div className="panel search-panel"><div className="panel-title">بحث المنتجات</div><SearchProducts data={data} query={query} setQuery={setQuery} onPick={add} mode="sale" warehouseId={wh?.id} /></div><InvoiceQuickBrowser title="سجل الفواتير" docs={data.documents.filter(d => d.kind === "sale")} openDoc={openDoc} /></div>{invoice}{checkout}</div></section>;
@@ -646,7 +646,7 @@ function Purchases({ data, run, openDoc }: { data: BootstrapData; run: RunComman
   }
   return <section className="transaction-page"><div className="transaction-workspace purchase-workspace">
     <div className="workspace-discovery"><div className="panel search-panel"><div className="panel-title">بحث المنتجات</div><SearchProducts data={data} query={query} setQuery={setQuery} onPick={pick} mode="purchase" warehouseId={warehouseId} /></div><InvoiceQuickBrowser title="سجل فواتير الشراء" docs={data.documents.filter(d => d.kind === "purchase")} openDoc={openDoc} /></div>
-    <div className="panel invoice-card workspace-invoice"><div className="invoice-card-head"><h3>فاتورة الشراء الحالية</h3><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={clearDraft}>مسح الفاتورة</button>}</div></div><div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="invoice-preview-list dense-table" role="table"><div className="invoice-table-row invoice-table-head dense-table-head"><span>الاسم</span><span>الكمية</span><span>سعر الشراء</span><span>المجموع</span><span>حذف</span></div>{details.map(({line, product}) => <div key={product.id} tabIndex={0} onClick={() => setSelectedLine(product.id)} className={`invoice-preview-item invoice-table-row dense-table-row${selectedLine === product.id ? " selected" : ""}`}><span className="invoice-item-name"><b>{product.name}</b></span><span><Num value={line.quantity} onChange={value => updatePurchaseLine(product, { quantity: value })} /></span><span><Num value={line.unitPrice} onChange={value => updatePurchaseLine(product, { unitPrice: value })} /></span><strong className="invoice-item-total">{money(val(line.quantity) * val(line.unitPrice))}</strong><span className="invoice-delete-cell"><button type="button" className="row-delete" aria-label={`حذف ${product.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== product.id)); }}><X /></button></span></div>)}</div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b></div>}</div></div>
+    <div className="panel invoice-card workspace-invoice"><div className="invoice-card-head"><h3>فاتورة الشراء الحالية</h3><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={clearDraft}>مسح الفاتورة</button>}</div></div><div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="invoice-preview-list erp-grid invoice-grid" role="table"><div className="invoice-table-row invoice-table-head erp-grid-head"><span>الاسم</span><span>الكمية</span><span>سعر الشراء</span><span>المجموع</span><span>حذف</span></div>{details.map(({line, product}) => <div key={product.id} tabIndex={0} onClick={() => setSelectedLine(product.id)} className={`invoice-preview-item invoice-table-row erp-grid-row${selectedLine === product.id ? " selected" : ""}`}><span className="invoice-item-name"><b>{product.name}</b></span><span><Num value={line.quantity} onChange={value => updatePurchaseLine(product, { quantity: value })} /></span><span><Num value={line.unitPrice} onChange={value => updatePurchaseLine(product, { unitPrice: value })} /></span><strong className="invoice-item-total">{number(val(line.quantity) * val(line.unitPrice))}</strong><span className="invoice-delete-cell"><button type="button" className="row-delete" aria-label={`حذف ${product.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== product.id)); }}><X /></button></span></div>)}</div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b></div>}</div></div>
     <aside className="panel workspace-checkout"><div className="checkout-head"><h3>اعتماد الشراء</h3></div><div className="checkout-body purchase-details"><label>المورد<SearchableSelect disabled={locked} value={partyId} onChange={setPartyId} placeholder="اختر المورد" searchPlaceholder="ابحث باسم المورد أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: `${p.name} — ${p.phone}`, search: p.phone }))} /></label><button className="soft" disabled={!partyId} onClick={() => locked ? confirm("هل تريد تغيير المورد؟ ستبقى المنتجات كما هي.") && setLocked(false) : setLocked(true)}>{locked ? "تعديل المورد" : "تأكيد المورد"}</button><label>مخزن الاستلام<SearchableSelect value={warehouseId} onChange={setWarehouseId} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><button className="link" onClick={() => setAddingWh(!addingWh)}><Plus /> إضافة مخزن</button>{addingWh && <InlineCreate label="اسم المخزن" onSave={async name => { await run({ type: "warehouse.create", name }, "تمت إضافة المخزن"); setAddingWh(false); }} />}<div className="invoice-meta-row"><button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}><Banknote /><span><small>نوع التسوية</small><b>دفع مباشر</b></span></button><button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع التسوية</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">الدفع من حساب</span><div className="pay-grid">{data.paymentAccounts.filter(method => method.isActive).map(method => <PaymentMethodButton key={method.id} account={method} selected={payment === method.id || payment === method.code} onSelect={setPayment} />)}</div></div>}{payment === "note" && <p className="note-hint">ستسجل الفاتورة كاملة دينًا علينا للمورد، دون حركة نقدية.</p>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!locked || !warehouseId || !lines.length} onClick={() => void submit()}>اعتماد فاتورة الشراء</button></div></aside>
   </div></section>;
 
@@ -785,10 +785,10 @@ function Parties({
           <Plus /> إضافة طرف
         </button>
       </form>
-      <div className="party-grid">
+      <div className="party-grid erp-grid party-data-grid"><div className="erp-grid-head"><span>الاسم</span><span>الهاتف والرصيد</span><span>إجراء</span></div>
         {list.map((p) => (
           <article
-            className="party-card"
+            className="party-card erp-grid-row"
             key={p.id}
             onClick={() => openParty(p)}
           >
@@ -985,16 +985,16 @@ function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
     </div>
     <div className="panel scroll-panel product-management">
       <div className="product-table product-table-head" role="row">
-        <span>الاسم</span><span>الرمز / الباركود</span>{sortHeader("price", "سعر البيع")}{sortHeader("cost", "آخر شراء")}{sortHeader("stock", "المخزون")}<span>الكرتون</span><span>إجراءات</span>
+        <span>الرمز</span><span>الاسم</span>{sortHeader("price", "سعر البيع")}{sortHeader("cost", "آخر شراء")}{sortHeader("stock", "المخزون")}<span>الكرتون</span><span>إجراءات</span>
       </div>
       <div className="scroll-body" role="table" aria-label="كل المنتجات">
         {products.map(product => {
           const stock = Object.values(product.stocks).reduce((sum, value) => sum + Number(value), 0);
           return <div className="product-table" role="row" key={product.id}>
+            <span dir="ltr">{product.sku || "—"}</span>
             <strong>{product.name}</strong>
-            <span><b dir="ltr">{product.sku || "—"}</b><small dir="ltr">{product.barcode || "—"}</small></span>
-            <span>{product.piecePrice == null ? "—" : money(product.piecePrice)}</span>
-            <span>{product.lastPurchaseCost == null ? "—" : money(product.lastPurchaseCost)}</span>
+            <span>{product.piecePrice == null ? "—" : number(product.piecePrice)}</span>
+            <span>{product.lastPurchaseCost == null ? "—" : number(product.lastPurchaseCost)}</span>
             <span>{number(stock)} فرد</span>
             <span>{product.piecesPerCarton ? `${number(product.piecesPerCarton)} فرد` : "—"}</span>
             <span className="table-actions"><button className="soft" onClick={() => openForm(product)}>تعديل</button><button className="link" onClick={() => openForm(product)}>عرض التفاصيل</button></span>
@@ -1492,16 +1492,10 @@ function Linked({
   );
   return linked.length ? (
     <div className="panel">
-      <Heading title="المعاملات المرتبطة" />
+      <Heading title="المعاملات المرتبطة" /><div className="erp-grid linked-grid"><div className="erp-grid-head"><span>المعاملة</span><span>المستند</span><span>المبلغ</span></div>
       {linked.map((d) => (
-        <div className="list-row" key={d.id}>
-          <span>
-            <strong>{kindLabels[d.kind]}</strong>
-            <small>{d.number}</small>
-          </span>
-          <b>{money(d.total)}</b>
-        </div>
-      ))}
+        <div className="list-row erp-grid-row" key={d.id}><strong>{kindLabels[d.kind]}</strong><span dir="ltr">{d.number}</span><b className="erp-grid-number">{number(d.total)}</b></div>
+      ))}</div>
     </div>
   ) : null;
 }
@@ -1513,8 +1507,8 @@ function InvoiceQuickBrowser({ title, docs, openDoc }: { title: string; docs: Do
   const visible = docs.filter(document => { const day = document.businessDate ?? localDay(document.occurredAt); return day >= from && day <= to; });
   return <aside className="panel quick-invoices" aria-label={title}>
     <div className="quick-invoice-head"><h3>{title}</h3><div className="history-dates"><label>من<input type="date" dir="ltr" value={from} onChange={event => setFrom(event.target.value)} /></label><label>إلى<input type="date" dir="ltr" value={to} onChange={event => setTo(event.target.value)} /></label></div></div>
-    <div className="quick-invoice-list">
-      {visible.slice(0, 100).map(document => { const note = document.paymentMethod === "note"; const heading = note ? document.partyName ?? "عميل غير محدد" : ranged ? document.number : document.dailySequence ? `رقم ${number(document.dailySequence)}` : document.number; return <button key={document.id} onClick={() => openDoc(document.id)}><span><strong dir={note ? "rtl" : "ltr"}>{heading}</strong><small>{ranged && document.dailySequence ? `رقم اليوم: ${number(document.dailySequence)} · ` : ""}{note ? document.number : document.partyName ?? "دفع مباشر"}</small></span><b>{money(document.total)}</b></button>; })}
+    <div className="quick-invoice-list erp-grid quick-invoice-grid"><div className="erp-grid-head"><span>الرقم</span><span>العميل / النوع</span><span>المبلغ</span></div>
+      {visible.slice(0, 100).map(document => { const note = document.paymentMethod === "note"; const heading = note ? document.partyName ?? "عميل غير محدد" : ranged ? document.number : document.dailySequence ? `رقم ${number(document.dailySequence)}` : document.number; return <button className="erp-grid-row" key={document.id} onClick={() => openDoc(document.id)}><strong dir={note ? "rtl" : "ltr"}>{heading}</strong><span>{ranged && document.dailySequence ? `رقم اليوم: ${number(document.dailySequence)} · ` : ""}{note ? document.number : document.partyName ?? "دفع مباشر"}</span><b className="erp-grid-number">{number(document.total)}</b></button>; })}
       {!visible.length && <Empty text="لا توجد فواتير في هذه الفترة" />}
     </div>
   </aside>;
@@ -1549,15 +1543,16 @@ function Recent({
       })
     : docs;
   return (
-    <div className="panel records">
+    <div className="panel records erp-grid recent-grid">
       <Heading title={title} />
       {dateFilter && <div className="filters recent-date-filters">
         <label>من تاريخ<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
         <label>إلى تاريخ<input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label>
       </div>}
+      <div className="erp-grid-head"><span>المستند</span><span>الطرف / البيان</span><span>الحالة</span><span>المبلغ</span></div>
       {visibleDocs.slice(0, 100).map((d) => (
         <button
-          className="list-row clickable"
+          className="list-row clickable erp-grid-row"
           key={d.id}
           onClick={() => openDoc(d.id)}
         >
