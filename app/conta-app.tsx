@@ -61,10 +61,8 @@ type DraftLine = {
   productId: string;
   quantity: string;
   piecePrice: string;
-  cartonPrice: string;
   unitPrice: string;
   actualQuantity: string;
-  pricingMode: "piece" | "carton";
 };
 const empty: BootstrapData = {
   nextProductCode: 1,
@@ -108,12 +106,8 @@ const val = (v: string) => (v === "" ? 0 : Number(v)),
     productId: p.id,
     quantity: "1",
     piecePrice: String(p.piecePrice ?? 0),
-    cartonPrice: String(
-      p.cartonPrice ?? (p.piecePrice ?? 0) * (p.piecesPerCarton ?? 0),
-    ),
     unitPrice: String(p.pieceCost ?? 0),
     actualQuantity: "",
-    pricingMode: "piece",
   });
 
 export default function ContaApp() {
@@ -386,6 +380,18 @@ function ProductSearchPicker({ data, query, setQuery, onPick, mode = "sale", war
 }
 const SearchProducts = ProductSearchPicker;
 
+function BarcodeScanner({ products, onScan }: { products: Product[]; onScan: (product: Product) => void }) {
+  const [enabled, setEnabled] = useState(false), [buffer, setBuffer] = useState(""), [notice, setNotice] = useState("");
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (enabled) input.current?.focus(); }, [enabled]);
+  function submit() {
+    const barcode = buffer.trim(), product = products.find(item => item.barcode === barcode);
+    if (product) { onScan(product); setNotice(""); } else if (barcode) setNotice("لا يوجد منتج بهذا الباركود");
+    setBuffer(""); requestAnimationFrame(() => input.current?.focus());
+  }
+  return <div className="barcode-scanner"><button type="button" className={enabled ? "soft selected" : "soft"} onClick={() => setEnabled(value => !value)}>{enabled ? "● المسح مفعل" : "مسح باركود"}</button>{enabled && <input ref={input} dir="ltr" autoComplete="off" value={buffer} onChange={event => setBuffer(event.target.value)} onKeyDown={event => { if (event.key === "Enter" || event.key === "Tab") { event.preventDefault(); submit(); } }} placeholder="امسح الباركود ثم Enter" />}{notice && <span>{notice}</span>}</div>;
+}
+
 function LineEditor({
   line,
   product,
@@ -409,7 +415,7 @@ function LineEditor({
           <strong>{product.name}</strong>
           <small>
             {mode === "purchase" && qty
-              ? `يعادل ${quantity(qty, product.piecesPerCarton)}`
+              ? `يعادل ${quantity(qty)}`
               : `المتاح: ${number(mode === "sale" || mode === "adjust" ? (availableStock ?? 0) : Object.values(product.stocks).reduce((a, b) => a + b, 0))} فرد`}
           </small>
         </span>
@@ -440,7 +446,7 @@ function LineEditor({
             سعر الفرد
             <Num
               value={line.piecePrice}
-              onChange={(v) => onChange({ ...line, piecePrice: v, pricingMode: "piece" })}
+              onChange={(v) => onChange({ ...line, piecePrice: v })}
             />
           </label>
         )}
@@ -464,7 +470,7 @@ function LineEditor({
         <b className="line-total">
           إجمالي المنتج: {" "}
           {money(
-            saleLineTotal(qty, product.piecesPerCarton, val(line.piecePrice), 0, "piece"),
+            saleLineTotal(qty, val(line.piecePrice)),
           )}
         </b>
       )}
@@ -497,7 +503,7 @@ function Pos({
             {
               l,
               p,
-              total: saleLineTotal(val(l.quantity), p.piecesPerCarton, val(l.piecePrice), 0, "piece"),
+              total: saleLineTotal(val(l.quantity), val(l.piecePrice)),
             },
           ]
         : [];
@@ -506,8 +512,7 @@ function Pos({
   function add(p: Product) {
     const available = Number(p.stocks?.[wh?.id ?? ""] ?? 0);
     if (!wh || available <= 0) { setStockNotice("المنتج غير متوفر في مخزن البيع"); return; }
-    setLines(current => current.some(line => line.productId === p.id) ? current : [lineFor(p), ...current]);
-    setQuery("");
+    setLines(current => { const existing = current.find(line => line.productId === p.id); if (!existing) return [lineFor(p), ...current]; if (val(existing.quantity) >= available) { setStockNotice(`الكمية المتوفرة ${number(available)} فقط`); return current; } return current.map(line => line.productId === p.id ? { ...line, quantity: String(val(line.quantity) + 1) } : line); });
   }
   function updateSaleLine(product: Product, patch: Partial<DraftLine>) {
     setLines(current => current.map(line => {
@@ -532,12 +537,12 @@ function Pos({
           productId: l.productId,
           quantity: val(l.quantity),
           piecePrice: val(l.piecePrice),
-          pricingMode: "piece",
         })),
       },
       "تم اعتماد فاتورة البيع",
     );
     setLines([]);
+    setSelectedLine(null);
     setPayment("cash");
     setPartyId("");
     openDoc(id);
@@ -546,8 +551,8 @@ function Pos({
     <div className="invoice-card-head"><h3>الفاتورة</h3><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={() => { if (confirm("هل تريد مسح الفاتورة؟")) { setLines([]); } }}>مسح الفاتورة</button>}</div></div>
     <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="erp-table-wrap invoice-preview-list"><table className="erp-table invoice-table" aria-label="منتجات الفاتورة"><colgroup><col style={{width:"38%"}}/><col style={{width:"14%"}}/><col style={{width:"17%"}}/><col style={{width:"19%"}}/><col style={{width:"12%"}}/></colgroup><thead><tr><th>الاسم</th><th>الكمية</th><th>السعر</th><th>المجموع</th><th>حذف</th></tr></thead><tbody>{details.map(({ l, p, total: lineTotal }) => <tr className={selectedLine === p.id ? "selected" : ""} onClick={() => setSelectedLine(p.id)} key={p.id}><td className="name-cell">{p.name}</td><td className="num-cell"><Num value={l.quantity} onChange={value => updateSaleLine(p, { quantity: value })} /></td><td className="num-cell"><Num value={l.piecePrice} onChange={value => updateSaleLine(p, { piecePrice: value })} /></td><td className="num-cell">{number(lineTotal)}</td><td className="action-cell"><button type="button" className="row-delete" aria-label={`حذف ${p.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== p.id)); }}><X /></button></td></tr>)}</tbody></table></div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b></div>}</div>
   </div>;
-  const checkout = <aside className="panel workspace-checkout"><div className="checkout-head"><h3>الدفع</h3></div><div className="checkout-body"><div className="invoice-meta-row" aria-label="نوع الفاتورة"><button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}><Banknote /><span><small>طريقة التحصيل</small><b>دفع مباشر</b></span></button><button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع البيع</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">طريقة الدفع</span><div className="pay-grid">{data.paymentAccounts.filter(p => p.isActive).map(p => <PaymentMethodButton key={p.id} account={p} selected={payment === p.id || payment === p.code} onSelect={setPayment} />)}</div></div>}{payment === "note" && <><label>اختيار العميل<SearchableSelect value={partyId} onChange={setPartyId} placeholder="اختر العميل" searchPlaceholder="ابحث باسم العميل أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: p.name, search: p.phone }))} /></label><button className="link" onClick={() => setQuick(!quick)}><Plus /> إضافة عميل</button>{quick && <QuickParty run={run} onDone={() => setQuick(false)} />}</>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!lines.length || !wh || (payment === "note" && !partyId)} onClick={() => void submit()}>إتمام البيع</button></div></aside>;
-  return <section className="transaction-page">{stockNotice && <div className="toast stock-toast">{stockNotice}</div>}<div className="transaction-workspace pos-workspace"><div className="workspace-discovery"><div className="panel search-panel"><div className="panel-title">بحث المنتجات</div><SearchProducts data={data} query={query} setQuery={setQuery} onPick={add} mode="sale" warehouseId={wh?.id} /></div><InvoiceQuickBrowser title="سجل الفواتير" docs={data.documents.filter(d => d.kind === "sale")} openDoc={openDoc} /></div>{invoice}{checkout}</div></section>;
+  const checkout = <aside className="panel workspace-checkout"><div className="checkout-head"><h3>الدفع</h3></div><div className="checkout-body"><div className="invoice-meta-row" aria-label="نوع الفاتورة"><button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}><Banknote /><span><small>طريقة التحصيل</small><b>دفع مباشر</b></span></button><button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع البيع</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">طريقة الدفع</span><CompactPaymentSelector accounts={data.paymentAccounts} value={payment} onChange={setPayment} /></div>}{payment === "note" && <><label>اختيار العميل<SearchableSelect value={partyId} onChange={setPartyId} placeholder="اختر العميل" searchPlaceholder="ابحث باسم العميل أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: p.name, search: p.phone }))} /></label><button className="link" onClick={() => setQuick(!quick)}><Plus /> إضافة عميل</button>{quick && <QuickParty run={run} onDone={() => setQuick(false)} />}</>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!lines.length || !wh || (payment === "note" && !partyId)} onClick={() => void submit()}>إتمام البيع</button></div></aside>;
+  return <section className="transaction-page">{stockNotice && <div className="toast stock-toast">{stockNotice}</div>}<div className="transaction-workspace pos-workspace"><div className="workspace-discovery"><div className="panel search-panel"><div className="search-title-row"><div className="panel-title">بحث المنتجات</div><BarcodeScanner products={data.products} onScan={add} /></div><SearchProducts data={data} query={query} setQuery={setQuery} onPick={add} mode="sale" warehouseId={wh?.id} /></div><InvoiceQuickBrowser title="سجل الفواتير" docs={data.documents.filter(d => d.kind === "sale")} openDoc={openDoc} /></div>{invoice}{checkout}</div></section>;
 
 }
 
@@ -565,24 +570,13 @@ const paymentIcons = {
   note: PencilLine,
 };
 
-function PaymentMethodButton({ account, selected, onSelect }: {
-  account: PaymentAccount;
-  selected: boolean;
-  onSelect: (id: string) => void;
-}) {
-  const Icon = paymentIcons[account.icon as keyof typeof paymentIcons] ?? WalletCards;
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      className={selected ? "choice selected" : "choice"}
-      style={{ "--account-color": account.color } as React.CSSProperties}
-      onClick={() => onSelect(account.id)}
-    >
-      <Icon />
-      <span>{account.name}</span>
-    </button>
-  );
+function CompactPaymentSelector({ accounts, value, onChange }: { accounts: PaymentAccount[]; value: string; onChange: (id: string) => void }) {
+  const active = accounts.filter(account => account.isActive), cash = active.find(account => account.code === "cash"), banks = active.filter(account => account.code !== "cash");
+  const selectedBank = banks.find(account => account.id === value || account.code === value);
+  return <div className="compact-payment" aria-label="طريقة الدفع">
+    {cash && <button type="button" className={!selectedBank ? "soft selected" : "soft"} onClick={() => onChange(cash.id)}>نقدي</button>}
+    <label><span className="sr-only">الحساب البنكي</span><select value={selectedBank?.id ?? ""} onChange={event => onChange(event.target.value)}><option value="">بنك ▼</option>{banks.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+  </div>;
 }
 
 function QuickParty({ run, onDone }: { run: RunCommand; onDone: () => void }) {
@@ -628,7 +622,7 @@ function Purchases({ data, run, openDoc }: { data: BootstrapData; run: RunComman
     setLines(current => current.map(line => line.productId === product.id ? { ...line, ...patch } : line));
   }
   function pick(product: Product) {
-    setLines(current => current.some(line => line.productId === product.id) ? current : [lineFor(product), ...current]); setQuery("");
+    setLines(current => current.some(line => line.productId === product.id) ? current.map(line => line.productId === product.id ? { ...line, quantity: String(val(line.quantity) + 1) } : line) : [lineFor(product), ...current]);
   }
   function clearDraft() {
     if (!confirm("هل تريد مسح فاتورة الشراء؟")) return;
@@ -636,12 +630,12 @@ function Purchases({ data, run, openDoc }: { data: BootstrapData; run: RunComman
   }
   async function submit() {
     const id = await run({ type: "purchase.post", partyId, warehouseId, paymentMethod: payment, lines: lines.map(line => ({ productId: line.productId, quantity: val(line.quantity), unitPrice: val(line.unitPrice) })) }, "تم اعتماد فاتورة الشراء");
-    setLines([]); setPartyId(""); setLocked(false); setWarehouseId(""); setPayment("cash"); openDoc(id);
+    setLines([]); setSelectedLine(null); setPartyId(""); setLocked(false); setWarehouseId(""); setPayment("cash"); openDoc(id);
   }
   return <section className="transaction-page"><div className="transaction-workspace purchase-workspace">
-    <div className="workspace-discovery"><div className="panel search-panel"><div className="panel-title">بحث المنتجات</div><SearchProducts data={data} query={query} setQuery={setQuery} onPick={pick} mode="purchase" warehouseId={warehouseId} /></div><InvoiceQuickBrowser title="سجل فواتير الشراء" docs={data.documents.filter(d => d.kind === "purchase")} openDoc={openDoc} /></div>
+    <div className="workspace-discovery"><div className="panel search-panel"><div className="search-title-row"><div className="panel-title">بحث المنتجات</div><BarcodeScanner products={data.products} onScan={pick} /></div><SearchProducts data={data} query={query} setQuery={setQuery} onPick={pick} mode="purchase" warehouseId={warehouseId} /></div><InvoiceQuickBrowser title="سجل فواتير الشراء" docs={data.documents.filter(d => d.kind === "purchase")} openDoc={openDoc} /></div>
     <div className="panel invoice-card workspace-invoice"><div className="invoice-card-head"><h3>فاتورة الشراء الحالية</h3><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={clearDraft}>مسح الفاتورة</button>}</div></div><div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="erp-table-wrap invoice-preview-list"><table className="erp-table invoice-table"><colgroup><col style={{width:"38%"}}/><col style={{width:"14%"}}/><col style={{width:"17%"}}/><col style={{width:"19%"}}/><col style={{width:"12%"}}/></colgroup><thead><tr><th>الاسم</th><th>الكمية</th><th>سعر الشراء</th><th>المجموع</th><th>حذف</th></tr></thead><tbody>{details.map(({line, product}) => <tr key={product.id} onClick={() => setSelectedLine(product.id)} className={selectedLine === product.id ? "selected" : ""}><td className="name-cell">{product.name}</td><td className="num-cell"><Num value={line.quantity} onChange={value => updatePurchaseLine(product, { quantity: value })} /></td><td className="num-cell"><Num value={line.unitPrice} onChange={value => updatePurchaseLine(product, { unitPrice: value })} /></td><td className="num-cell">{number(val(line.quantity) * val(line.unitPrice))}</td><td className="action-cell"><button type="button" className="row-delete" aria-label={`حذف ${product.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== product.id)); }}><X /></button></td></tr>)}</tbody></table></div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b></div>}</div></div>
-    <aside className="panel workspace-checkout"><div className="checkout-head"><h3>اعتماد الشراء</h3></div><div className="checkout-body purchase-details"><label>المورد<SearchableSelect disabled={locked} value={partyId} onChange={setPartyId} placeholder="اختر المورد" searchPlaceholder="ابحث باسم المورد أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: `${p.name} — ${p.phone}`, search: p.phone }))} /></label><button className="soft" disabled={!partyId} onClick={() => locked ? confirm("هل تريد تغيير المورد؟ ستبقى المنتجات كما هي.") && setLocked(false) : setLocked(true)}>{locked ? "تعديل المورد" : "تأكيد المورد"}</button><label>مخزن الاستلام<SearchableSelect value={warehouseId} onChange={setWarehouseId} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><button className="link" onClick={() => setAddingWh(!addingWh)}><Plus /> إضافة مخزن</button>{addingWh && <InlineCreate label="اسم المخزن" onSave={async name => { await run({ type: "warehouse.create", name }, "تمت إضافة المخزن"); setAddingWh(false); }} />}<div className="invoice-meta-row"><button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}><Banknote /><span><small>نوع التسوية</small><b>دفع مباشر</b></span></button><button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع التسوية</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">الدفع من حساب</span><div className="pay-grid">{data.paymentAccounts.filter(method => method.isActive).map(method => <PaymentMethodButton key={method.id} account={method} selected={payment === method.id || payment === method.code} onSelect={setPayment} />)}</div></div>}{payment === "note" && <p className="note-hint">ستسجل الفاتورة كاملة دينًا علينا للمورد، دون حركة نقدية.</p>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!locked || !warehouseId || !lines.length} onClick={() => void submit()}>اعتماد فاتورة الشراء</button></div></aside>
+    <aside className="panel workspace-checkout"><div className="checkout-head"><h3>اعتماد الشراء</h3></div><div className="checkout-body purchase-details"><label>المورد<SearchableSelect disabled={locked} value={partyId} onChange={setPartyId} placeholder="اختر المورد" searchPlaceholder="ابحث باسم المورد أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: `${p.name} — ${p.phone}`, search: p.phone }))} /></label><button className="soft" disabled={!partyId} onClick={() => locked ? confirm("هل تريد تغيير المورد؟ ستبقى المنتجات كما هي.") && setLocked(false) : setLocked(true)}>{locked ? "تعديل المورد" : "تأكيد المورد"}</button><label>مخزن الاستلام<SearchableSelect value={warehouseId} onChange={setWarehouseId} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><button className="link" onClick={() => setAddingWh(!addingWh)}><Plus /> إضافة مخزن</button>{addingWh && <InlineCreate label="اسم المخزن" onSave={async name => { await run({ type: "warehouse.create", name }, "تمت إضافة المخزن"); setAddingWh(false); }} />}<div className="invoice-meta-row"><button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}><Banknote /><span><small>نوع التسوية</small><b>دفع مباشر</b></span></button><button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع التسوية</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">الدفع من حساب</span><CompactPaymentSelector accounts={data.paymentAccounts} value={payment} onChange={setPayment} /></div>}{payment === "note" && <p className="note-hint">ستسجل الفاتورة كاملة دينًا علينا للمورد، دون حركة نقدية.</p>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!locked || !warehouseId || !lines.length} onClick={() => void submit()}>اعتماد فاتورة الشراء</button></div></aside>
   </div></section>;
 
 }
@@ -691,13 +685,14 @@ function Banks({ data, run }: { data: BootstrapData; run: RunCommand }) {
   const name = (id: string) => data.paymentAccounts.find(a => a.id === id || a.code === id)?.name ?? id;
   const movements = data.financialMovements.filter(m => (!accountFilter || m.paymentMethod === accountFilter) && (!typeFilter || m.type === typeFilter));
   const total = data.paymentAccounts.reduce((sum, account) => sum + account.balance, 0);
+  const purchaseTotal = data.paymentAccounts.reduce((sum, account) => sum + account.purchaseTotal, 0);
   const today = new Date().toISOString().slice(0, 10);
   const todayMovements = data.financialMovements.filter(m => m.occurredAt.slice(0, 10) === today);
   const movementLabels: Record<string, string> = { sale: "بيع", purchase: "شراء", expense: "مصروف", "party-receipt": "سداد عميل", "party-payment": "سداد مورد", "transfer-in": "تحويل داخل", "transfer-out": "تحويل خارج" };
   return <section className="banks-workspace workspace-page">
-    <div className="bank-summary"><div><small>إجمالي السيولة</small><b>{money(total)}</b></div><div><small>إجمالي الداخل اليوم</small><b>{money(todayMovements.filter(m => m.direction === "in").reduce((s,m) => s + m.amount, 0))}</b></div><div><small>إجمالي الخارج اليوم</small><b>{money(todayMovements.filter(m => m.direction === "out").reduce((s,m) => s + m.amount, 0))}</b></div><div><small>وسائل الدفع النشطة</small><b>{number(active.length)}</b></div></div>
+    <div className="bank-summary"><div><small>إجمالي الأرصدة الحالية</small><b>{money(total)}</b></div><div><small>إجمالي المشتريات</small><b>{money(purchaseTotal)}</b></div><div><small>إجمالي الداخل اليوم</small><b>{money(todayMovements.filter(m => m.direction === "in").reduce((s,m) => s + m.amount, 0))}</b></div><div><small>إجمالي الخارج اليوم</small><b>{money(todayMovements.filter(m => m.direction === "out").reduce((s,m) => s + m.amount, 0))}</b></div></div>
     <div className="panel bank-panel"><div className="bank-tabs"><button className={tab === "accounts" ? "active" : ""} onClick={() => setTab("accounts")}>وسائل الدفع</button><button className={tab === "movements" ? "active" : ""} onClick={() => setTab("movements")}>حركة الحسابات</button><button className={tab === "transfers" ? "active" : ""} onClick={() => setTab("transfers")}>التحويلات</button></div>
-      {tab === "accounts" && <><div className="section-toolbar"><button className="primary" onClick={() => setEditing({ id: "", code: "", name: "", color: "#1677c8", icon: "wallet", isActive: true, balance: 0, income: 0, expenses: 0 })}><Plus /> إضافة وسيلة</button></div><div className="account-cards">{data.paymentAccounts.map(account => { const Icon = paymentIcons[account.icon as keyof typeof paymentIcons] ?? WalletCards; return <article className={!account.isActive ? "account-card inactive" : "account-card"} style={{ borderColor: account.color }} key={account.id}><div className="account-icon" style={{ color: account.color, background: `${account.color}18` }}><Icon /></div><span><small>{account.isActive ? "نشط" : "متوقف"}</small><strong>{account.name}</strong></span><b>{money(account.balance)}</b><div><small>الداخل {money(account.income)}</small><small>الخارج {money(account.expenses)}</small></div><button className="soft" onClick={() => setEditing(account)}>تعديل</button></article>})}</div></>}
+      {tab === "accounts" && <><div className="section-toolbar"><button className="primary" onClick={() => setEditing({ id: "", code: "", name: "", color: "#1677c8", icon: "wallet", isActive: true, balance: 0, income: 0, expenses: 0, purchaseTotal: 0 })}><Plus /> إضافة وسيلة</button></div><div className="account-cards">{data.paymentAccounts.map(account => { const Icon = paymentIcons[account.icon as keyof typeof paymentIcons] ?? WalletCards; return <article className={!account.isActive ? "account-card inactive" : "account-card"} style={{ borderColor: account.color }} key={account.id}><div className="account-icon" style={{ color: account.color, background: `${account.color}18` }}><Icon /></div><span><small>{account.isActive ? "نشط" : "متوقف"}</small><strong>{account.name}</strong></span><b>{money(account.balance)}</b><div><small>المشتريات {money(account.purchaseTotal)}</small><small>الداخل {money(account.income)} · الخارج {money(account.expenses)}</small></div><button className="soft" onClick={() => setEditing(account)}>تعديل</button></article>})}</div></>}
       {tab === "movements" && <><div className="bank-filters"><select value={accountFilter} onChange={e => setAccountFilter(e.target.value)}><option value="">كل الحسابات</option>{data.paymentAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select><select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}><option value="">كل الأنواع</option>{Object.entries(movementLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></div><div className="erp-table-wrap ledger-list"><table className="erp-table"><colgroup><col style={{width:"24%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/></colgroup><thead><tr><th>التاريخ</th><th>النوع</th><th>وسيلة الدفع</th><th>الحركة</th><th>المستند</th></tr></thead><tbody>{movements.map(m => <tr key={m.id}><td>{formatDateTime(m.occurredAt)}</td><td>{movementLabels[m.type] ?? m.type}</td><td>{name(m.paymentMethod)}</td><td className="num-cell">{m.direction === "in" ? "+" : "−"}{number(m.amount)}</td><td dir="ltr">{m.documentNumber}</td></tr>)}</tbody></table></div></>}
       {tab === "transfers" && <div className="transfer-layout"><form className="transfer-form" onSubmit={async e => { e.preventDefault(); await run({ type: "account-transfer.post", fromAccountId: from, toAccountId: to, amount: val(amount), note }, "تم التحويل بين الحسابات"); setAmount(""); setNote(""); }}><label>من الحساب<select required value={from} onChange={e => setFrom(e.target.value)}><option value="">اختر المصدر</option>{active.map(a => <option key={a.id} value={a.id}>{a.name} — {money(a.balance)}</option>)}</select></label><label>إلى الحساب<select required value={to} onChange={e => setTo(e.target.value)}><option value="">اختر الوجهة</option>{active.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label>المبلغ<Num value={amount} onChange={setAmount} /></label><label>ملاحظة<input value={note} onChange={e => setNote(e.target.value)} /></label><button className="primary" disabled={!from || !to || from === to || !amount}>اعتماد التحويل</button></form><div className="erp-table-wrap transfer-list"><table className="erp-table"><colgroup><col style={{width:"24%"}}/><col style={{width:"20%"}}/><col style={{width:"20%"}}/><col style={{width:"18%"}}/><col style={{width:"18%"}}/></colgroup><thead><tr><th>التاريخ</th><th>من</th><th>إلى</th><th>المبلغ</th><th>المرجع</th></tr></thead><tbody>{data.accountTransfers.map(t => <tr key={t.id}><td>{formatDateTime(t.occurredAt)}</td><td>{name(t.fromAccountId)}</td><td>{name(t.toAccountId)}</td><td className="num-cell">{number(t.amount)}</td><td dir="ltr">{t.number}</td></tr>)}</tbody></table></div></div>}
     </div>
@@ -829,9 +824,8 @@ function PartyPage({
       <button className="back" onClick={close}>
         ← العودة إلى الأطراف
       </button>
-      <div className="hero party-hero">
+      <div className="panel party-summary">
         <div>
-          <span>حساب طرف موحد</span>
           <h2>{party.name}</h2>
           <p dir="ltr">{party.phone || "—"}</p>
         </div>
@@ -845,6 +839,7 @@ function PartyPage({
           <span>
             الصافي <b>{money(party.net)}</b>
           </span>
+          {party.receivable === 0 && party.payable === 0 && <span className="paid-badge">الحساب خالص</span>}
         </div>
       </div>
       <div className="panel form-row">
@@ -852,8 +847,7 @@ function PartyPage({
           العملية
           <select value={action} onChange={(e) => setAction(e.target.value)}>
             <option value="payment">تسجيل سداد</option>
-            <option value="settlement">مخالصة/تسوية</option>
-            <option value="offset">مقاصة</option>
+            {party.receivable > 0 && party.payable > 0 && <option value="offset">مقاصة</option>}
           </select>
         </label>
         {action !== "offset" && (
@@ -868,7 +862,7 @@ function PartyPage({
         {action === "payment" && <label>طريقة الدفع<select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>{data.paymentAccounts.filter(method => method.isActive).map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}</select></label>}
         <label>
           المبلغ
-          <Num value={amount} onChange={setAmount} />
+          <Num value={action === "offset" && !amount ? String(Math.min(party.receivable, party.payable)) : amount} onChange={setAmount} />
         </label>
         <button className="primary" onClick={() => void submit()}>
           تسجيل العملية
@@ -958,17 +952,17 @@ function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
       <button className="primary" onClick={() => openForm(null)}><Plus /> إضافة منتج</button>
     </div>
     <div className="panel scroll-panel product-management erp-table-wrap">
-      <table className="erp-table" aria-label="كل المنتجات"><colgroup><col style={{width:"12%"}}/><col style={{width:"25%"}}/><col style={{width:"12%"}}/><col style={{width:"12%"}}/><col style={{width:"12%"}}/><col style={{width:"12%"}}/><col style={{width:"15%"}}/></colgroup><thead><tr>
-        <th>الرمز</th><th>الاسم</th><th>{sortHeader("price", "سعر البيع")}</th><th>{sortHeader("cost", "آخر شراء")}</th><th>{sortHeader("stock", "المخزون")}</th><th>الكرتون</th><th>إجراءات</th>
+      <table className="erp-table" aria-label="كل المنتجات"><colgroup><col style={{width:"12%"}}/><col style={{width:"25%"}}/><col style={{width:"12%"}}/><col style={{width:"12%"}}/><col style={{width:"14%"}}/><col style={{width:"17%"}}/></colgroup><thead><tr>
+        <th>الرمز</th><th>الاسم</th><th>{sortHeader("price", "سعر البيع")}</th><th>{sortHeader("cost", "آخر شراء")}</th><th>{sortHeader("stock", "المخزون")}</th><th>إجراءات</th>
       </tr></thead><tbody>
         {products.map(product => {
           const stock = Object.values(product.stocks).reduce((sum, value) => sum + Number(value), 0);
-          return <tr key={product.id}><td dir="ltr">{product.sku || "—"}</td><td className="name-cell">{product.name}</td><td className="num-cell">{product.piecePrice == null ? "—" : number(product.piecePrice)}</td><td className="num-cell">{product.lastPurchaseCost == null ? "—" : number(product.lastPurchaseCost)}</td><td className="num-cell">{number(stock)}</td><td className="num-cell">{product.piecesPerCarton ? number(product.piecesPerCarton) : "—"}</td><td className="action-cell"><button className="soft" onClick={() => openForm(product)}>تعديل</button></td></tr>;
+          return <tr key={product.id}><td dir="ltr">{product.sku || "—"}</td><td className="name-cell">{product.name}</td><td className="num-cell">{product.piecePrice == null ? "—" : number(product.piecePrice)}</td><td className="num-cell">{product.lastPurchaseCost == null ? "—" : number(product.lastPurchaseCost)}</td><td className="num-cell">{number(stock)}</td><td className="action-cell"><button className="soft" onClick={() => openForm(product)}>تعديل</button></td></tr>;
         })}
         {!products.length && <Empty text="لا توجد منتجات مطابقة للبحث" />}
       </tbody></table>
     </div>
-    {formOpen && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={editing ? `تعديل ${editing.name}` : "إضافة منتج"}><div className="modal-card product-modal"><ProductForm run={run} product={editing} nextCode={data.nextProductCode} close={() => setFormOpen(false)} /></div></div>}
+    {formOpen && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={editing ? `تعديل ${editing.name}` : "إضافة منتج"}><div className="modal-card product-modal"><ProductForm run={run} product={editing} nextCode={data.nextProductCode} warehouses={data.warehouses} close={() => setFormOpen(false)} /></div></div>}
   </section>;
 }
 
@@ -977,17 +971,21 @@ function ProductForm({
   close,
   product,
   nextCode,
+  warehouses,
 }: {
   run: RunCommand;
   close: () => void;
   product: Product | null;
   nextCode: number;
+  warehouses: BootstrapData["warehouses"];
 }) {
   const [name, setName] = useState(product?.name ?? ""),
     [cost, setCost] = useState(String(product?.pieceCost ?? "")),
     [price, setPrice] = useState(String(product?.piecePrice ?? "")),
-    [pack, setPack] = useState(String(product?.piecesPerCarton ?? "")),
+    [openingStock, setOpeningStock] = useState(""),
+    [openingWarehouseId, setOpeningWarehouseId] = useState(""),
     [barcode, setBarcode] = useState(product?.barcode ?? "");
+  const barcodeInput = useRef<HTMLInputElement>(null), defaultWarehouse = warehouses.find(warehouse => warehouse.isSalesDefault);
   return (
     <form
       className="panel form-grid product-form"
@@ -1009,7 +1007,8 @@ function ProductForm({
             name,
             pieceCost: cost,
             piecePrice: price,
-            piecesPerCarton: pack,
+            openingStock: product ? undefined : openingStock,
+            openingWarehouseId: product ? undefined : openingWarehouseId,
             barcode,
             confirmSensitive: confirmed,
           },
@@ -1031,21 +1030,23 @@ function ProductForm({
         سعر البيع للفرد
         <Num value={price} onChange={setPrice} />
       </label>
-      <label>
-        عدد الأفراد داخل الكرتون
-        <Num value={pack} onChange={setPack} />
-      </label>
+      {!product && <label>رصيد البداية<Num value={openingStock} onChange={setOpeningStock} /></label>}
+      {!product && val(openingStock) > 0 && (defaultWarehouse ? <p className="note-hint">رصيد البداية سيدخل إلى: {defaultWarehouse.name}</p> : <label>مخزن رصيد البداية<SearchableSelect value={openingWarehouseId} onChange={setOpeningWarehouseId} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={warehouses.map(warehouse => ({ value: warehouse.id, label: warehouse.name }))} /></label>)}
       <label className="product-code-preview">
         رمز المنتج
         <input dir="ltr" readOnly aria-readonly="true" value={product?.sku || nextCode} />
       </label>
-      <label>
+      <label className="barcode-field">
         الباركود
         <input
+          ref={barcodeInput}
           dir="ltr"
+          autoComplete="off"
           value={barcode}
           onChange={(e) => setBarcode(e.target.value)}
+          onKeyDown={event => { if (event.key === "Enter") event.preventDefault(); }}
         />
+        <button type="button" className="soft" onClick={() => barcodeInput.current?.focus()}>مسح الباركود</button>
       </label>
       <div className="product-form-actions"><button type="button" className="soft" onClick={close}>إلغاء</button><button className="primary">
         {product ? "حفظ التعديلات" : "حفظ المنتج"}
@@ -1377,7 +1378,7 @@ function DocumentDetail({
             {document.lines.map((l) => (
               <tr key={l.id}>
                 <td>{l.description}</td>
-                <td>{quantity(l.quantity, data.products.find((product) => product.id === l.productId)?.piecesPerCarton)}</td>
+                <td>{quantity(l.quantity)}</td>
                 <td>{money(l.unitPrice)}</td>
                 <td>{money(l.lineTotal)}</td>
               </tr>

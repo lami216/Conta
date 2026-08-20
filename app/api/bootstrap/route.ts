@@ -34,9 +34,11 @@ export async function GET(request: Request) {
       db.collection<{ _id: string; value: number }>("counters").findOne({ _id: "productSequence" }),
     ]);
     const clean = (rows: Array<Record<string, unknown>>) => rows.map(({ _id, ...row }) => ({ id: row.id ?? String(_id), ...row }));
+    const totals = await db.collection("financialMovements").aggregate([{ $group: { _id: "$paymentMethod", income: { $sum: { $cond: [{ $eq: ["$direction", "in"] }, "$amount", 0] } }, expenses: { $sum: { $cond: [{ $eq: ["$direction", "out"] }, "$amount", 0] } }, purchaseTotal: { $sum: { $cond: [{ $eq: ["$type", "purchase"] }, "$amount", 0] } } } }]).toArray();
+    const totalMap = new Map(totals.map(row => [String(row._id), row]));
     const accountRows = paymentAccounts.map(account => {
-      const related = financialMovements.filter(m => m.paymentMethod === account.id || m.paymentMethod === account.code);
-      return { ...account, id: String(account.id), balance: Number(account.balance ?? 0), income: related.filter(m => m.direction === "in").reduce((s, m) => s + Number(m.amount), 0), expenses: related.filter(m => m.direction === "out").reduce((s, m) => s + Number(m.amount), 0) };
+      const aggregate = totalMap.get(String(account.id)) ?? totalMap.get(String(account.code));
+      return { ...account, id: String(account.id), balance: Number(account.balance ?? 0), income: Number(aggregate?.income ?? 0), expenses: Number(aggregate?.expenses ?? 0), purchaseTotal: Number(aggregate?.purchaseTotal ?? 0) };
     });
     const today = new Date().toISOString().slice(0, 10);
     const recurringRows = recurringExpenses.map(recurring => { const occurrenceKey = recurring.frequency === "monthly" ? today.slice(0, 7) : today; const paid = documents.find(d => d.recurringId === recurring.id && (d.occurrenceKey === occurrenceKey || d.dueDate === today)); return { ...recurring, currentOccurrenceKey: occurrenceKey, currentDueDate: today, currentPaymentMethodId: paid?.paymentMethod ?? null }; });
