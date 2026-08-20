@@ -376,18 +376,12 @@ function ProductSearchPicker({ data, query, setQuery, onPick, mode = "sale", war
     if (mode === "sale" && stock <= 0) return;
     onPick(product); setSelected(null);
   };
-  return <div className="product-picker erp-grid product-search-grid">
+  return <div className="product-picker product-search-grid">
     <label className="search"><Search /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label>
-    <div className="picker-head erp-grid-head"><span>الرمز</span><span>المنتج</span><span>{mode === "purchase" ? "آخر شراء" : "السعر"}</span><span>المتوفر</span><span>إضافة</span></div>
-    <div className="picker-results erp-grid-body" role="listbox">
-      {results.map(product => { const stock = Number(product.stocks?.[warehouseId ?? ""] ?? Object.values(product.stocks).reduce((a, b) => a + b, 0)), disabled = mode === "sale" && stock <= 0; return <button type="button" key={product.id} role="option" className="erp-grid-row" aria-selected={selected === product.id} onClick={() => setSelected(product.id)} onDoubleClick={() => add(product)}>
-        <span dir="ltr">{product.sku || "—"}</span><strong>{product.name}</strong>
-        <b>{number(mode === "purchase" ? product.lastPurchaseCost ?? product.pieceCost ?? 0 : product.piecePrice ?? 0)}</b>
-        <span className="erp-grid-number">{number(stock)}</span>
-        <span className="erp-grid-action"><span aria-disabled={disabled} onClick={event => { event.stopPropagation(); if (!disabled) add(product); }}>إضافة</span></span>
-      </button>; })}
-      {term && !results.length && <div className="combobox-empty">لا توجد نتائج</div>}
-    </div>
+    <div className="erp-table-wrap picker-results"><table className="erp-table" aria-label="نتائج بحث المنتجات"><colgroup><col style={{width:"16%"}}/><col style={{width:"36%"}}/><col style={{width:"18%"}}/><col style={{width:"16%"}}/><col style={{width:"14%"}}/></colgroup><thead><tr><th>الرمز</th><th>المنتج</th><th>{mode === "purchase" ? "آخر شراء" : "السعر"}</th><th>المتوفر</th><th>إضافة</th></tr></thead><tbody>
+      {results.map(product => { const stock = Number(product.stocks?.[warehouseId ?? ""] ?? Object.values(product.stocks).reduce((a, b) => a + b, 0)), disabled = mode === "sale" && stock <= 0; return <tr key={product.id} className={selected === product.id ? "selected" : ""} onClick={() => setSelected(product.id)} onDoubleClick={() => add(product)}><td dir="ltr">{product.sku || "—"}</td><td className="name-cell">{product.name}</td><td className="num-cell">{number(mode === "purchase" ? product.lastPurchaseCost ?? product.pieceCost ?? 0 : product.piecePrice ?? 0)}</td><td className="num-cell">{number(stock)}</td><td className="action-cell"><button type="button" className="soft" disabled={disabled} onClick={event => { event.stopPropagation(); add(product); }}>إضافة</button></td></tr>; })}
+      {term && !results.length && <tr><td colSpan={5}>لا توجد نتائج</td></tr>}
+    </tbody></table></div>
   </div>;
 }
 const SearchProducts = ProductSearchPicker;
@@ -550,7 +544,7 @@ function Pos({
   }
   const invoice = <div className="panel invoice-card workspace-invoice">
     <div className="invoice-card-head"><h3>الفاتورة</h3><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={() => { if (confirm("هل تريد مسح الفاتورة؟")) { setLines([]); } }}>مسح الفاتورة</button>}</div></div>
-    <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="invoice-preview-list erp-grid invoice-grid" role="table" aria-label="منتجات الفاتورة"><div className="invoice-table-row invoice-table-head erp-grid-head" role="row"><span>الاسم</span><span>الكمية</span><span>السعر</span><span>المجموع</span><span>حذف</span></div>{details.map(({ l, p, total: lineTotal }) => <div className={`invoice-preview-item invoice-table-row erp-grid-row${selectedLine === p.id ? " selected" : ""}`} role="row" tabIndex={0} aria-selected={selectedLine === p.id} onClick={() => setSelectedLine(p.id)} key={p.id}><span className="invoice-item-name"><b>{p.name}</b></span><span><Num value={l.quantity} onChange={value => updateSaleLine(p, { quantity: value })} /></span><span><Num value={l.piecePrice} onChange={value => updateSaleLine(p, { piecePrice: value })} /></span><strong className="invoice-item-total">{number(lineTotal)}</strong><span className="invoice-delete-cell"><button type="button" className="row-delete" aria-label={`حذف ${p.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== p.id)); }}><X /></button></span></div>)}</div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b></div>}</div>
+    <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="erp-table-wrap invoice-preview-list"><table className="erp-table invoice-table" aria-label="منتجات الفاتورة"><colgroup><col style={{width:"38%"}}/><col style={{width:"14%"}}/><col style={{width:"17%"}}/><col style={{width:"19%"}}/><col style={{width:"12%"}}/></colgroup><thead><tr><th>الاسم</th><th>الكمية</th><th>السعر</th><th>المجموع</th><th>حذف</th></tr></thead><tbody>{details.map(({ l, p, total: lineTotal }) => <tr className={selectedLine === p.id ? "selected" : ""} onClick={() => setSelectedLine(p.id)} key={p.id}><td className="name-cell">{p.name}</td><td className="num-cell"><Num value={l.quantity} onChange={value => updateSaleLine(p, { quantity: value })} /></td><td className="num-cell"><Num value={l.piecePrice} onChange={value => updateSaleLine(p, { piecePrice: value })} /></td><td className="num-cell">{number(lineTotal)}</td><td className="action-cell"><button type="button" className="row-delete" aria-label={`حذف ${p.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== p.id)); }}><X /></button></td></tr>)}</tbody></table></div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b></div>}</div>
   </div>;
   const checkout = <aside className="panel workspace-checkout"><div className="checkout-head"><h3>الدفع</h3></div><div className="checkout-body"><div className="invoice-meta-row" aria-label="نوع الفاتورة"><button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}><Banknote /><span><small>طريقة التحصيل</small><b>دفع مباشر</b></span></button><button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع البيع</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">طريقة الدفع</span><div className="pay-grid">{data.paymentAccounts.filter(p => p.isActive).map(p => <PaymentMethodButton key={p.id} account={p} selected={payment === p.id || payment === p.code} onSelect={setPayment} />)}</div></div>}{payment === "note" && <><label>اختيار العميل<SearchableSelect value={partyId} onChange={setPartyId} placeholder="اختر العميل" searchPlaceholder="ابحث باسم العميل أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: p.name, search: p.phone }))} /></label><button className="link" onClick={() => setQuick(!quick)}><Plus /> إضافة عميل</button>{quick && <QuickParty run={run} onDone={() => setQuick(false)} />}</>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!lines.length || !wh || (payment === "note" && !partyId)} onClick={() => void submit()}>إتمام البيع</button></div></aside>;
   return <section className="transaction-page">{stockNotice && <div className="toast stock-toast">{stockNotice}</div>}<div className="transaction-workspace pos-workspace"><div className="workspace-discovery"><div className="panel search-panel"><div className="panel-title">بحث المنتجات</div><SearchProducts data={data} query={query} setQuery={setQuery} onPick={add} mode="sale" warehouseId={wh?.id} /></div><InvoiceQuickBrowser title="سجل الفواتير" docs={data.documents.filter(d => d.kind === "sale")} openDoc={openDoc} /></div>{invoice}{checkout}</div></section>;
@@ -646,7 +640,7 @@ function Purchases({ data, run, openDoc }: { data: BootstrapData; run: RunComman
   }
   return <section className="transaction-page"><div className="transaction-workspace purchase-workspace">
     <div className="workspace-discovery"><div className="panel search-panel"><div className="panel-title">بحث المنتجات</div><SearchProducts data={data} query={query} setQuery={setQuery} onPick={pick} mode="purchase" warehouseId={warehouseId} /></div><InvoiceQuickBrowser title="سجل فواتير الشراء" docs={data.documents.filter(d => d.kind === "purchase")} openDoc={openDoc} /></div>
-    <div className="panel invoice-card workspace-invoice"><div className="invoice-card-head"><h3>فاتورة الشراء الحالية</h3><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={clearDraft}>مسح الفاتورة</button>}</div></div><div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="invoice-preview-list erp-grid invoice-grid" role="table"><div className="invoice-table-row invoice-table-head erp-grid-head"><span>الاسم</span><span>الكمية</span><span>سعر الشراء</span><span>المجموع</span><span>حذف</span></div>{details.map(({line, product}) => <div key={product.id} tabIndex={0} onClick={() => setSelectedLine(product.id)} className={`invoice-preview-item invoice-table-row erp-grid-row${selectedLine === product.id ? " selected" : ""}`}><span className="invoice-item-name"><b>{product.name}</b></span><span><Num value={line.quantity} onChange={value => updatePurchaseLine(product, { quantity: value })} /></span><span><Num value={line.unitPrice} onChange={value => updatePurchaseLine(product, { unitPrice: value })} /></span><strong className="invoice-item-total">{number(val(line.quantity) * val(line.unitPrice))}</strong><span className="invoice-delete-cell"><button type="button" className="row-delete" aria-label={`حذف ${product.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== product.id)); }}><X /></button></span></div>)}</div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b></div>}</div></div>
+    <div className="panel invoice-card workspace-invoice"><div className="invoice-card-head"><h3>فاتورة الشراء الحالية</h3><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={clearDraft}>مسح الفاتورة</button>}</div></div><div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="erp-table-wrap invoice-preview-list"><table className="erp-table invoice-table"><colgroup><col style={{width:"38%"}}/><col style={{width:"14%"}}/><col style={{width:"17%"}}/><col style={{width:"19%"}}/><col style={{width:"12%"}}/></colgroup><thead><tr><th>الاسم</th><th>الكمية</th><th>سعر الشراء</th><th>المجموع</th><th>حذف</th></tr></thead><tbody>{details.map(({line, product}) => <tr key={product.id} onClick={() => setSelectedLine(product.id)} className={selectedLine === product.id ? "selected" : ""}><td className="name-cell">{product.name}</td><td className="num-cell"><Num value={line.quantity} onChange={value => updatePurchaseLine(product, { quantity: value })} /></td><td className="num-cell"><Num value={line.unitPrice} onChange={value => updatePurchaseLine(product, { unitPrice: value })} /></td><td className="num-cell">{number(val(line.quantity) * val(line.unitPrice))}</td><td className="action-cell"><button type="button" className="row-delete" aria-label={`حذف ${product.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== product.id)); }}><X /></button></td></tr>)}</tbody></table></div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b></div>}</div></div>
     <aside className="panel workspace-checkout"><div className="checkout-head"><h3>اعتماد الشراء</h3></div><div className="checkout-body purchase-details"><label>المورد<SearchableSelect disabled={locked} value={partyId} onChange={setPartyId} placeholder="اختر المورد" searchPlaceholder="ابحث باسم المورد أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: `${p.name} — ${p.phone}`, search: p.phone }))} /></label><button className="soft" disabled={!partyId} onClick={() => locked ? confirm("هل تريد تغيير المورد؟ ستبقى المنتجات كما هي.") && setLocked(false) : setLocked(true)}>{locked ? "تعديل المورد" : "تأكيد المورد"}</button><label>مخزن الاستلام<SearchableSelect value={warehouseId} onChange={setWarehouseId} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><button className="link" onClick={() => setAddingWh(!addingWh)}><Plus /> إضافة مخزن</button>{addingWh && <InlineCreate label="اسم المخزن" onSave={async name => { await run({ type: "warehouse.create", name }, "تمت إضافة المخزن"); setAddingWh(false); }} />}<div className="invoice-meta-row"><button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}><Banknote /><span><small>نوع التسوية</small><b>دفع مباشر</b></span></button><button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع التسوية</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">الدفع من حساب</span><div className="pay-grid">{data.paymentAccounts.filter(method => method.isActive).map(method => <PaymentMethodButton key={method.id} account={method} selected={payment === method.id || payment === method.code} onSelect={setPayment} />)}</div></div>}{payment === "note" && <p className="note-hint">ستسجل الفاتورة كاملة دينًا علينا للمورد، دون حركة نقدية.</p>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!locked || !warehouseId || !lines.length} onClick={() => void submit()}>اعتماد فاتورة الشراء</button></div></aside>
   </div></section>;
 
@@ -699,12 +693,13 @@ function Banks({ data, run }: { data: BootstrapData; run: RunCommand }) {
   const total = data.paymentAccounts.reduce((sum, account) => sum + account.balance, 0);
   const today = new Date().toISOString().slice(0, 10);
   const todayMovements = data.financialMovements.filter(m => m.occurredAt.slice(0, 10) === today);
+  const movementLabels: Record<string, string> = { sale: "بيع", purchase: "شراء", expense: "مصروف", "party-receipt": "سداد عميل", "party-payment": "سداد مورد", "transfer-in": "تحويل داخل", "transfer-out": "تحويل خارج" };
   return <section className="banks-workspace workspace-page">
     <div className="bank-summary"><div><small>إجمالي السيولة</small><b>{money(total)}</b></div><div><small>إجمالي الداخل اليوم</small><b>{money(todayMovements.filter(m => m.direction === "in").reduce((s,m) => s + m.amount, 0))}</b></div><div><small>إجمالي الخارج اليوم</small><b>{money(todayMovements.filter(m => m.direction === "out").reduce((s,m) => s + m.amount, 0))}</b></div><div><small>وسائل الدفع النشطة</small><b>{number(active.length)}</b></div></div>
     <div className="panel bank-panel"><div className="bank-tabs"><button className={tab === "accounts" ? "active" : ""} onClick={() => setTab("accounts")}>وسائل الدفع</button><button className={tab === "movements" ? "active" : ""} onClick={() => setTab("movements")}>حركة الحسابات</button><button className={tab === "transfers" ? "active" : ""} onClick={() => setTab("transfers")}>التحويلات</button></div>
       {tab === "accounts" && <><div className="section-toolbar"><button className="primary" onClick={() => setEditing({ id: "", code: "", name: "", color: "#1677c8", icon: "wallet", isActive: true, balance: 0, income: 0, expenses: 0 })}><Plus /> إضافة وسيلة</button></div><div className="account-cards">{data.paymentAccounts.map(account => { const Icon = paymentIcons[account.icon as keyof typeof paymentIcons] ?? WalletCards; return <article className={!account.isActive ? "account-card inactive" : "account-card"} style={{ borderColor: account.color }} key={account.id}><div className="account-icon" style={{ color: account.color, background: `${account.color}18` }}><Icon /></div><span><small>{account.isActive ? "نشط" : "متوقف"}</small><strong>{account.name}</strong></span><b>{money(account.balance)}</b><div><small>الداخل {money(account.income)}</small><small>الخارج {money(account.expenses)}</small></div><button className="soft" onClick={() => setEditing(account)}>تعديل</button></article>})}</div></>}
-      {tab === "movements" && <><div className="bank-filters"><select value={accountFilter} onChange={e => setAccountFilter(e.target.value)}><option value="">كل الحسابات</option>{data.paymentAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select><select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}><option value="">كل الأنواع</option><option value="sale">بيع</option><option value="purchase">شراء</option><option value="expense">مصروف</option><option value="party-receipt">تسديد عميل</option><option value="party-payment">تسديد مورد</option><option value="transfer-in">تحويل داخل</option><option value="transfer-out">تحويل خارج</option></select></div><div className="ledger-list">{movements.map(m => <div className="ledger-row" key={m.id}><span>{formatDateTime(m.occurredAt)}</span><strong>{m.type}</strong><span>{name(m.paymentMethod)}</span><b className={m.direction}>{m.direction === "in" ? "+" : "−"}{money(m.amount)}</b><span dir="ltr">{m.documentNumber}</span></div>)}</div></>}
-      {tab === "transfers" && <div className="transfer-layout"><form className="transfer-form" onSubmit={async e => { e.preventDefault(); await run({ type: "account-transfer.post", fromAccountId: from, toAccountId: to, amount: val(amount), note }, "تم التحويل بين الحسابات"); setAmount(""); setNote(""); }}><label>من الحساب<select required value={from} onChange={e => setFrom(e.target.value)}><option value="">اختر المصدر</option>{active.map(a => <option key={a.id} value={a.id}>{a.name} — {money(a.balance)}</option>)}</select></label><label>إلى الحساب<select required value={to} onChange={e => setTo(e.target.value)}><option value="">اختر الوجهة</option>{active.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label>المبلغ<Num value={amount} onChange={setAmount} /></label><label>ملاحظة<input value={note} onChange={e => setNote(e.target.value)} /></label><button className="primary" disabled={!from || !to || from === to || !amount}>اعتماد التحويل</button></form><div className="transfer-list">{data.accountTransfers.map(t => <div className="list-row" key={t.id}><span><strong>{name(t.fromAccountId)} ← {name(t.toAccountId)}</strong><small>{formatDateTime(t.occurredAt)} · {t.number}</small></span><b>{money(t.amount)}</b></div>)}</div></div>}
+      {tab === "movements" && <><div className="bank-filters"><select value={accountFilter} onChange={e => setAccountFilter(e.target.value)}><option value="">كل الحسابات</option>{data.paymentAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select><select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}><option value="">كل الأنواع</option>{Object.entries(movementLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></div><div className="erp-table-wrap ledger-list"><table className="erp-table"><colgroup><col style={{width:"24%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/></colgroup><thead><tr><th>التاريخ</th><th>النوع</th><th>وسيلة الدفع</th><th>الحركة</th><th>المستند</th></tr></thead><tbody>{movements.map(m => <tr key={m.id}><td>{formatDateTime(m.occurredAt)}</td><td>{movementLabels[m.type] ?? m.type}</td><td>{name(m.paymentMethod)}</td><td className="num-cell">{m.direction === "in" ? "+" : "−"}{number(m.amount)}</td><td dir="ltr">{m.documentNumber}</td></tr>)}</tbody></table></div></>}
+      {tab === "transfers" && <div className="transfer-layout"><form className="transfer-form" onSubmit={async e => { e.preventDefault(); await run({ type: "account-transfer.post", fromAccountId: from, toAccountId: to, amount: val(amount), note }, "تم التحويل بين الحسابات"); setAmount(""); setNote(""); }}><label>من الحساب<select required value={from} onChange={e => setFrom(e.target.value)}><option value="">اختر المصدر</option>{active.map(a => <option key={a.id} value={a.id}>{a.name} — {money(a.balance)}</option>)}</select></label><label>إلى الحساب<select required value={to} onChange={e => setTo(e.target.value)}><option value="">اختر الوجهة</option>{active.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label>المبلغ<Num value={amount} onChange={setAmount} /></label><label>ملاحظة<input value={note} onChange={e => setNote(e.target.value)} /></label><button className="primary" disabled={!from || !to || from === to || !amount}>اعتماد التحويل</button></form><div className="erp-table-wrap transfer-list"><table className="erp-table"><colgroup><col style={{width:"24%"}}/><col style={{width:"20%"}}/><col style={{width:"20%"}}/><col style={{width:"18%"}}/><col style={{width:"18%"}}/></colgroup><thead><tr><th>التاريخ</th><th>من</th><th>إلى</th><th>المبلغ</th><th>المرجع</th></tr></thead><tbody>{data.accountTransfers.map(t => <tr key={t.id}><td>{formatDateTime(t.occurredAt)}</td><td>{name(t.fromAccountId)}</td><td>{name(t.toAccountId)}</td><td className="num-cell">{number(t.amount)}</td><td dir="ltr">{t.number}</td></tr>)}</tbody></table></div></div>}
     </div>
     {editing && <PaymentAccountDialog account={editing} close={() => setEditing(null)} run={run} />}
   </section>;
@@ -747,8 +742,8 @@ function Parties({
         !q || `${p.name} ${p.phone}`.toLowerCase().includes(q.toLowerCase()),
     );
   return (
-    <section>
-      <div className="toolbar">
+    <section className="parties-workspace">
+      <div className="toolbar parties-search">
         <label className="search">
           <Search />
           <input
@@ -759,7 +754,7 @@ function Parties({
         </label>
       </div>
       <form
-        className="panel mini-form"
+        className="panel mini-form parties-create"
         onSubmit={async (e) => {
           e.preventDefault();
           await run(
@@ -785,30 +780,9 @@ function Parties({
           <Plus /> إضافة طرف
         </button>
       </form>
-      <div className="party-grid erp-grid party-data-grid"><div className="erp-grid-head"><span>الاسم</span><span>الهاتف والرصيد</span><span>إجراء</span></div>
-        {list.map((p) => (
-          <article
-            className="party-card erp-grid-row"
-            key={p.id}
-            onClick={() => openParty(p)}
-          >
-            <div className="avatar">{p.name.slice(0, 1)}</div>
-            <div>
-              <h3>{p.name} <span className="party-badge">زبون ومورد</span></h3>
-              <small dir="ltr">{p.phone || "—"}</small>
-              <div className="balances">
-                <span>
-                  لنا عليه <b>{money(p.receivable)}</b>
-                </span>
-                <span>
-                  له علينا <b>{money(p.payable)}</b>
-                </span>
-              </div>
-            </div>
-            <button className="soft">كشف الحساب</button>
-          </article>
-        ))}
-      </div>
+      <div className="erp-table-wrap party-grid"><table className="erp-table" aria-label="العملاء والموردون"><colgroup><col style={{width:"27%"}}/><col style={{width:"17%"}}/><col style={{width:"14%"}}/><col style={{width:"14%"}}/><col style={{width:"14%"}}/><col style={{width:"14%"}}/></colgroup><thead><tr><th>الاسم</th><th>الهاتف</th><th>لنا عليه</th><th>له علينا</th><th>الصافي</th><th>إجراء</th></tr></thead><tbody>
+        {list.map((p) => <tr key={p.id} onClick={() => openParty(p)}><td className="name-cell">{p.name} <span className="party-badge">زبون ومورد</span></td><td dir="ltr">{p.phone || "—"}</td><td className="num-cell">{number(p.receivable)}</td><td className="num-cell">{number(p.payable)}</td><td className="num-cell">{number(p.receivable - p.payable)}</td><td className="action-cell"><button className="soft" onClick={event => { event.stopPropagation(); openParty(p); }}>كشف الحساب</button></td></tr>)}
+      </tbody></table></div>
     </section>
   );
 }
@@ -983,25 +957,16 @@ function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
       <label className="search"><Search /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="بحث سريع بالاسم أو الرمز أو الباركود" /></label>
       <button className="primary" onClick={() => openForm(null)}><Plus /> إضافة منتج</button>
     </div>
-    <div className="panel scroll-panel product-management">
-      <div className="product-table product-table-head" role="row">
-        <span>الرمز</span><span>الاسم</span>{sortHeader("price", "سعر البيع")}{sortHeader("cost", "آخر شراء")}{sortHeader("stock", "المخزون")}<span>الكرتون</span><span>إجراءات</span>
-      </div>
-      <div className="scroll-body" role="table" aria-label="كل المنتجات">
+    <div className="panel scroll-panel product-management erp-table-wrap">
+      <table className="erp-table" aria-label="كل المنتجات"><colgroup><col style={{width:"12%"}}/><col style={{width:"25%"}}/><col style={{width:"12%"}}/><col style={{width:"12%"}}/><col style={{width:"12%"}}/><col style={{width:"12%"}}/><col style={{width:"15%"}}/></colgroup><thead><tr>
+        <th>الرمز</th><th>الاسم</th><th>{sortHeader("price", "سعر البيع")}</th><th>{sortHeader("cost", "آخر شراء")}</th><th>{sortHeader("stock", "المخزون")}</th><th>الكرتون</th><th>إجراءات</th>
+      </tr></thead><tbody>
         {products.map(product => {
           const stock = Object.values(product.stocks).reduce((sum, value) => sum + Number(value), 0);
-          return <div className="product-table" role="row" key={product.id}>
-            <span dir="ltr">{product.sku || "—"}</span>
-            <strong>{product.name}</strong>
-            <span>{product.piecePrice == null ? "—" : number(product.piecePrice)}</span>
-            <span>{product.lastPurchaseCost == null ? "—" : number(product.lastPurchaseCost)}</span>
-            <span>{number(stock)} فرد</span>
-            <span>{product.piecesPerCarton ? `${number(product.piecesPerCarton)} فرد` : "—"}</span>
-            <span className="table-actions"><button className="soft" onClick={() => openForm(product)}>تعديل</button><button className="link" onClick={() => openForm(product)}>عرض التفاصيل</button></span>
-          </div>;
+          return <tr key={product.id}><td dir="ltr">{product.sku || "—"}</td><td className="name-cell">{product.name}</td><td className="num-cell">{product.piecePrice == null ? "—" : number(product.piecePrice)}</td><td className="num-cell">{product.lastPurchaseCost == null ? "—" : number(product.lastPurchaseCost)}</td><td className="num-cell">{number(stock)}</td><td className="num-cell">{product.piecesPerCarton ? number(product.piecesPerCarton) : "—"}</td><td className="action-cell"><button className="soft" onClick={() => openForm(product)}>تعديل</button></td></tr>;
         })}
         {!products.length && <Empty text="لا توجد منتجات مطابقة للبحث" />}
-      </div>
+      </tbody></table>
     </div>
     {formOpen && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={editing ? `تعديل ${editing.name}` : "إضافة منتج"}><div className="modal-card product-modal"><ProductForm run={run} product={editing} nextCode={data.nextProductCode} close={() => setFormOpen(false)} /></div></div>}
   </section>;
@@ -1402,7 +1367,7 @@ function DocumentDetail({
             طريقة الدفع <b>{document.paymentMethod ?? "—"}</b>
           </span>
         </div>
-        <table>
+        <div className="erp-table-wrap"><table className="erp-table document-lines"><colgroup><col style={{width:"46%"}}/><col style={{width:"16%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/></colgroup>
           <thead>
             <tr>
               <th>الاسم</th>
@@ -1421,7 +1386,7 @@ function DocumentDetail({
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
         <div className="document-total">
           <span>الإجمالي</span>
           <strong>{money(document.total)}</strong>
@@ -1490,14 +1455,7 @@ function Linked({
     (d) =>
       d.parentDocumentId === document.id || d.id === document.parentDocumentId,
   );
-  return linked.length ? (
-    <div className="panel">
-      <Heading title="المعاملات المرتبطة" /><div className="erp-grid linked-grid"><div className="erp-grid-head"><span>المعاملة</span><span>المستند</span><span>المبلغ</span></div>
-      {linked.map((d) => (
-        <div className="list-row erp-grid-row" key={d.id}><strong>{kindLabels[d.kind]}</strong><span dir="ltr">{d.number}</span><b className="erp-grid-number">{number(d.total)}</b></div>
-      ))}</div>
-    </div>
-  ) : null;
+  return linked.length ? (<div className="panel"><Heading title="المعاملات المرتبطة" /><div className="erp-table-wrap"><table className="erp-table"><colgroup><col style={{width:"34%"}}/><col style={{width:"36%"}}/><col style={{width:"30%"}}/></colgroup><thead><tr><th>المعاملة</th><th>المستند</th><th>المبلغ</th></tr></thead><tbody>{linked.map(d => <tr key={d.id}><td>{kindLabels[d.kind]}</td><td dir="ltr">{d.number}</td><td className="num-cell">{number(d.total)}</td></tr>)}</tbody></table></div></div>) : null;
 }
 
 function InvoiceQuickBrowser({ title, docs, openDoc }: { title: string; docs: DocumentRecord[]; openDoc: (id: string) => void }) {
@@ -1505,13 +1463,7 @@ function InvoiceQuickBrowser({ title, docs, openDoc }: { title: string; docs: Do
   const today = localDay(new Date()), [from, setFrom] = useState(today), [to, setTo] = useState(today);
   const ranged = from !== to;
   const visible = docs.filter(document => { const day = document.businessDate ?? localDay(document.occurredAt); return day >= from && day <= to; });
-  return <aside className="panel quick-invoices" aria-label={title}>
-    <div className="quick-invoice-head"><h3>{title}</h3><div className="history-dates"><label>من<input type="date" dir="ltr" value={from} onChange={event => setFrom(event.target.value)} /></label><label>إلى<input type="date" dir="ltr" value={to} onChange={event => setTo(event.target.value)} /></label></div></div>
-    <div className="quick-invoice-list erp-grid quick-invoice-grid"><div className="erp-grid-head"><span>الرقم</span><span>العميل / النوع</span><span>المبلغ</span></div>
-      {visible.slice(0, 100).map(document => { const note = document.paymentMethod === "note"; const heading = note ? document.partyName ?? "عميل غير محدد" : ranged ? document.number : document.dailySequence ? `رقم ${number(document.dailySequence)}` : document.number; return <button className="erp-grid-row" key={document.id} onClick={() => openDoc(document.id)}><strong dir={note ? "rtl" : "ltr"}>{heading}</strong><span>{ranged && document.dailySequence ? `رقم اليوم: ${number(document.dailySequence)} · ` : ""}{note ? document.number : document.partyName ?? "دفع مباشر"}</span><b className="erp-grid-number">{number(document.total)}</b></button>; })}
-      {!visible.length && <Empty text="لا توجد فواتير في هذه الفترة" />}
-    </div>
-  </aside>;
+  return <aside className="panel quick-invoices" aria-label={title}><div className="quick-invoice-head"><h3>{title}</h3><div className="history-dates"><label>من<input type="date" dir="ltr" value={from} onChange={event => setFrom(event.target.value)} /></label><label>إلى<input type="date" dir="ltr" value={to} onChange={event => setTo(event.target.value)} /></label></div></div><div className="erp-table-wrap quick-invoice-list"><table className="erp-table"><colgroup><col style={{width:"30%"}}/><col style={{width:"44%"}}/><col style={{width:"26%"}}/></colgroup><thead><tr><th>الرقم</th><th>العميل / النوع</th><th>المبلغ</th></tr></thead><tbody>{visible.slice(0,100).map(document => { const note = document.paymentMethod === "note"; const heading = note ? document.partyName ?? "عميل غير محدد" : ranged ? document.number : document.dailySequence ? `رقم ${number(document.dailySequence)}` : document.number; return <tr key={document.id} onClick={() => openDoc(document.id)}><td dir={note ? "rtl" : "ltr"}>{heading}</td><td>{ranged && document.dailySequence ? `رقم اليوم: ${number(document.dailySequence)} · ` : ""}{note ? document.number : document.partyName ?? "دفع مباشر"}</td><td className="num-cell">{number(document.total)}</td></tr>;})}{!visible.length && <tr><td colSpan={3}>لا توجد فواتير في هذه الفترة</td></tr>}</tbody></table></div></aside>;
 }
 
 function Recent({
@@ -1542,38 +1494,7 @@ function Recent({
         return (!from || occurredOn >= from) && (!to || occurredOn <= to);
       })
     : docs;
-  return (
-    <div className="panel records erp-grid recent-grid">
-      <Heading title={title} />
-      {dateFilter && <div className="filters recent-date-filters">
-        <label>من تاريخ<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
-        <label>إلى تاريخ<input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label>
-      </div>}
-      <div className="erp-grid-head"><span>المستند</span><span>الطرف / البيان</span><span>الحالة</span><span>المبلغ</span></div>
-      {visibleDocs.slice(0, 100).map((d) => (
-        <button
-          className="list-row clickable erp-grid-row"
-          key={d.id}
-          onClick={() => openDoc(d.id)}
-        >
-          <span>
-            <strong>{d.partyName ?? d.title ?? kindLabels[d.kind]}</strong>
-            <small>
-              {d.number} ·{" "}
-              {formatDateTime(d.occurredAt)}
-            </small>
-          </span>
-          <span className="status">
-            {d.dueTotal > 0 && d.paidTotal < d.dueTotal
-              ? "مستحق"
-              : "مدفوع/معتمد"}
-          </span>
-          <b>{money(d.total)}</b>
-        </button>
-      ))}
-      {!visibleDocs.length && <Empty text="لا توجد فواتير ضمن الفترة المحددة" />}
-    </div>
-  );
+  return (<div className="panel records recent-table"><Heading title={title} />{dateFilter && <div className="filters recent-date-filters"><label>من تاريخ<input type="date" value={from} onChange={event => setFrom(event.target.value)} /></label><label>إلى تاريخ<input type="date" value={to} onChange={event => setTo(event.target.value)} /></label></div>}<div className="erp-table-wrap"><table className="erp-table"><colgroup><col style={{width:"18%"}}/><col style={{width:"20%"}}/><col style={{width:"16%"}}/><col style={{width:"22%"}}/><col style={{width:"12%"}}/><col style={{width:"12%"}}/></colgroup><thead><tr><th>التاريخ</th><th>المستند</th><th>النوع</th><th>الطرف</th><th>الحالة</th><th>المبلغ</th></tr></thead><tbody>{visibleDocs.slice(0,100).map(d => <tr key={d.id} onClick={() => openDoc(d.id)}><td>{formatDateTime(d.occurredAt)}</td><td dir="ltr">{d.number}</td><td>{kindLabels[d.kind]}</td><td className="name-cell">{d.partyName ?? d.title ?? "—"}</td><td>{d.dueTotal > 0 && d.paidTotal < d.dueTotal ? "مستحق" : "معتمد"}</td><td className="num-cell">{number(d.total)}</td></tr>)}{!visibleDocs.length && <tr><td colSpan={6}>لا توجد فواتير ضمن الفترة المحددة</td></tr>}</tbody></table></div></div>);
 }
 function Heading({ title }: { title: string }) {
   return (
