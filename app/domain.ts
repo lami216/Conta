@@ -1,10 +1,4 @@
-export type PaymentMethod =
-  | "cash"
-  | "bankily"
-  | "masrvi"
-  | "sedad"
-  | "bimbank"
-  | "note";
+export type PaymentMethod = string;
 export type DocumentKind =
   | "purchase"
   | "sale"
@@ -38,8 +32,6 @@ export interface Product {
   lastPurchaseCost?: number | null;
   lastPurchaseAt?: string | null;
   piecePrice: number | null;
-  cartonPrice: number | null;
-  piecesPerCarton?: number | null;
   stocks: Record<string, number>;
 }
 export interface DocumentLine {
@@ -120,10 +112,11 @@ export interface PaymentAccount {
   balance: number;
   income: number;
   expenses: number;
+  purchaseTotal: number;
 }
 export interface FinancialMovement {
   id: string;
-  paymentMethod: Exclude<PaymentMethod, "note">;
+  paymentMethod: string;
   direction: "in" | "out";
   amount: number;
   documentId: string;
@@ -154,7 +147,7 @@ export const kindLabels: Record<DocumentKind, string> = {
   expense: "فاتورة مصروفات",
   payment: "سداد",
   offset: "مقاصة",
-  settlement: "مخالصة",
+  settlement: "تسوية يدوية للرصيد",
 };
 export function western(value: number | string) {
   return String(value)
@@ -196,28 +189,11 @@ export function formatDateTime(value: Date | string | number) {
 // Existing view-facing names share the same central formatting policy.
 export const money = formatMoney;
 export const number = formatNumber;
-export function quantity(value: number, pack?: number | null) {
-  if (!Number.isInteger(pack) || (pack ?? 0) <= 0) return `${formatQuantity(value)} فرد`;
-  const validPack = pack as number;
-  const cartons = Math.floor(value / validPack);
-  const pieces = value % validPack;
-  return cartons
-    ? `${number(cartons)} كرتون${pieces ? ` + ${number(pieces)} فرد` : ""}`
-    : `${number(pieces)} فرد`;
+export function quantity(value: number) {
+  return `${formatQuantity(value)} فرد`;
 }
-export function saleLineTotal(
-  qty: number,
-  pack: number | null | undefined,
-  piecePrice: number,
-  cartonPrice: number,
-  pricingMode: "piece" | "carton" = "piece",
-) {
+export function saleLineTotal(qty: number, piecePrice: number) {
   if (!Number.isFinite(qty) || qty <= 0) return 0;
-  // MRU totals are rounded once per line. Never round the derived unit price.
-  if (pricingMode === "carton") {
-    if (!Number.isInteger(pack) || (pack ?? 0) <= 0 || qty < (pack as number)) return Math.round(qty * piecePrice);
-    return Math.round(qty * cartonPrice / (pack as number));
-  }
   return Math.round(qty * piecePrice);
 }
 export function uid(prefix: string) {
