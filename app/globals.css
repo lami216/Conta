@@ -1304,12 +1304,12 @@ input, select, .combobox-trigger { border-color: var(--border); }
   .party-grid { display: block; }
 }
 
-.quick-invoice-head { display: grid; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.quick-invoice-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
 .quick-invoice-head small, .quick-invoice-head label span { color: var(--muted); font-size: 10px; font-weight: 700; }
 .quick-invoice-head h3 { margin: 2px 0 0; font-size: 15px; }
 .quick-invoice-head label { display: grid; gap: 4px; }
-.quick-invoice-head input { min-height: 38px; padding: 6px 8px; }
-.quick-invoice-list { display: grid; align-content: start; gap: 6px; padding-top: 8px; }
+.quick-invoice-head input { width: 112px; min-height: var(--dense-control-height); padding: 4px 6px; }
+.quick-invoice-list { display: grid; align-content: start; gap: 0; padding-top: 0; }
 .quick-invoice-list > button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 9px; border: 1px solid var(--line); border-radius: 9px; text-align: right; background: #fff; }
 .quick-invoice-list > button:hover, .quick-invoice-list > button:focus-visible { border-color: var(--brand); background: var(--soft); outline: 2px solid color-mix(in srgb, var(--brand) 20%, transparent); }
 .quick-invoice-list > button span { display: grid; gap: 2px; min-width: 0; }
@@ -1741,8 +1741,8 @@ html, body { width: 100%; max-width: 100%; margin: 0; overflow-x: visible; }
 .product-picker { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 7px; min-height: 0; padding: 8px; border-radius: 11px; background: #fff; }
 .picker-head, .picker-results > button { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(76px, .8fr) minmax(58px, .55fr) 44px; align-items: center; gap: 6px; text-align: right; }
 .picker-head { padding: 7px 9px; color: #fff; border-radius: 7px; background: var(--section-color); font-size: 10px; font-weight: 900; }
-.picker-results { min-height: 126px; max-height: 174px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; scrollbar-gutter: stable; }
-.picker-results > button { width: 100%; min-height: 54px; padding: 6px 8px; border: 0; border-bottom: 1px solid var(--border); background: #fff; }
+.picker-results { min-height: 0; height: calc(var(--compact-row-height) * 3); max-height: calc(var(--compact-row-height) * 3); overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; scrollbar-gutter: stable; }
+.picker-results > button { width: 100%; min-height: var(--compact-row-height); padding: 6px 8px; border: 0; border-bottom: 1px solid var(--border); background: #fff; }
 .picker-results > button:hover, .picker-results > button[aria-selected="true"] { background: var(--section-soft); box-shadow: inset -4px 0 var(--section-color); }
 .picker-results > button:disabled { color: #8a94a3; background: #eef0f3; cursor: not-allowed; }
 .picker-results span { display: grid; gap: 2px; }.picker-results small { color: var(--text-muted); font-size: 9px; }
@@ -1767,7 +1767,7 @@ html, body { width: 100%; max-width: 100%; margin: 0; overflow-x: visible; }
     display: grid;
     grid-template-areas: "checkout invoice discovery";
     grid-template-columns: minmax(0, 25fr) minmax(0, 45fr) minmax(0, 30fr);
-    gap: 10px;
+    gap: var(--workspace-gap);
     width: 100%;
     height: 100%;
     min-width: 0;
@@ -1788,9 +1788,9 @@ html, body { width: 100%; max-width: 100%; margin: 0; overflow-x: visible; }
   }
   .workspace-discovery > .search-panel { grid-row: 1; }
   .workspace-discovery > .quick-invoices { grid-row: 2; }
-  .search-panel { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 6px; padding: 10px !important; min-height: 0; overflow: hidden; }
-  .search-panel .product-picker { height: 100%; min-height: 0; }
-  .search-panel .picker-results { min-height: 0; max-height: none; overflow-y: auto; }
+  .search-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 6px; padding: var(--panel-padding) !important; min-height: 0; overflow: hidden; }
+  .search-panel .product-picker { height: auto; min-height: 0; }
+  .search-panel .picker-results { min-height: 0; height: calc(var(--compact-row-height) * 3); max-height: calc(var(--compact-row-height) * 3); overflow-y: auto; }
   .workspace-discovery .quick-invoices { height: auto; margin: 0; min-width: 0; min-height: 0; overflow: hidden; }
   .quick-invoice-list { min-width: 0; overflow-x: hidden; overflow-y: auto; }
   .quick-invoice-list > button, .quick-invoice-list > button > * { min-width: 0; max-width: 100%; }
@@ -1810,9 +1810,9 @@ html, body { width: 100%; max-width: 100%; margin: 0; overflow-x: visible; }
   .sidebar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; padding: 10px 16px; }
   .sidebar nav { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; width: 100%; }
   .sidebar nav > *, .nav-menu, .nav-menu > .nav { width: 100%; min-width: 0; }
-  .nav { justify-content: center; min-width: 0; min-height: 58px; padding: 7px 5px; border: 2px solid var(--nav-color, #687585); border-radius: 9px; font-size: 11px; }
-  .brand > b { width: 46px; height: 46px; }
-  .brand strong { font-size: 23px; }
+  .nav { justify-content: center; min-width: 0; min-height: 48px; padding: 5px; border: 2px solid var(--nav-color, #687585); border-radius: 9px; font-size: 11px; }
+  .brand > b { width: 40px; height: 40px; }
+  .brand strong { font-size: 19px; }
   .side-foot { min-width: 0; }
 }
 @media (max-width: 1050px) {
@@ -1847,7 +1847,18 @@ html, body { width: 100%; max-width: 100%; margin: 0; overflow-x: visible; }
 
 /* Final viewport and ERP grid system. This is the single authority for desktop
    sizing and record borders; growing data regions, never the document, scroll. */
-:root { --grid-line: #263238; --app-nav-height: 92px; }
+:root {
+  --grid-line: #263238;
+  --app-nav-height: 68px;
+  --page-bar-height: 44px;
+  --workspace-gap: 8px;
+  --panel-padding: 10px;
+  --compact-row-height: 38px;
+  --table-head-height: 32px;
+  --control-height: 36px;
+  --dense-control-height: 32px;
+  --section-gap: 8px;
+}
 
 @media (min-width: 1051px) {
   html, body { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
@@ -1859,11 +1870,11 @@ html, body { width: 100%; max-width: 100%; margin: 0; overflow-x: visible; }
   }
   .sidebar { grid-row: 1; position: relative; inset: auto; width: 100%; height: var(--app-nav-height); min-height: 0; padding-block: 8px; }
   .app-shell > main {
-    grid-row: 2; display: grid; grid-template-rows: 52px minmax(0, 1fr);
+    grid-row: 2; display: grid; grid-template-rows: var(--page-bar-height) minmax(0, 1fr);
     width: 100%; height: 100%; min-height: 0; overflow: hidden;
   }
-  .app-shell header.page-bar { min-height: 0; height: 52px; padding-block: 6px; }
-  .content { width: 100%; height: 100%; min-height: 0; padding-block: 8px 12px; overflow: hidden; }
+  .app-shell header.page-bar { min-height: 0; height: var(--page-bar-height); padding-block: 4px; }
+  .content { width: 100%; height: 100%; min-height: 0; padding-block: 6px 8px; overflow: hidden; }
   .content > section { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
   .transaction-page, .workspace-page, .warehouse-workspace, .stock-workspace,
   .banks-workspace, .expense-workspace { height: 100%; min-height: 0; overflow: hidden; }
@@ -1898,13 +1909,13 @@ th, td { border: 1px solid var(--grid-line); }
   gap: 0;
 }
 .invoice-table-row > span, .invoice-table-row > strong {
-  min-width: 0; padding: 7px;
+  min-width: 0; padding: 4px 6px;
   border: 0; border-inline-start: 1px solid var(--grid-line);
 }
 .invoice-table-row > :first-child { border-inline-start: 0; }
 .invoice-table-head { border: 0; border-bottom: 1px solid var(--grid-line); border-radius: 0; }
 .invoice-preview-item, .invoice-preview-item:last-child {
-  min-height: 50px; padding: 0;
+  min-height: var(--compact-row-height); padding: 0;
   border: 0 !important; border-bottom: 1px solid var(--grid-line) !important;
   border-radius: 0; background: #fff;
 }
@@ -1924,7 +1935,7 @@ th, td { border: 1px solid var(--grid-line); }
   gap: 0; padding: 0; border: 0; border-bottom: 1px solid var(--grid-line);
 }
 .product-table > *, .inventory-table > *, .expense-history-head > *,
-.expense-doc > *, .ledger-row > * { align-self: stretch; display: flex; align-items: center; min-width: 0; padding: 9px 10px; border-inline-start: 1px solid var(--grid-line); }
+.expense-doc > *, .ledger-row > * { align-self: stretch; display: flex; align-items: center; min-width: 0; min-height: var(--compact-row-height); padding: 5px 7px; border-inline-start: 1px solid var(--grid-line); }
 .product-table > :first-child, .inventory-table > :first-child,
 .expense-history-head > :first-child, .expense-doc > :first-child,
 .ledger-row > :first-child { border-inline-start: 0; }
