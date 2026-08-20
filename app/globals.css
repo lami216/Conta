@@ -1632,64 +1632,7 @@ input, select, .combobox-trigger { border-color: #9faab8; }
   .inventory-toolbar button { flex: 1; }
 }
 
-/* Project-wide safe viewport: logical padding keeps every RTL view inside both edges. */
-html, body, #__next, .app-shell, .app-shell > main {
-  min-width: 0;
-  max-width: 100%;
-}
-body { overflow-x: clip; }
-.app-shell > main, .content, .content > section,
-.pos-grid, .purchase-grid, .expense-grid, .warehouse-workspace,
-.stock-workspace, .workspace-page, .panel, .scroll-panel {
-  min-width: 0;
-  min-height: 0;
-}
-.content {
-  width: 100%;
-  max-width: 100%;
-  padding-inline-start: 16px;
-  padding-inline-end: 22px;
-}
-.app-shell header.page-bar {
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  padding-inline-start: 18px;
-  padding-inline-end: 22px;
-}
-.date-chip { flex: 0 0 auto; white-space: nowrap; }
-.sidebar { max-width: 100%; }
-.sidebar nav { overflow: visible; }
-
-/* Keep the complete desktop navigation in its fixed-height application row. */
-@media (min-width: 1051px) and (max-width: 1450px) {
-  .sidebar { gap: 8px; padding-inline: 12px; }
-  .brand { gap: 7px; }
-  .brand > b { width: 44px; height: 44px; font-size: 21px; }
-  .brand strong { font-size: 23px; }
-  .brand span { font-size: 10px; }
-  .warehouse-chip { min-width: 145px; gap: 7px; padding-inline: 9px; }
-  .warehouse-chip svg { width: 20px; }
-  .sidebar nav { gap: 3px; }
-  .nav { min-height: 50px; gap: 5px; padding-inline: 6px; }
-  .nav svg { width: 18px; height: 18px; }
-  .side-foot { gap: 4px; padding-inline: 6px; }
-  .owner-mark { width: 28px; height: 28px; }
-}
-
-@media (max-width: 1050px) {
-  .content { padding-inline-start: 12px; padding-inline-end: 16px; }
-  .app-shell header.page-bar { padding-inline: 14px 16px; }
-}
-
-/* The application frame owns one symmetric safe area. Width includes padding;
-   no viewport masking or directional offset is used. */
-html, body { width: 100%; max-width: 100%; margin: 0; overflow-x: visible; }
-.app-shell, .app-shell > main { width: 100%; max-width: 100%; min-width: 0; }
-.app-shell header.page-bar, .content {
-  width: 100%; max-width: 100%; min-width: 0;
-  margin-inline: auto; padding-inline: 16px;
-}
+/* Section-specific bank presentation. */
 .section-banks { --section-color: #1677c8; --section-soft: #e8f4ff; }
 .choice[style] svg { color: var(--account-color); }
 .paid-badge { padding: 6px 9px; border-radius: 999px; color: #14713b; background: #e6f6eb; font-size: 10px; font-weight: 800; }
@@ -1747,7 +1690,6 @@ html, body { width: 100%; max-width: 100%; margin: 0; overflow-x: visible; }
 .picker-results > button:disabled { color: #8a94a3; background: #eef0f3; cursor: not-allowed; }
 .picker-results span { display: grid; gap: 2px; }.picker-results small { color: var(--text-muted); font-size: 9px; }
 .touch-add span { padding: 5px 7px; color: #fff; border-radius: 6px; background: var(--section-color); font-size: 9px; font-weight: 800; }
-.picker-hint, .picker-caption { padding: 10px; color: var(--text-muted); text-align: center; font-size: 10px; }
 .invoice-preview-list { padding: 0; }.invoice-table-head { position: sticky; top: 0; z-index: 4; border-radius: 0; }
 .invoice-preview-item { min-height: 52px; padding: 4px 6px; border-bottom: 1px solid #aeb8c4 !important; }
 .invoice-preview-item > span, .invoice-preview-item > strong { padding-inline: 5px; border-inline-start: 1px solid #c2cad3; }
@@ -1889,6 +1831,36 @@ html, body { width: 100%; max-width: 100%; margin: 0; overflow-x: visible; }
   .transfer-list, .account-cards, .movement-timeline, .stock-draft,
   .checkout-body, .inventory-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 }
+
+/* Shared ERP record primitives. Components supply only their column template. */
+.dense-table {
+  min-width: 0;
+  border: 1px solid var(--grid-line);
+  border-radius: 0;
+  background: #fff;
+  overflow: hidden;
+}
+.dense-table-head {
+  min-height: var(--table-head-height);
+  color: #fff;
+  background: var(--section-color);
+  font-size: 10px;
+  font-weight: 900;
+}
+.dense-table-row {
+  min-height: var(--compact-row-height);
+  color: #111;
+  background: #fff;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.dense-table-row:hover,
+.dense-table-row.selected,
+.dense-table-row[aria-selected="true"] {
+  background: var(--section-soft);
+  box-shadow: inset -4px 0 var(--section-color);
+}
+.dense-table-body { min-height: 0; overflow-y: auto; }
 
 /* Native tables use a collapsed, complete grid. */
 table { width: 100%; border: 1px solid var(--grid-line); border-collapse: collapse; }
