@@ -1319,7 +1319,7 @@ input, select, .combobox-trigger { border-color: var(--border); }
 .workspace-page { display: grid !important; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
 .products-page { height: 100%; min-height: 0; overflow: hidden; }
 .product-management { height: 100%; min-height: 0; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr); }
-.product-management > .scroll-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.product-management > .scroll-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: auto; }
 .workspace-toolbar { flex-wrap: nowrap; }
 .workspace-toolbar .search { flex: 1; }
 .scroll-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: 0; overflow: hidden; }
@@ -1378,12 +1378,12 @@ input, select, .combobox-trigger { border-color: var(--border); }
   .warehouse-data-panel { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-width: 0; min-height: 0; padding: 12px; overflow: hidden; }
   .warehouse-data-panel .section-toolbar { margin-bottom: 5px; }
   .warehouse-data-panel > .search { margin-bottom: 6px; }
-  .warehouse-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+  .warehouse-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: auto; }
   .warehouse-scroll .empty { min-height: 130px; }
   .warehouse-scroll .list-row, .warehouse-scroll .product-row { min-height: 52px; padding: 8px 5px; }
   .warehouse-data-panel .filters { flex-wrap: nowrap; margin-bottom: 5px; }
 
-  .stock-workspace { grid-template-columns: minmax(0, 1.55fr) minmax(290px, .7fr); grid-template-rows: minmax(0, 1fr); gap: 12px !important; }
+  .stock-workspace { grid-template-columns: minmax(0, 3fr) minmax(430px, 2fr); grid-template-rows: minmax(0, 1fr); gap: 8px !important; }
   .stock-workspace-main { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 7px; min-width: 0; min-height: 0; }
   .stock-operation-panel { grid-template-rows: auto auto minmax(0, 1fr) auto auto; min-height: 0; overflow: hidden; }
   .stock-operation-panel .form-row { flex-wrap: nowrap; }
@@ -1417,11 +1417,6 @@ input, select, .combobox-trigger { border-color: var(--border); }
 .inventory-stats small { color: var(--muted); font-size: 9px; }
 .inventory-stats b { font-size: 13px; }
 .inventory-panel > .search { width: min(620px, 100%); margin-bottom: 8px; }
-.inventory-table { display: grid; grid-template-columns: minmax(180px, 1.5fr) minmax(120px, .8fr) minmax(120px, .9fr) minmax(110px, .75fr) minmax(130px, 1fr); align-items: center; gap: 10px; width: 100%; padding: 9px 12px; text-align: right; }
-.inventory-table > * { min-width: 0; overflow-wrap: anywhere; }
-.inventory-table-head { color: #fff; border-radius: 8px 8px 0 0; background: #17201f; font-size: 10px; font-weight: 800; }
-.inventory-row { min-height: 48px; border: 0; border-bottom: 1px solid var(--line); background: #fff; font-size: 11px; }
-.inventory-row:hover { background: var(--soft); }
 .inventory-footer { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 10px 12px 0; border-top: 2px solid var(--ink); }
 .inventory-footer > span { display: grid; font-weight: 800; }
 .inventory-footer small { margin-top: 2px; color: var(--muted); font-size: 9px; font-weight: 400; }
@@ -1463,14 +1458,12 @@ input, select, .combobox-trigger { border-color: var(--border); }
   .inventory-panel { max-height: 680px; }
   .inventory-stats { grid-template-columns: repeat(2, 1fr); }
   .inventory-body { overflow-x: auto; }
-  .inventory-table { min-width: 760px; }
   .movement-summary { grid-template-columns: repeat(2, 1fr); }
 }
 @media print {
   .warehouse-head, .inventory-toolbar button, .inventory-panel > .search, .movement-modal { display: none !important; }
   .warehouse-workspace, .inventory-panel { display: block !important; height: auto !important; }
   .inventory-body { overflow: visible !important; }
-  .inventory-table { break-inside: avoid; }
 }
 
 /* Authoritative viewport boundary (kept last to win the component cascade). */
@@ -1486,14 +1479,10 @@ input, select, .combobox-trigger { border-color: var(--border); }
   .invoice-checkout-footer .invoice-total { margin: 0; }
   .invoice-checkout-footer .payment-section { gap: 4px; }
   .inventory-panel { grid-template-rows: auto auto auto minmax(0, 1fr) auto; overflow: hidden; }
-  .inventory-body { min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-  .inventory-table-head { position: sticky; top: 0; z-index: 3; }
+  .inventory-body { min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: auto; }
 }
 
 /* Whole-row feedback for interactive data lists. */
-.inventory-row { cursor: pointer; transition: background-color 140ms ease, box-shadow 140ms ease, color 140ms ease; }
-.inventory-row:hover { background: #e8f3f1; box-shadow: inset -4px 0 #72b7ae; }
-.inventory-row.selected, .inventory-row[aria-pressed="true"] { color: #075c54; background: #d7eee9; box-shadow: inset -5px 0 var(--brand); }
 .scroll-body > .product-table:not(.product-table-head), .party-card, .list-row.clickable,
 .quick-invoice-list > button, .movement-timeline > button { transition: background-color 140ms ease, box-shadow 140ms ease; }
 .scroll-body > .product-table:not(.product-table-head):hover, .party-card:hover, .list-row.clickable:hover,
@@ -1533,9 +1522,8 @@ body { overflow-x: hidden; background: #eef1f5; color: var(--text); }
 .app-shell .primary { background: var(--section-color); border-color: var(--section-color); color: #fff; }
 .app-shell .primary:hover { filter: brightness(.88); }
 .app-shell .panel { border-color: color-mix(in srgb, var(--section-color) 50%, var(--border)); border-top-width: 3px; }
-.app-shell .invoice-table-head, .app-shell .inventory-table-head, .app-shell .product-table-head { background: var(--section-color); color: #fff; }
-.app-shell .invoice-preview-item:hover, .app-shell .invoice-preview-item.selected,
-.app-shell .inventory-row:hover, .app-shell .inventory-row.selected { border-color: var(--section-color); background: var(--section-soft); }
+.app-shell .invoice-table-head, .app-shell .product-table-head { background: var(--section-color); color: #fff; }
+.app-shell .invoice-preview-item:hover, .app-shell .invoice-preview-item.selected { border-color: var(--section-color); background: var(--section-soft); }
 .nav.active { color: var(--section-color); border-color: var(--section-color); background: var(--section-soft); }
 .nav-popover { border-top: 4px solid var(--section-color); }
 .nav-popover button:hover, .nav-popover button.active { color: var(--section-color); background: var(--section-soft); }
@@ -1581,46 +1569,37 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .expense-toolbar .heading { margin: 0; }
 .expense-toolbar > span { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border: 1px solid var(--color-expenses); border-radius: 10px; color: var(--color-expenses); background: #fff; font-weight: 800; }
 .expense-toolbar svg { width: 17px; }
-.expense-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(340px, .9fr); grid-template-rows: auto minmax(0, 1fr); gap: 12px; min-width: 0; min-height: 0; }
+.expense-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto minmax(0, 1fr); gap: 8px; min-width: 0; min-height: 0; }
 .expense-form, .expense-recurring, .expense-history { min-width: 0; min-height: 0; overflow: hidden; }
-.expense-form { display: grid; gap: 10px; align-content: start; }
-.expense-fields { display: grid; grid-template-columns: minmax(160px, 1.4fr) repeat(3, minmax(120px, 1fr)); gap: 9px; }
-.expense-save { justify-self: end; min-width: 180px; }
+.expense-form { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: end; }
+.expense-form > .section-title { grid-column: 1 / -1; }
+.expense-fields { display: grid; grid-template-columns: minmax(160px, 1.4fr) repeat(4, minmax(110px, 1fr)); gap: 6px; }
+.expense-save { min-width: 130px; }
 .expense-recurring { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 8px; }
-.expense-history { grid-column: 1 / -1; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); gap: 7px; }
+.expense-history { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 6px; }
 .expense-history .search { width: min(470px, 100%); }
-.expense-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-.expense-history-head, .expense-doc { display: grid; grid-template-columns: 110px minmax(160px, 1.4fr) 120px minmax(150px, 1fr) 120px; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; text-align: right; }
-.expense-history-head { position: sticky; top: 0; z-index: 2; color: #fff; border-radius: 8px; background: var(--color-expenses); font-size: 10px; font-weight: 800; }
-.expense-doc { min-height: 45px; border: 1px solid transparent; border-bottom-color: #46515d; background: #fff; font-size: 11px; }
-.expense-doc:hover { border-color: var(--color-expenses); background: var(--section-soft); }
+.expense-scroll { width: 100%; min-width: 0; min-height: 0; padding-inline: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: auto; }
 
 /* Inventory starts as a summary and expands to a list/details browser in place. */
-.warehouse-workspace { grid-template-rows: auto auto !important; align-content: start; }
+.warehouse-workspace { display: grid; grid-template-rows: auto minmax(0, 1fr) !important; gap: 8px; height: 100%; min-height: 0; }
 .inventory-panel { display: grid; grid-template-rows: auto auto !important; border-color: var(--color-warehouses) !important; }
 .inventory-panel.browser-open { grid-template-rows: auto auto minmax(0, 1fr) !important; height: 100%; min-height: 0; }
-.inventory-browser { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; min-height: 0; padding-top: 4px; }
-.inventory-browser.has-details { grid-template-columns: minmax(390px, 2fr) minmax(0, 3fr); }
+.inventory-browser { display: grid; grid-template-columns: minmax(430px, 1.15fr) minmax(0, .85fr); gap: 8px; width: 100%; height: 100%; min-width: 0; min-height: 0; padding-top: 4px; }
 .inventory-list-panel, .product-movement-panel { min-width: 0; min-height: 0; border: 1px solid var(--border); border-radius: 11px; background: #fff; overflow: hidden; }
 .inventory-list-panel { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding: 8px; }
+.inventory-grid tbody tr, .movement-timeline tbody tr, .transfer-history tbody tr, .expense-history tbody tr { cursor: pointer; }
 .inventory-list-panel > .search { margin-bottom: 7px; }
-.inventory-row { border: 1px solid transparent; border-bottom-color: var(--border); }
-.inventory-row:hover { border-color: var(--color-warehouses); box-shadow: inset -5px 0 var(--color-warehouses); }
-.inventory-row.selected { color: #49389e; border-color: var(--color-warehouses); background: #e8e3fb; box-shadow: inset -6px 0 var(--color-warehouses); }
 .inventory-selection-empty { display: grid; place-content: center; justify-items: center; gap: 8px; min-height: 220px; color: var(--text-muted); border: 2px dashed color-mix(in srgb, var(--color-warehouses) 45%, white); border-radius: 11px; background: #faf9ff; }
 .inventory-selection-empty svg { width: 42px; color: var(--color-warehouses); }
 .product-movement-panel { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); padding: 11px; border-color: var(--color-warehouses); }
 .product-movement-panel .movement-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.product-movement-panel .movement-timeline > button { grid-template-columns: 68px minmax(0, 1fr); border: 1px solid transparent; border-bottom-color: var(--border); }
-.product-movement-panel .movement-timeline > button:hover { border-color: var(--color-warehouses); background: var(--section-soft); }
+
 .movement-main { display: grid; gap: 3px; min-width: 0; }
 
 @media (max-width: 1050px) {
   .content { padding-inline: 12px; }
-  .expense-grid, .inventory-browser.has-details { grid-template-columns: minmax(0, 1fr); }
+  .expense-grid, .inventory-browser { grid-template-columns: minmax(0, 1fr); }
   .expense-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .expense-history { grid-column: auto; }
-  .expense-history-head, .expense-doc { min-width: 720px; }
   .expense-history > .expense-scroll { overflow-x: auto; }
   .product-movement-panel { max-height: 620px; }
 }
@@ -1684,7 +1663,7 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .product-picker { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 7px; min-height: 0; padding: 8px; border-radius: 11px; background: #fff; }
 .picker-head, .picker-results > button { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(76px, .8fr) minmax(58px, .55fr) 44px; align-items: center; gap: 6px; text-align: right; }
 .picker-head { padding: 7px 9px; color: #fff; border-radius: 7px; background: var(--section-color); font-size: 10px; font-weight: 900; }
-.picker-results { min-height: 0; height: calc(var(--compact-row-height) * 3); max-height: calc(var(--compact-row-height) * 3); overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; scrollbar-gutter: stable; }
+.picker-results { min-height: 0; height: calc(var(--compact-row-height) * 3); max-height: calc(var(--compact-row-height) * 3); overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; scrollbar-gutter: auto; }
 .picker-results > button { width: 100%; min-height: var(--compact-row-height); padding: 6px 8px; border: 0; border-bottom: 1px solid var(--border); background: #fff; }
 .picker-results > button:hover, .picker-results > button[aria-selected="true"] { background: var(--section-soft); box-shadow: inset -4px 0 var(--section-color); }
 .picker-results > button:disabled { color: #8a94a3; background: #eef0f3; cursor: not-allowed; }
@@ -1780,9 +1759,7 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 }
 .expense-history-filters { display: grid; grid-template-columns: minmax(240px, 1fr) 150px 150px; align-items: end; gap: 8px; }
 .expense-history-filters > label:not(.search) { display: grid; gap: 3px; color: var(--text-muted); font-size: 9px; font-weight: 800; }
-.expense-history-head, .expense-doc { grid-template-columns: 92px minmax(120px, 1.3fr) 92px minmax(105px, 1fr) 88px 105px; }
-.expense-recurring .list-row, .expense-doc, .ledger-row, .inventory-row,
-.quick-invoice-list > button, .movement-timeline > button { border-bottom-color: #46515d; }
+.ledger-row, .quick-invoice-list > button { border-bottom-color: #46515d; }
 .product-code-preview input { color: var(--section-color); border-width: 2px; background: var(--section-soft); font-weight: 900; }
 .scroll-body > .product-table { transition: background-color 140ms ease, box-shadow 140ms ease; }
 .scroll-body > .product-table:hover { background: var(--section-soft); box-shadow: inset -4px 0 var(--section-color); }
@@ -1829,7 +1806,7 @@ input, select, .combobox-trigger { border-color: #9faab8; }
   .scroll-body, .records, .party-grid, .quick-invoice-list, .picker-results,
   .invoice-preview, .warehouse-scroll, .expense-scroll, .ledger-list,
   .transfer-list, .account-cards, .movement-timeline, .stock-draft,
-  .checkout-body, .inventory-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+  .checkout-body, .inventory-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: auto; }
 }
 
 /* Shared ERP table primitives: the sole authority for tabular record geometry. */
@@ -1840,7 +1817,7 @@ input, select, .combobox-trigger { border-color: #9faab8; }
   --erp-head-height: 32px;
   --erp-font-size: 11px;
 }
-.erp-table-wrap { min-width: 0; min-height: 0; overflow: auto; background: #fff; scrollbar-gutter: stable; }
+.erp-table-wrap { width: 100%; min-width: 0; min-height: 0; padding-inline: 0; overflow: auto; background: #fff; scrollbar-gutter: auto; }
 .erp-table { width: 100%; border-collapse: collapse; table-layout: fixed; border: var(--erp-grid-width) solid var(--erp-grid-color); background: #fff; }
 .erp-table th, .erp-table td { height: var(--erp-row-height); padding: 3px 6px; border: var(--erp-grid-width) solid var(--erp-grid-color); color: #111; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .erp-table th { height: var(--erp-head-height); color: #fff; background: var(--section-color); font-size: 10px; font-weight: 800; }
