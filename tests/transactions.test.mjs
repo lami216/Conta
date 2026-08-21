@@ -138,3 +138,15 @@ test("offset has no cash movement, payment has one, and settlement remains compa
   await command({ type: "settlement.post", partyId: "party", side: "payable", amount: 500 });
   assert.ok(await db.collection("documents").findOne({ kind: "settlement" }));
 });
+
+test("payment accounts create and update without exposing the legacy icon", async t => {
+  if (unavailable) return t.skip(unavailable);
+  const id = await command({ type: "payment-account.create", name: "Bank", color: "#1677c8" });
+  let account = await db.collection("paymentAccounts").findOne({ id });
+  assert.equal(account.icon, "wallet");
+  await db.collection("paymentAccounts").updateOne({ id }, { $set: { icon: "landmark" } });
+  await command({ type: "payment-account.update", id, name: "Bank updated", color: "#123456", isActive: false });
+  account = await db.collection("paymentAccounts").findOne({ id });
+  assert.deepEqual([account.name, account.color, account.icon, account.isActive], ["Bank updated", "#123456", "landmark", false]);
+  assert.ok(await db.collection("paymentAccounts").findOne({ code: "cash" }));
+});
