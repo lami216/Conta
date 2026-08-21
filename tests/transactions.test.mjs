@@ -49,6 +49,14 @@ test("sale decreases stock and insufficient sale rolls every write back", async 
   assert.equal((await db.collection("parties").findOne({ id: "party" })).receivable, 2000);
 });
 
+test("direct sale command rejects a price below authoritative purchase cost", async t => {
+  if (unavailable) return t.skip(unavailable);
+  await db.collection("products").updateOne({ id: "p1" }, { $set: { "stocks.wh-main": 5, lastPurchaseCost: 12000 } });
+  await assert.rejects(command({ type: "sale.post", warehouseId: "wh-main", paymentMethod: "cash", lines: [{ productId: "p1", quantity: 1, piecePrice: 10000 }] }), /تحت سعر الشراء/);
+  assert.equal(await db.collection("documents").countDocuments({ kind: "sale" }), 0);
+  assert.equal((await db.collection("products").findOne({ id: "p1" })).stocks["wh-main"], 5);
+});
+
 test("transfer and adjustment initialize missing destination fields", async t => {
   if (unavailable) return t.skip(unavailable);
   await db.collection("products").updateOne({ id: "p1" }, { $set: { "stocks.wh-main": 30 } });
