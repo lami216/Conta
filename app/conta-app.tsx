@@ -39,6 +39,7 @@ import {
   type PaymentAccount,
 } from "./domain";
 import type { ReportResponse, ReportType } from "./report-types";
+import { readApiResponse } from "./api-response";
 
 type View =
   | "pos"
@@ -104,6 +105,7 @@ const warehouseNav: Array<{ id: View; label: string; icon: typeof Boxes }> = [
   { id: "adjustments", label: "تصحيح المخزون", icon: ClipboardCheck },
 ];
 const reportOrder: ReportType[] = ["sales", "purchases", "product-sales", "profit", "returns", "stock", "debts", "party-ledger", "financial", "expenses", "overview"];
+export const MAIN_NAV_ORDER = ["pos", "invoices", "warehouses", "products", "parties", "banks", "reports", "settings"] as const;
 const val = (v: string) => (v === "" ? 0 : Number(v)),
   lineFor = (p: Product): DraftLine => ({
     productId: p.id,
@@ -231,13 +233,14 @@ export default function ContaApp() {
               {warehouseNav.map(n => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => navigate(n.id)}><n.icon /><span>{n.label}</span></button>)}
             </div>}
           </div>
-          {nav.slice(1).filter(n => n.id !== "reports").map((n) => (
+          {nav.slice(1).filter(n => n.id !== "reports" && n.id !== "settings").map((n) => (
             <button key={n.id} className={view === n.id ? "nav active" : "nav"} onClick={() => navigate(n.id)}><n.icon /><span>{n.label}</span></button>
           ))}
           <div className="nav-menu report-nav-menu" ref={reportMenuRef}>
             <button className={view === "reports" ? "nav active" : "nav"} aria-expanded={reportMenu} onClick={() => setReportMenu(value => !value)}><Receipt/><span>التقارير</span><ChevronDown className="chevron"/></button>
             {reportMenu && <div className="nav-popover report-nav-popover">{reportOrder.map(id => <button key={id} aria-current={reportType === id ? "page" : undefined} className={reportType === id ? "active" : ""} onClick={() => { setReportType(id); navigate("reports"); }}><span>{reportNames[id]}</span></button>)}</div>}
           </div>
+          {nav.filter(n => n.id === "settings").map(n => <button key={n.id} className={view === n.id ? "nav active" : "nav"} onClick={() => navigate(n.id)}><n.icon /><span>{n.label}</span></button>)}
         </nav>
         <div className="side-foot">
           <span className="owner-mark">م</span><strong>المالك</strong>
@@ -313,12 +316,13 @@ export default function ContaApp() {
 type FilePreview = { format:string;schemaVersion?:number;createdAt?:string;counts?:Record<string,number>;groups?:Array<{key:string;label:string;count:number;status:string}>;warnings?:string[] };
 function SettingsPage({data,reload}:{data:BootstrapData;reload:()=>Promise<void>}) {
   const [nativeFile,setNativeFile]=useState<File|null>(null),[nativePreview,setNativePreview]=useState<FilePreview|null>(null),[legacyFile,setLegacyFile]=useState<File|null>(null),[legacyPreview,setLegacyPreview]=useState<FilePreview|null>(null),[busy,setBusy]=useState(""),[message,setMessage]=useState(""),[failure,setFailure]=useState("");
-  const request=async(url:string,file:File)=>{const response=await fetch(url,{method:"POST",headers:{"content-type":file.type||"application/octet-stream"},body:file}),json=await response.json();if(!response.ok)throw new Error(json.error);return json;};
+  const request=async(url:string,file:File)=>readApiResponse(await fetch(url,{method:"POST",headers:{"content-type":file.type||"application/octet-stream"},body:file}));
+  const uploadLegacy=async(file:File,action:"preview"|"import")=>{const started=await readApiResponse(await fetch("/api/settings/legacy/upload/start",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({size:file.size})})),uploadId=String(started.uploadId),chunkSize=Number(started.chunkSize);for(let index=0,offset=0;offset<file.size;index++,offset+=chunkSize)await readApiResponse(await fetch(`/api/settings/legacy/upload/chunk?uploadId=${encodeURIComponent(uploadId)}&index=${index}`,{method:"POST",headers:{"content-type":"application/octet-stream"},body:file.slice(offset,offset+chunkSize)}));return readApiResponse(await fetch("/api/settings/legacy/upload/complete",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({uploadId,action,stockPolicy:"current"})}));};
   const download=async()=>{const response=await fetch("/api/settings/backup");if(!response.ok)throw new Error("تعذر إنشاء النسخة");const blob=await response.blob(),link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=response.headers.get("content-disposition")?.match(/filename="([^"]+)/)?.[1]??"conta-backup.conta.json";link.click();URL.revokeObjectURL(link.href);};
-  const chooseNative=async(file:File|null)=>{setNativeFile(file);setNativePreview(null);setFailure("");if(!file)return;setBusy("native");try{setNativePreview(await request("/api/settings/restore/preview",file));}catch(e){setFailure(e instanceof Error?e.message:"نسخة غير صالحة");}finally{setBusy("");}};
-  const chooseLegacy=async(file:File|null)=>{setLegacyFile(file);setLegacyPreview(null);setFailure("");if(!file)return;setBusy("legacy");try{setLegacyPreview(await request("/api/settings/legacy/preview",file));}catch(e){setFailure(e instanceof Error?e.message:"قاعدة غير صالحة");}finally{setBusy("");}};
+  const chooseNative=async(file:File|null)=>{setNativeFile(file);setNativePreview(null);setFailure("");if(!file)return;setBusy("native");try{setNativePreview(await request("/api/settings/restore/preview",file) as FilePreview);}catch(e){setFailure(e instanceof Error?e.message:"نسخة غير صالحة");}finally{setBusy("");}};
+  const chooseLegacy=async(file:File|null)=>{setLegacyFile(file);setLegacyPreview(null);setFailure("");if(!file)return;setBusy("legacy");try{setLegacyPreview(await uploadLegacy(file,"preview") as FilePreview);}catch(e){setFailure(e instanceof Error?e.message:"قاعدة غير صالحة");}finally{setBusy("");}};
   const restore=async()=>{if(!nativeFile||!nativePreview||!confirm("ستُستبدل بيانات Conta الحالية. هل تريد المتابعة؟"))return;setBusy("restore");setFailure("");try{await download();await request("/api/settings/restore",nativeFile);setMessage("تمت الاستعادة وإنشاء نسخة أمان للحالة السابقة");await reload();}catch(e){setFailure(e instanceof Error?e.message:"تعذرت الاستعادة");}finally{setBusy("");}};
-  const importLegacy=async()=>{if(!legacyFile||!legacyPreview)return;setBusy("import");setFailure("");try{await request("/api/settings/legacy/import?stockPolicy=current",legacyFile);setMessage("اكتمل الاستيراد الآمن. تم الاحتفاظ بالمخزون الحالي عند التعارض");await reload();}catch(e){setFailure(e instanceof Error?e.message:"تعذر الاستيراد");}finally{setBusy("");}};
+  const importLegacy=async()=>{if(!legacyFile||!legacyPreview)return;setBusy("import");setFailure("");try{await uploadLegacy(legacyFile,"import");setMessage("اكتمل الاستيراد الآمن. تم الاحتفاظ بالمخزون الحالي عند التعارض");await reload();}catch(e){setFailure(e instanceof Error?e.message:"تعذر الاستيراد");}finally{setBusy("");}};
   const summary=[['المنتجات',data.products.length],['الأطراف',data.parties.length],['المخازن',data.warehouses.length],['الفواتير',data.documents.length],['الحركات المالية',data.financialMovements.length]] as const;
   return <section className="settings-page"><div className="settings-grid">
     <article className="panel settings-card"><h2>إنشاء نسخة احتياطية</h2><p>نسخة Conta كاملة ومُرقّمة الإصدار.</p><div className="compact-counts">{summary.map(([label,value])=><span key={label}>{label}: <b>{number(value)}</b></span>)}</div><button className="primary" disabled={!!busy} onClick={()=>{setBusy("backup");download().catch(e=>setFailure(e.message)).finally(()=>setBusy(""));}}>{busy==="backup"?"جاري الإنشاء…":"إنشاء وتنزيل نسخة"}</button></article>
@@ -389,7 +393,7 @@ function ProductSearchPicker({ data, query, setQuery, onPick, mode = "sale", war
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const term = query.trim().toLocaleLowerCase("ar");
-  const results = useMemo(() => term ? data.products.map((product, index) => {
+  const results = useMemo(() => term ? data.products.filter(product => !product.isArchived).map((product, index) => {
     const name = product.name.toLocaleLowerCase("ar"), sku = (product.sku ?? "").toLocaleLowerCase("ar"), barcode = (product.barcode ?? "").toLocaleLowerCase("ar");
     const score = barcode === term || sku === term ? 0 : barcode.startsWith(term) || sku.startsWith(term) ? 1 : name.startsWith(term) ? 2 : name.includes(term) ? 3 : 4;
     return { product, index, score, matches: `${name} ${sku} ${barcode}`.includes(term) };
@@ -414,7 +418,7 @@ function BarcodeScanner({ products, onScan }: { products: Product[]; onScan: (pr
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => { if (enabled) input.current?.focus(); }, [enabled]);
   function submit() {
-    const barcode = buffer.trim(), product = products.find(item => item.barcode === barcode);
+    const barcode = buffer.trim(), product = products.find(item => !item.isArchived && item.barcode === barcode);
     if (product) { onScan(product); setNotice(""); } else if (barcode) setNotice("لا يوجد منتج بهذا الباركود");
     setBuffer(""); requestAnimationFrame(() => input.current?.focus());
   }
@@ -948,9 +952,10 @@ function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Product | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [sort, setSort] = useState<{ key: "price" | "cost" | "stock"; direction: "asc" | "desc" } | null>(null);
   const normalized = query.trim().toLocaleLowerCase("ar");
-  const filteredProducts = useMemo(() => data.products.filter(product => !normalized || `${product.name} ${product.sku} ${product.barcode}`.toLocaleLowerCase("ar").includes(normalized)), [data.products, normalized]);
+  const filteredProducts = useMemo(() => data.products.filter(product => showArchived || !product.isArchived).filter(product => !normalized || `${product.name} ${product.sku} ${product.barcode}`.toLocaleLowerCase("ar").includes(normalized)), [data.products, normalized, showArchived]);
   const stockOf = (product: Product) => Object.values(product.stocks).reduce((sum, value) => sum + Number(value), 0);
   const products = useMemo(() => !sort ? filteredProducts : [...filteredProducts].sort((a, b) => {
     const av = sort.key === "price" ? a.piecePrice : sort.key === "cost" ? a.lastPurchaseCost : stockOf(a), bv = sort.key === "price" ? b.piecePrice : sort.key === "cost" ? b.lastPurchaseCost : stockOf(b);
@@ -960,9 +965,11 @@ function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
   const toggleSort = (key: "price" | "cost" | "stock") => setSort(current => ({ key, direction: current?.key === key && current.direction === "asc" ? "desc" : "asc" }));
   const sortHeader = (id: "price" | "cost" | "stock", label: string) => <button className={sort?.key === id ? "sort-header active" : "sort-header"} onClick={() => toggleSort(id)}>{label}{sort?.key === id && <span>{sort.direction === "asc" ? "↑" : "↓"}</span>}</button>;
   const openForm = (product: Product | null) => { setEditing(product); setFormOpen(true); };
+  const remove = async (product: Product) => { const stock=stockOf(product);if(stock>0){window.alert("لا يمكن حذف المنتج ولديه مخزون. صفّر المخزون أولًا من تصحيح المخزون.");return;}const historical=data.documents.some(document=>document.lines.some(line=>line.productId===product.id))||data.movements.some(movement=>movement.productId===product.id);const message=historical?"هذا المنتج مستخدم في سجلات سابقة، لذلك سيتم إخفاؤه من الاستخدام الجديد مع الاحتفاظ بتاريخه.":"سيتم حذف المنتج نهائيًا لأنه لا يملك أي سجل تاريخي.";if(window.confirm(message))await run({type:"product.delete",id:product.id},historical?"تمت أرشفة المنتج":"تم حذف المنتج"); };
   return <section className="workspace-page products-page">
     <div className="toolbar workspace-toolbar">
       <label className="search"><Search /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="بحث سريع بالاسم أو الرمز أو الباركود" /></label>
+      <button className="soft" aria-pressed={showArchived} onClick={() => setShowArchived(value => !value)}>{showArchived ? "إخفاء المؤرشفة" : "عرض المؤرشفة"}</button>
       <button className="primary" onClick={() => openForm(null)}><Plus /> إضافة منتج</button>
     </div>
     <div className="panel scroll-panel product-management erp-table-wrap">
@@ -971,7 +978,7 @@ function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
       </tr></thead><tbody>
         {products.map(product => {
           const stock = Object.values(product.stocks).reduce((sum, value) => sum + Number(value), 0);
-          return <tr key={product.id}><td dir="ltr">{product.sku || "—"}</td><td className="name-cell">{product.name}</td><td className="num-cell">{product.piecePrice == null ? "—" : number(product.piecePrice)}</td><td className="num-cell">{product.lastPurchaseCost == null ? "—" : number(product.lastPurchaseCost)}</td><td className="num-cell">{number(stock)}</td><td className="action-cell"><button className="soft" onClick={() => openForm(product)}>تعديل</button></td></tr>;
+          return <tr key={product.id}><td dir="ltr">{product.sku || "—"}</td><td className="name-cell">{product.name}{product.isArchived&&<small>مؤرشف</small>}</td><td className="num-cell">{product.piecePrice == null ? "—" : number(product.piecePrice)}</td><td className="num-cell">{product.lastPurchaseCost == null ? "—" : number(product.lastPurchaseCost)}</td><td className="num-cell">{number(stock)}</td><td className="action-cell"><button className="soft" onClick={() => openForm(product)}>تعديل</button><button className="soft" onClick={() => window.alert(`${product.name}\nالرمز: ${product.sku || "—"}\nالباركود: ${product.barcode || "—"}\nالمخزون: ${number(stock)}`)}>عرض التفاصيل</button>{!product.isArchived&&<button className="danger compact-delete" onClick={() => void remove(product)}>حذف</button>}</td></tr>;
         })}
         {!products.length && <Empty text="لا توجد منتجات مطابقة للبحث" />}
       </tbody></table>

@@ -85,7 +85,7 @@ async function refs(db: Db, session: ClientSession, body: Input, requireParty = 
   return { warehouse, party, warehouseId, partyId };
 }
 async function products(db: Db, session: ClientSession, input: Line[]) {
-  const found = await db.collection("products").find({ id: { $in: input.map(x => x.productId) } }, { session }).toArray();
+  const found = await db.collection("products").find({ id: { $in: input.map(x => x.productId) }, isArchived: { $ne: true } }, { session }).toArray();
   if (found.length !== input.length) throw new CommandError("أحد المنتجات غير موجود", 404);
   return new Map(found.map(p => [p.id as string, p]));
 }
@@ -104,6 +104,19 @@ async function changeStock(db: Db, session: ClientSession, product: Record<strin
 
 export async function execute(db: Db, session: ClientSession, body: Input) {
   const type = text(body.type);
+  if (type === "product.delete") {
+    const productId = text(body.id), product = await db.collection("products").findOne({ id: productId }, { session });
+    if (!product) throw new CommandError("المنتج غير موجود", 404);
+    const totalStock = Object.values((product.stocks ?? {}) as Record<string, unknown>).reduce<number>((sum, value) => sum + Number(value || 0), 0);
+    if (totalStock > 0) throw new CommandError("لا يمكن حذف المنتج ولديه مخزون. صفّر المخزون أولًا من تصحيح المخزون.", 409);
+    const [document, movement] = await Promise.all([
+      db.collection("documents").findOne({ "lines.productId": productId }, { session, projection: { _id: 1 } }),
+      db.collection("stockMovements").findOne({ productId }, { session, projection: { _id: 1 } }),
+    ]);
+    if (document || movement) await db.collection("products").updateOne({ id: productId }, { $set: { isArchived: true, archivedAt: new Date() } }, { session });
+    else await db.collection("products").deleteOne({ id: productId }, { session });
+    return productId;
+  }
   if (type === "party.create") {
     const name = text(body.name), phone = text(body.phone); if (!name) throw new CommandError("اسم الطرف مطلوب");
     if (phone) { const existing = await db.collection("parties").findOne({ phone }, { session }); if (existing) return String(existing.id); }

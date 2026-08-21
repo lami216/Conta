@@ -33,6 +33,8 @@ export interface Product {
   lastPurchaseAt?: string | null;
   piecePrice: number | null;
   stocks: Record<string, number>;
+  isArchived?: boolean;
+  archivedAt?: string | null;
 }
 export interface DocumentLine {
   id: string;

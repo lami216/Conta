@@ -1330,6 +1330,8 @@ input, select, .combobox-trigger { border-color: var(--border); }
 .product-table small { color: var(--muted); }
 .table-actions { display: flex; gap: 5px; }
 .table-actions button { min-height: 34px; padding: 5px 8px; font-size: 10px; }
+.action-cell { display: flex; align-items: center; gap: 5px; }
+.compact-delete { min-height: 34px; padding: 5px 8px; font-size: 10px; }
 .product-modal { width: min(760px, calc(100vw - 30px)); }
 
 @media (max-width: 1050px) {
@@ -1558,6 +1560,8 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .sidebar nav > :nth-child(4) { --nav-color: var(--color-products); --nav-soft: #fff0e4; }
 .sidebar nav > :nth-child(5) { --nav-color: var(--color-parties); --nav-soft: #e5f5f6; }
 .sidebar nav > :nth-child(6) { --nav-color: var(--color-reports); --nav-soft: #e9edf5; }
+.sidebar nav > :nth-child(7) { --nav-color: var(--color-reports); --nav-soft: #e9edf5; }
+.sidebar nav > :nth-child(8) { --nav-color: var(--color-owner); --nav-soft: #fff6df; }
 .nav-menu .nav-popover { --section-color: var(--nav-color); --section-soft: var(--nav-soft); border-color: var(--nav-color); background: color-mix(in srgb, var(--nav-soft) 35%, white); }
 .nav-popover button + button { border-top: 1px solid color-mix(in srgb, var(--section-color) 22%, white); }
 
@@ -1727,9 +1731,10 @@ input, select, .combobox-trigger { border-color: #9faab8; }
   .purchase-details > label { display: grid; gap: 4px; font-size: 10px; font-weight: 800; }
 
   .sidebar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; padding: 10px 16px; }
-  .sidebar nav { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; width: 100%; }
+  .sidebar nav { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; width: 100%; min-width: 0; }
   .sidebar nav > *, .nav-menu, .nav-menu > .nav { width: 100%; min-width: 0; }
-  .nav { justify-content: center; min-width: 0; min-height: 48px; padding: 5px; border: 2px solid var(--nav-color, #687585); border-radius: 9px; font-size: 11px; }
+  .nav { justify-content: center; min-width: 0; min-height: 48px; padding: 5px 3px; gap: 5px; border: 2px solid var(--nav-color, #687585); border-radius: 9px; font-size: 10px; white-space: nowrap; }
+  .nav svg { flex: 0 0 auto; }
   .brand > b { width: 40px; height: 40px; }
   .brand strong { font-size: 19px; }
   .side-foot { min-width: 0; }

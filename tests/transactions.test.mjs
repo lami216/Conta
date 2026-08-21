@@ -102,6 +102,22 @@ test("product codes are atomic, sequential, unique, and independent from barcode
   await assert.rejects(db.collection("products").insertOne({ id: "duplicate", name: "Duplicate", sku: "11", stocks: {} }), /duplicate key/i);
 });
 
+test("safe product deletion hard-deletes unused rows, archives history, rejects stock, and never reuses SKU", async t => {
+  if (unavailable) return t.skip(unavailable);
+  await db.collection("counters").insertOne({ _id: "productSequence", value: 20 });
+  await command({ type: "product.delete", id: "p1" });
+  assert.equal(await db.collection("products").findOne({ id: "p1" }), null);
+  const next = await command({ type: "product.create", name: "Next" });
+  assert.equal((await db.collection("products").findOne({ id: next })).sku, "21");
+  await db.collection("products").insertMany([{ id:"history",name:"Historic",sku:"22",barcode:"",stocks:{} },{ id:"stock",name:"Stocked",sku:"23",barcode:"",stocks:{"wh-main":2} }]);
+  await db.collection("documents").insertOne({ id:"old",number:"OLD",kind:"sale",lines:[{productId:"history"}] });
+  await command({ type:"product.delete", id:"history" });
+  assert.equal((await db.collection("products").findOne({id:"history"})).isArchived,true);
+  await assert.rejects(command({ type:"product.delete",id:"stock" }),/صفّر المخزون/);
+  await assert.rejects(command({type:"purchase.post",warehouseId:"wh-main",partyId:"party",paymentMethod:"note",lines:[{productId:"history",quantity:1,unitPrice:1}]}),/غير موجود/);
+  assert.ok(await db.collection("documents").findOne({"lines.productId":"history"}),"historical documents remain queryable");
+});
+
 
 test("product opening stock is validated, auditable, and barcode is unique", async t => {
   if (unavailable) return t.skip(unavailable);
