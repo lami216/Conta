@@ -28,7 +28,16 @@ try {
   const complete=await fetch(`${origin}/api/settings/legacy/upload/complete`,{method:"POST",headers:{...headers,"content-type":"application/json"},body:JSON.stringify({uploadId:upload.uploadId,action:"preview"})});
   if(complete.status!==200)assert.fail(`complete returned ${complete.status}: ${await complete.text()}`);const preview=await complete.json();
   assert.equal(preview.groups.find(x=>x.key==="products").count,2);assert.equal(preview.groups.find(x=>x.key==="warehouses").count,1);
-  const begin=await fetch(`${origin}/api/settings/legacy/upload/complete`,{method:"POST",headers:{...headers,"content-type":"application/json"},body:JSON.stringify({uploadId:upload.uploadId,action:"import"})});assert.equal(begin.status,202);let run=await begin.json();for(let i=0;i<20&&run.state!=="completed";i++){const status=await fetch(`${origin}/api/settings/legacy/import-runs/${run.importRunId}`,{headers});assert.equal(status.status,200);run=await status.json();}assert.equal(run.state,"completed");
+  const begin=await fetch(`${origin}/api/settings/legacy/upload/complete`,{method:"POST",headers:{...headers,"content-type":"application/json"},body:JSON.stringify({uploadId:upload.uploadId,action:"import"})});assert.equal(begin.status,202);let run=await begin.json();
+  const statusUrl=`${origin}/api/settings/legacy/import-runs/${run.importRunId}`,advanceUrl=`${statusUrl}/advance`,getHeaders={cookie,"x-forwarded-proto":"http"};
+  const initialStatus=await fetch(statusUrl,{headers:getHeaders});assert.equal(initialStatus.status,200);const initial=await initialStatus.json();assert.equal(initial.phase,run.phase);assert.deepEqual(initial.progress,run.progress);
+  const missingOrigin=await fetch(advanceUrl,{method:"POST",headers:{...getHeaders,"content-type":"application/json"},body:"{}"});assert.equal(missingOrigin.status,403);assert.equal((await missingOrigin.json()).error,"طلب غير صالح");
+  const foreignOrigin=await fetch(advanceUrl,{method:"POST",headers:{...getHeaders,origin:"https://foreign.example","content-type":"application/json"},body:"{}"});assert.equal(foreignOrigin.status,403);
+  const unchanged=await (await fetch(statusUrl,{headers:getHeaders})).json();assert.equal(unchanged.phase,initial.phase);assert.deepEqual(unchanged.progress,initial.progress);
+  for(let i=0;i<20&&run.state!=="completed";i++){
+    const advance=await fetch(advanceUrl,{method:"POST",headers:{...headers,"content-type":"application/json"},body:"{}"});assert.equal(advance.status,200);run=await advance.json();
+    const status=await fetch(statusUrl,{headers:getHeaders});assert.equal(status.status,200);const observed=await status.json();assert.equal(observed.state,run.state);assert.deepEqual(observed.progress,run.progress);
+  }assert.equal(run.state,"completed");assert.equal(run.counts.products.processed,2);
   console.log(JSON.stringify({wasmPath:`${process.cwd()}/.next/standalone/node_modules/sql.js/dist/sql-wasm.wasm`,wasmExists:true,fixtureOpened:true,httpChunkPreview:true,httpActualImport:true,importState:run.state,counts:{products:2,warehouses:1}}));
 } catch(error) { throw new Error(`${error.message}\nProduction server logs:\n${logs}`); }
 finally {server.kill("SIGTERM");await mongo.stop();}

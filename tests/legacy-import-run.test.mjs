@@ -20,3 +20,12 @@ function realisticFixture(){
 }
 
 test("realistic batched import completes, links records, and is idempotent",{timeout:120000},async()=>{const server=await MongoMemoryServer.create(),client=new MongoClient(server.getUri());await client.connect();const db=client.db("legacy-run");try{await ensureDatabaseSchema(db);const bytes=await realisticFixture(),roundTrips=[];for(const phase of LEGACY_IMPORT_PHASES)roundTrips.push((await executeLegacyImportPhase(db,bytes,phase)).mongoRoundTrips);assert.equal(await db.collection("products").countDocuments({legacyKey:/^dataacc:itemsTB:/}),300);assert.equal(await db.collection("documents").countDocuments({kind:"sale",legacyKey:{$exists:true}}),500);assert.equal(await db.collection("documents").countDocuments({kind:"purchase",legacyKey:{$exists:true}}),120);assert.equal(await db.collection("stockMovements").countDocuments({legacyKey:{$exists:true}}),300);assert.equal((await db.collection("documents").findOne({kind:"sale"})).lines.length,2);assert.ok((await db.collection("documents").find({partyId:null,kind:{$in:["sale","purchase"]}}).count())===0);const before=await db.collection("documents").countDocuments();for(const phase of LEGACY_IMPORT_PHASES)await executeLegacyImportPhase(db,bytes,phase);assert.equal(await db.collection("documents").countDocuments(),before);assert.equal(await db.collection("documents").countDocuments({legacyKey:{$exists:true}}),628);assert.ok(roundTrips.reduce((a,b)=>a+b,0)<50);}finally{await client.close();await server.stop()}});
+
+test("reading an import run returns public status without mutating it", async () => {
+ const { getLegacyImportRun } = await import("../legacy/import-run.ts");
+ const stored={id:"run-1",state:"products",phase:"products",progress:{processed:127,total:326,label:"المنتجات"},counts:{},reviewCount:0};
+ let writes=0;
+ const db={collection(name){assert.equal(name,"legacyImportRuns");return {findOne:async query=>{assert.deepEqual(query,{id:"run-1"});return stored},updateOne:async()=>{writes++}}}};
+ const status=await getLegacyImportRun(db,"run-1");
+ assert.equal(status.importRunId,"run-1");assert.equal(status.phase,"products");assert.deepEqual(status.progress,stored.progress);assert.equal(writes,0);
+});
