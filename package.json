@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "node scripts/start.mjs",
     "test": "tsx --test tests/*.test.mjs",
+    "test:production-legacy": "node tests/production-legacy-smoke.mjs",
     "lint": "eslint . --ignore-pattern .next --ignore-pattern .next-candidate",
     "hash-password": "node scripts/hash-password.mjs"
   },
