@@ -6,13 +6,13 @@ import { detectLegacyDatabase, MAX_LEGACY_BYTES } from "./dataacc-sqlite.ts";
 
 export const LEGACY_CHUNK_BYTES = 512 * 1024;
 export const MAX_LEGACY_CHUNKS = Math.ceil(MAX_LEGACY_BYTES / LEGACY_CHUNK_BYTES);
-const MAX_AGE = 60 * 60 * 1000;
+export const LEGACY_UPLOAD_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const root = join(tmpdir(), "conta-legacy-uploads");
 type Meta = { id: string; size: number; chunks: number; nextIndex: number; createdAt: number };
 const validId = (id: string) => /^[0-9a-f-]{36}$/.test(id);
 const paths = (id: string) => { if (!validId(id)) throw new Error("معرف الرفع غير صالح"); return { meta: join(root, `${id}.json`), data: join(root, `${id}.sqlite`) }; };
 async function readMeta(id: string) { return JSON.parse(await readFile(paths(id).meta, "utf8")) as Meta; }
-async function cleanupAbandoned() { await mkdir(root, { recursive: true }); const { readdir } = await import("node:fs/promises"); for (const name of await readdir(root)) { const path = join(root, name); try { if (Date.now() - (await stat(path)).mtimeMs > MAX_AGE) await rm(path, { force: true }); } catch {} } }
+async function cleanupAbandoned() { await mkdir(root, { recursive: true }); const { readdir } = await import("node:fs/promises"); for (const name of await readdir(root)) { const path = join(root, name); try { if (Date.now() - (await stat(path)).mtimeMs > LEGACY_UPLOAD_MAX_AGE_MS) await rm(path, { force: true }); } catch {} } }
 export async function startLegacyUpload(size: number) {
   await cleanupAbandoned();
   if (!Number.isInteger(size) || size <= 0 || size > MAX_LEGACY_BYTES) throw new Error("حجم ملف SQLite غير صالح أو أكبر من الحد المسموح");

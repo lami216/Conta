@@ -1,0 +1,20 @@
+import { randomUUID } from "node:crypto";
+import type { Db } from "mongodb";
+import { executeLegacyImportPhase, inspectLegacyDatabase, LEGACY_IMPORT_PHASES, type LegacyImportPhase } from "./dataacc-sqlite.ts";
+import { finishLegacyUpload, removeLegacyUpload } from "./upload-store.ts";
+
+const labels:Record<LegacyImportPhase,string>={warehouses:"المخازن",parties:"العملاء والموردين",accounts:"الحسابات",products:"المنتجات",stocks:"أرصدة المخزون",sales:"فواتير البيع",purchases:"فواتير الشراء",expenses:"المصاريف",finalize:"إنهاء الاستيراد"};
+const countKeys:Record<LegacyImportPhase,string>={warehouses:"warehouses",parties:"parties",accounts:"accounts",products:"products",stocks:"stocks",sales:"sales",purchases:"purchases",expenses:"expenses",finalize:"finalize"};
+const publicFailure="تعذر إكمال الاستيراد. يمكنك إعادة المحاولة باستخدام رقم عملية الاستيراد.";
+export async function createLegacyImportRun(db:Db,uploadId:string,stockPolicy:"current"|"imported"="current"){
+ const startedAt=new Date(),id=randomUUID(),bytes=await finishLegacyUpload(uploadId),preview=await inspectLegacyDatabase(bytes),totals=Object.fromEntries(preview.groups.filter(x=>x.status==="ready").map(x=>[x.key,x.count]));
+ const run={id,source:"dataacc-sqlite",uploadId,stockPolicy,state:"created",phase:"parse",phaseIndex:0,progress:{processed:0,total:0,label:"فحص الملف"},counts:{},totals,reviewCount:preview.groups.filter(x=>x.status==="review").reduce((n,x)=>n+x.count,0),startedAt,updatedAt:startedAt,expiresAt:new Date(Date.now()+24*60*60*1000)};
+ await db.collection("legacyImportRuns").insertOne(run);console.info(JSON.stringify({event:"legacy_import_started",importRunId:id,phase:"parse",startedAt}));return publicRun(run);
+}
+const publicRun=(run:Record<string,unknown>)=>({importRunId:run.id,state:run.state,phase:run.phase,progress:run.progress,counts:run.counts,reviewCount:run.reviewCount,startedAt:run.startedAt,updatedAt:run.updatedAt,publicError:run.publicError});
+export async function advanceLegacyImportRun(db:Db,id:string){
+ const collection=db.collection("legacyImportRuns"),run=await collection.findOne({id});if(!run)throw Object.assign(new Error("عملية الاستيراد غير موجودة أو انتهت صلاحيتها"),{status:404});if(run.state==="completed"||run.state==="failed")return publicRun(run);
+ const phase=LEGACY_IMPORT_PHASES[Number(run.phaseIndex)] as LegacyImportPhase|undefined;if(!phase)return publicRun(run);const phaseStarted=Date.now(),total=Number(run.totals?.[countKeys[phase]]??0);
+ await collection.updateOne({id},{$set:{state:phase,phase,progress:{processed:0,total,label:labels[phase]},updatedAt:new Date()}});
+ try {const bytes=await finishLegacyUpload(String(run.uploadId)),result=await executeLegacyImportPhase(db,bytes,phase,run.stockPolicy==="imported"?"imported":"current"),nextIndex=Number(run.phaseIndex)+1,completed=nextIndex>=LEGACY_IMPORT_PHASES.length,updatedAt=new Date();await collection.updateOne({id},{$set:{state:completed?"completed":LEGACY_IMPORT_PHASES[nextIndex],phase:completed?"finalize":LEGACY_IMPORT_PHASES[nextIndex],phaseIndex:nextIndex,progress:{processed:result.processed,total:total||result.processed,label:labels[phase]},[`counts.${phase}`]:result,updatedAt,completedAt:completed?updatedAt:null}});console.info(JSON.stringify({event:"legacy_import_phase_completed",importRunId:id,phase,processed:result.processed,elapsedMs:Date.now()-phaseStarted,mongoRoundTrips:result.mongoRoundTrips}));if(completed)await removeLegacyUpload(String(run.uploadId));return publicRun((await collection.findOne({id}))!)}catch(error){const e=error as Error&{code?:unknown;errorLabels?:unknown};console.error(JSON.stringify({event:"legacy_import_failed",importRunId:id,phase,processed:0,elapsedMs:Date.now()-phaseStarted,error:{name:e.name,message:e.message,code:e.code,errorLabels:e.errorLabels,stack:e.stack}}));await collection.updateOne({id},{$set:{state:"failed",phase,publicError:publicFailure,error:{name:e.name,code:e.code,message:e.message},updatedAt:new Date()}});return publicRun((await collection.findOne({id}))!)}
+}
