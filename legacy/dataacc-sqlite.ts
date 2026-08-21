@@ -1,6 +1,6 @@
 import initSqlJs, { type Database } from "sql.js";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import { isAbsolute, join } from "node:path";
 import type { ClientSession, Db } from "mongodb";
 import { rebuildCounters } from "../lib/backup.ts";
 
@@ -10,14 +10,23 @@ export const LEGACY_SUPPORTED_TABLES = ["itemsTB","storesTB","stores_itemsTB","c
 const financialReview = ["tblBankDeposit","tblBankConvert","tblBankConvertToSafe","customerAccountTB","customerSolfaTB","suppliersAccountTB","suppliersSolfaTB"];
 const unsupported = ["userTB","authTB","EmpTBs","Emp_salaryTB","Emp_mrtbatTB","presenceTB","MaintainceTB","tblPrinter","tblPrinterAccounts","Units","items_UnitsTB","NotesTB","ShowBillTB","items_ShowBillTB"];
 export function detectLegacyDatabase(bytes: Uint8Array) { return bytes.length >= 16 && Buffer.from(bytes.subarray(0, 16)).equals(SQLITE_MAGIC); }
-async function open(bytes: Uint8Array) { if (bytes.byteLength > MAX_LEGACY_BYTES) throw new Error("ملف SQLite أكبر من الحد المسموح"); if (!detectLegacyDatabase(bytes)) throw new Error("الملف ليس قاعدة SQLite 3"); const base = dirname(fileURLToPath(import.meta.resolve("sql.js"))); const SQL = await initSqlJs({ locateFile: name => join(base, name) }); return new SQL.Database(bytes); }
+
+/** Resolve the actual runtime asset through Node's package resolver (including standalone deployments). */
+export function resolveSqlJsWasmPath() {
+  const runtimeRequire = createRequire(join(process.cwd(), "package.json"));
+  const wasmPath = runtimeRequire.resolve("sql.js/dist/sql-wasm.wasm");
+  if (!isAbsolute(wasmPath)) throw new Error("sql.js WASM path must be absolute");
+  return wasmPath;
+}
+
+async function open(bytes: Uint8Array) { if (bytes.byteLength > MAX_LEGACY_BYTES) throw new Error("ملف SQLite أكبر من الحد المسموح"); if (!detectLegacyDatabase(bytes)) throw new Error("الملف ليس قاعدة SQLite 3"); const SQL = await initSqlJs({ locateFile: () => resolveSqlJsWasmPath() }); return new SQL.Database(bytes); }
 type Row = Record<string, unknown>;
 const tables = (db: Database) => db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")[0]?.values.flat().map(String) ?? [];
 const quote = (name: string) => `"${name.replaceAll('"','""')}"`;
 function rows(db: Database, table: string): Row[] { const result = db.exec(`SELECT * FROM ${quote(table)}`)[0]; return result ? result.values.map(values => Object.fromEntries(result.columns.map((c,i)=>[c, values[i]]))) : []; }
 const get = (r: Row, ...names: string[]) => { const map = new Map(Object.entries(r).map(([k,v])=>[k.toLowerCase(),v])); for (const n of names) if (map.has(n.toLowerCase())) return map.get(n.toLowerCase()); return null; };
 const text = (v: unknown) => v == null ? "" : String(v).trim(); const num = (v: unknown) => { const n=Number(v); return Number.isFinite(n)?n:0; };
-const date = (v: unknown) => { const raw=text(v); const d=new Date(raw); return Number.isNaN(d.valueOf()) ? new Date(0).toISOString() : d.toISOString(); };
+const date = (v: unknown) => { const raw=text(v), deterministic=/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw)?`${raw.replace(" ","T")}Z`:raw; const d=new Date(deterministic); return Number.isNaN(d.valueOf()) ? new Date(0).toISOString() : d.toISOString(); };
 const normalize = (v: unknown) => text(v).toLocaleLowerCase("ar").replace(/\s+/g," ");
 const key = (table:string,id:unknown) => `dataacc:${table}:${text(id)}`;
 const id = (prefix:string, legacyKey:string) => `${prefix}-legacy-${Buffer.from(legacyKey).toString("base64url")}`;
