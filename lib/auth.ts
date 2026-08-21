@@ -53,4 +53,13 @@ export function validSameOrigin(request: Request) {
   try { return new URL(origin).origin === `${proto}://${host}`; } catch { return false; }
 }
 
+export type OwnerCapability = "settings.backup.manage" | "settings.legacy.import";
+
+/** Central authorization seam for future RBAC. The only current principal is the owner. */
+export function requireCapability(request: Request, capability: OwnerCapability) {
+  void capability; // Deliberate RBAC seam; every current capability belongs to the sole owner.
+  if (!sessionFromRequest(request)) return Response.json({ error: "غير مصرح" }, { status: 401 });
+  return null;
+}
+
 export const sessionCookieOptions = `Path=/; HttpOnly; SameSite=Strict; Max-Age=${MAX_AGE}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;

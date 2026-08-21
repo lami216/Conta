@@ -1,0 +1,5 @@
+import { requireCapability, validSameOrigin } from "../../../../../lib/auth.ts";
+import { executeLegacyImport, MAX_LEGACY_BYTES } from "../../../../../legacy/dataacc-sqlite.ts";
+import { ensureDatabaseSchema, getMongo, getMongoClient } from "../../../../../lib/mongodb.ts";
+export const runtime="nodejs";
+export async function POST(request:Request){const denied=requireCapability(request,"settings.legacy.import");if(denied)return denied;if(!validSameOrigin(request))return Response.json({error:"طلب غير صالح"},{status:403});try{const bytes=new Uint8Array(await request.arrayBuffer());if(bytes.byteLength>MAX_LEGACY_BYTES)throw new Error("الملف أكبر من الحد المسموح");const db=await getMongo(),client=getMongoClient();let result={};await client.withSession(s=>s.withTransaction(async()=>{result=await executeLegacyImport(db,s,bytes,(new URL(request.url).searchParams.get("stockPolicy")==="imported"?"imported":"current"));},{readConcern:{level:"snapshot"},writeConcern:{w:"majority"}}));await ensureDatabaseSchema(db);return Response.json({imported:true,result});}catch(e){return Response.json({error:e instanceof Error?e.message:"تعذر الاستيراد"},{status:400});}}

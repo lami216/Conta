@@ -15,6 +15,22 @@ export function initializeMongo(): Promise<Db> {
       await client.connect();
       database = client.db(process.env.MONGODB_DB || "conta");
       await database.command({ ping: 1 });
+      await ensureDatabaseSchema(database);
+      log("info", "mongodb.initialization.completed");
+      return database;
+    } catch (error) {
+      log("error", "mongodb.initialization.failed", { error });
+      await client.close().catch(() => undefined);
+      client = undefined;
+      database = undefined;
+      initialization = undefined;
+      throw error;
+    }
+  })();
+}
+
+/** Idempotent indexes/default invariants shared by startup, restore and import. */
+export async function ensureDatabaseSchema(database: Db) {
       await Promise.all([
         database.collection("parties").createIndex({ name: 1 }),
         database.collection("parties").createIndex({ id: 1 }, { unique: true }),
@@ -37,6 +53,12 @@ export function initializeMongo(): Promise<Db> {
         database.collection("financialMovements").createIndex({ type: 1, occurredAt: -1 }),
         database.collection("paymentAccounts").createIndex({ id: 1 }, { unique: true }),
         database.collection("paymentAccounts").createIndex({ code: 1 }, { unique: true }),
+        database.collection("warehouses").createIndex({ legacyKey: 1 }, { unique: true, sparse: true }),
+        database.collection("parties").createIndex({ legacyKey: 1 }, { unique: true, sparse: true }),
+        database.collection("products").createIndex({ legacyKey: 1 }, { unique: true, sparse: true }),
+        database.collection("documents").createIndex({ legacyKey: 1 }, { unique: true, sparse: true }),
+        database.collection("paymentAccounts").createIndex({ legacyKey: 1 }, { unique: true, sparse: true }),
+        database.collection("restoreSnapshots").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
         database.collection("documents").createIndex({ recurringId: 1, occurrenceKey: 1 }, { unique: true, partialFilterExpression: { recurringId: { $type: "string" }, occurrenceKey: { $type: "string" } }, name: "recurring_occurrence_unique" }),
       ]);
       const warehouses = database.collection<{ _id: string; name: string; isSalesDefault: boolean; createdAt: Date }>("warehouses");
@@ -58,17 +80,6 @@ export function initializeMongo(): Promise<Db> {
         { code, balanceInitialized: { $ne: true } },
         { $set: { balance: Number(legacyBalances.find(row => row._id === code || row._id === `account-${code}`)?.balance ?? 0), balanceInitialized: true } },
       )));
-      log("info", "mongodb.initialization.completed");
-      return database;
-    } catch (error) {
-      log("error", "mongodb.initialization.failed", { error });
-      await client.close().catch(() => undefined);
-      client = undefined;
-      database = undefined;
-      initialization = undefined;
-      throw error;
-    }
-  })();
 }
 
 export async function getMongo() { return database ?? initializeMongo(); }

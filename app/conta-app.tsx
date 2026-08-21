@@ -18,6 +18,7 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
+  Settings as SettingsIcon,
   ShoppingCart,
   Users,
   WalletCards,
@@ -50,7 +51,8 @@ type View =
   | "products"
   | "records"
   | "reports"
-  | "banks";
+  | "banks"
+  | "settings";
 type RunCommand = (
   body: Record<string, unknown>,
   message: string,
@@ -89,6 +91,7 @@ const nav: Array<{ id: View; label: string; icon: typeof ShoppingCart }> = [
   { id: "parties", label: "العملاء والموردون", icon: Users },
   { id: "banks", label: "البنوك", icon: Landmark },
   { id: "reports", label: "التقارير", icon: Receipt },
+  { id: "settings", label: "الإعدادات", icon: SettingsIcon },
 ];
 const invoiceNav: Array<{ id: View; label: string; icon: typeof Receipt }> = [
   { id: "purchases", label: "فواتير الشراء", icon: PackagePlus },
@@ -298,12 +301,30 @@ export default function ContaApp() {
                 <Reports key={reportType} data={data} openDoc={openDoc} type={reportType} />
               )}{" "}
               {view === "banks" && <Banks data={data} run={run} />}{" "}
+              {view === "settings" && <SettingsPage data={data} reload={reload} />}{" "}
             </>
           )}
         </div>
       </main>
     </div>
   );
+}
+
+type FilePreview = { format:string;schemaVersion?:number;createdAt?:string;counts?:Record<string,number>;groups?:Array<{key:string;label:string;count:number;status:string}>;warnings?:string[] };
+function SettingsPage({data,reload}:{data:BootstrapData;reload:()=>Promise<void>}) {
+  const [nativeFile,setNativeFile]=useState<File|null>(null),[nativePreview,setNativePreview]=useState<FilePreview|null>(null),[legacyFile,setLegacyFile]=useState<File|null>(null),[legacyPreview,setLegacyPreview]=useState<FilePreview|null>(null),[busy,setBusy]=useState(""),[message,setMessage]=useState(""),[failure,setFailure]=useState("");
+  const request=async(url:string,file:File)=>{const response=await fetch(url,{method:"POST",headers:{"content-type":file.type||"application/octet-stream"},body:file}),json=await response.json();if(!response.ok)throw new Error(json.error);return json;};
+  const download=async()=>{const response=await fetch("/api/settings/backup");if(!response.ok)throw new Error("تعذر إنشاء النسخة");const blob=await response.blob(),link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=response.headers.get("content-disposition")?.match(/filename="([^"]+)/)?.[1]??"conta-backup.conta.json";link.click();URL.revokeObjectURL(link.href);};
+  const chooseNative=async(file:File|null)=>{setNativeFile(file);setNativePreview(null);setFailure("");if(!file)return;setBusy("native");try{setNativePreview(await request("/api/settings/restore/preview",file));}catch(e){setFailure(e instanceof Error?e.message:"نسخة غير صالحة");}finally{setBusy("");}};
+  const chooseLegacy=async(file:File|null)=>{setLegacyFile(file);setLegacyPreview(null);setFailure("");if(!file)return;setBusy("legacy");try{setLegacyPreview(await request("/api/settings/legacy/preview",file));}catch(e){setFailure(e instanceof Error?e.message:"قاعدة غير صالحة");}finally{setBusy("");}};
+  const restore=async()=>{if(!nativeFile||!nativePreview||!confirm("ستُستبدل بيانات Conta الحالية. هل تريد المتابعة؟"))return;setBusy("restore");setFailure("");try{await download();await request("/api/settings/restore",nativeFile);setMessage("تمت الاستعادة وإنشاء نسخة أمان للحالة السابقة");await reload();}catch(e){setFailure(e instanceof Error?e.message:"تعذرت الاستعادة");}finally{setBusy("");}};
+  const importLegacy=async()=>{if(!legacyFile||!legacyPreview)return;setBusy("import");setFailure("");try{await request("/api/settings/legacy/import?stockPolicy=current",legacyFile);setMessage("اكتمل الاستيراد الآمن. تم الاحتفاظ بالمخزون الحالي عند التعارض");await reload();}catch(e){setFailure(e instanceof Error?e.message:"تعذر الاستيراد");}finally{setBusy("");}};
+  const summary=[['المنتجات',data.products.length],['الأطراف',data.parties.length],['المخازن',data.warehouses.length],['الفواتير',data.documents.length],['الحركات المالية',data.financialMovements.length]] as const;
+  return <section className="settings-page"><div className="settings-grid">
+    <article className="panel settings-card"><h2>إنشاء نسخة احتياطية</h2><p>نسخة Conta كاملة ومُرقّمة الإصدار.</p><div className="compact-counts">{summary.map(([label,value])=><span key={label}>{label}: <b>{number(value)}</b></span>)}</div><button className="primary" disabled={!!busy} onClick={()=>{setBusy("backup");download().catch(e=>setFailure(e.message)).finally(()=>setBusy(""));}}>{busy==="backup"?"جاري الإنشاء…":"إنشاء وتنزيل نسخة"}</button></article>
+    <article className="panel settings-card"><h2>استعادة نسخة Conta</h2><p>يتم فحص النسخة بالكامل قبل الاستعادة.</p><label className="file-button">اختيار ملف Conta<input type="file" accept=".json,.conta.json,application/json" onChange={e=>void chooseNative(e.target.files?.[0]??null)}/></label>{busy==="native"&&<small>جاري الفحص…</small>}{nativePreview&&<div className="preview-box"><b>Conta v{nativePreview.schemaVersion}</b><small>{nativePreview.createdAt&&formatDateTime(nativePreview.createdAt)}</small>{Object.entries(nativePreview.counts??{}).map(([k,v])=><span key={k}>{k}: {number(v)}</span>)}</div>}<button className="danger" disabled={!nativePreview||!!busy} onClick={()=>void restore()}>{busy==="restore"?"جاري الاستعادة…":"تأكيد الاستعادة"}</button></article>
+    <article className="panel settings-card"><h2>استيراد من نظام سابق</h2><p>ملف DataAcc SQLite؛ التاريخ لا يغيّر snapshot المخزون مرتين.</p><label className="file-button">اختيار ملف SQLite<input type="file" accept=".db,.sqlite,application/vnd.sqlite3" onChange={e=>void chooseLegacy(e.target.files?.[0]??null)}/></label>{busy==="legacy"&&<small>جاري فحص الجداول…</small>}{legacyPreview&&<div className="preview-box">{legacyPreview.groups?.map(g=><span key={g.key}>{g.label} <b>{number(g.count)}</b><em className={`status-${g.status}`}>{g.status==="ready"?"جاهز":g.status==="review"?"يحتاج مراجعة":"لن يتم استيراده"}</em></span>)}{legacyPreview.warnings?.map(w=><small key={w}>{w}</small>)}</div>}<button className="primary" disabled={!legacyPreview||!!busy} onClick={()=>void importLegacy()}>{busy==="import"?"جاري الاستيراد…":"استيراد البيانات"}</button></article>
+  </div>{message&&<div className="success">{message}</div>}{failure&&<div className="error">{failure}</div>}</section>;
 }
 
 function Num(props: {
