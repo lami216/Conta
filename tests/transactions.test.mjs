@@ -64,7 +64,10 @@ test("partial returns accumulate only up to sold quantity", async t => {
   if (unavailable) return t.skip(unavailable);
   await db.collection("products").updateOne({ id: "p1" }, { $set: { "stocks.wh-main": 5 } });
   const saleId = await command({ type: "sale.post", warehouseId: "wh-main", partyId: "party", paymentMethod: "cash", paidAmount: 500, lines: [{ productId: "p1", quantity: 5, piecePrice: 100 }] });
+  const postedSale = await db.collection("documents").findOne({ id: saleId });
+  assert.deepEqual([postedSale.lines[0].costAtSale, postedSale.lines[0].grossProfit], [null, null], "legacy/unproven current pieceCost is not treated as historical cost");
   await command({ type: "sale.return", saleId, lines: [{ productId: "p1", quantity: 2 }] });
+  assert.equal((await db.collection("documents").findOne({ kind: "return" })).lines[0].costAtSale, null);
   await command({ type: "sale.return", saleId, lines: [{ productId: "p1", quantity: 3 }] });
   await assert.rejects(command({ type: "sale.return", saleId, lines: [{ productId: "p1", quantity: 1 }] }), /تتجاوز/);
   assert.equal((await db.collection("products").findOne({ id: "p1" })).stocks["wh-main"], 5);

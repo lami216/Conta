@@ -39,6 +39,7 @@ import {
   type Product,
   type PaymentAccount,
 } from "./domain";
+import type { ReportResponse, ReportRow, ReportType } from "./report-types";
 
 type View =
   | "pos"
@@ -1261,33 +1262,40 @@ function Records({
     </section>
   );
 }
-function Reports({
-  data,
-  openDoc,
-}: {
-  data: BootstrapData;
-  openDoc: (id: string) => void;
-}) {
-  const sales = data.documents
-      .filter((d) => d.kind === "sale")
-      .reduce((s, d) => s + d.total, 0),
-    purchases = data.documents
-      .filter((d) => d.kind === "purchase")
-      .reduce((s, d) => s + d.total, 0),
-    expenses = data.documents
-      .filter((d) => d.kind === "expense")
-      .reduce((s, d) => s + d.total, 0);
-  return (
-    <section>
-      <div className="stats">
-        <Stat label="المبيعات" value={money(sales)} />
-        <Stat label="المشتريات" value={money(purchases)} />
-        <Stat label="المصاريف" value={money(expenses)} />
-        <Stat label="صافي التدفق" value={money(sales - purchases - expenses)} />
-      </div>
-      <Recent title="آخر المعاملات" docs={data.documents} openDoc={openDoc} />
-    </section>
-  );
+const reportNames: Record<ReportType,string> = { overview:"الملخص الشامل",sales:"حركة المبيعات",purchases:"حركة المشتريات","product-sales":"تحليل مبيعات الأصناف",stock:"حركة المخزون",profit:"تحليل الأرباح",debts:"الحسابات والديون","party-ledger":"كشف حساب طرف",financial:"الحركة المالية",expenses:"المصاريف",returns:"المرتجعات" };
+const reportColumns: Record<ReportType,Array<[string,string]>> = {
+ overview:[["date","التاريخ"],["sales","المبيعات"],["purchases","المشتريات"],["expenses","المصاريف"],["received","المقبوض"],["paid","المدفوع"],["net","صافي الحركة"]],
+ sales:[["number","رقم الفاتورة"],["occurredAt","التاريخ"],["party","العميل / بيع مباشر"],["warehouse","المخزن"],["paymentMethod","وسيلة الدفع"],["total","الإجمالي"],["paid","المدفوع"],["due","المستحق"]],
+ purchases:[["number","رقم الفاتورة"],["occurredAt","التاريخ"],["party","المورد"],["warehouse","مخزن الاستلام"],["paymentMethod","طريقة التسوية"],["total","الإجمالي"],["paid","المدفوع"],["due","المستحق"]],
+ "product-sales":[["sku","رمز المنتج"],["product","اسم المنتج"],["soldQuantity","الكمية المباعة"],["returnedQuantity","كمية المرتجعات"],["netQuantity","صافي الكمية"],["sales","إجمالي المبيعات"],["returns","قيمة المرتجعات"],["netSales","صافي المبيعات"],["averagePrice","متوسط السعر"]],
+ stock:[["occurredAt","التاريخ"],["sku","الرمز"],["product","المنتج"],["warehouse","المخزن"],["movementType","العملية"],["before","قبل"],["change","التغيير"],["after","بعد"],["documentNumber","المستند"]],
+ profit:[["number","الفاتورة"],["occurredAt","التاريخ"],["party","الطرف"],["product","المنتج"],["quantity","الكمية"],["revenue","صافي المبيعات"],["cost","التكلفة المثبتة"],["profit","الربح"],["margin","الهامش %"]],
+ debts:[["name","اسم الطرف"],["phone","الهاتف"],["receivable","لنا عليه"],["payable","له علينا"],["net","الصافي"],["lastMovement","آخر حركة"]],
+ "party-ledger":[["occurredAt","التاريخ"],["movementType","نوع العملية"],["documentNumber","رقم المستند"],["description","البيان"],["debit","مدين"],["credit","دائن"],["paymentMethod","وسيلة الدفع"]],
+ financial:[["occurredAt","التاريخ"],["paymentMethod","وسيلة الدفع"],["movementType","نوع العملية"],["incoming","داخل"],["outgoing","خارج"],["party","الطرف"],["documentNumber","المستند"]],
+ expenses:[["occurredAt","التاريخ"],["title","عنوان المصروف"],["recurring","النوع"],["paymentMethod","وسيلة الدفع"],["total","المبلغ"],["number","المستند"]],
+ returns:[["occurredAt","التاريخ"],["number","مرجع الإرجاع"],["originalDocument","الفاتورة الأصلية"],["party","العميل"],["products","عدد الأصناف"],["quantity","الكمية"],["total","قيمة الإرجاع"]]
+};
+function Reports({ data, openDoc }: { data: BootstrapData; openDoc: (id: string) => void }) {
+  const now=new Date(), [type,setType]=useState<ReportType>("sales"), [from,setFrom]=useState(`${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,"0")}-01`),[to,setTo]=useState(now.toISOString().slice(0,10)),[partyId,setPartyId]=useState(""),[productId,setProductId]=useState(""),[warehouseId,setWarehouseId]=useState(""),[accountId,setAccountId]=useState(""),[groupBy,setGroupBy]=useState("invoice"),[sortBy,setSortBy]=useState("quantity"),[movementType,setMovementType]=useState(""),[direction,setDirection]=useState(""),[debtSide,setDebtSide]=useState(""),[search,setSearch]=useState(""),[page,setPage]=useState(1),[result,setResult]=useState<ReportResponse|null>(null),[busy,setBusy]=useState(false),[reportError,setReportError]=useState("");
+  const runReport=async(nextPage=1)=>{setBusy(true);setReportError("");const q=new URLSearchParams({type,page:String(nextPage),pageSize:"100"});if(type!=="debts"){q.set("from",from);q.set("to",to)};for(const [k,v] of Object.entries({partyId,productId,warehouseId,paymentAccountId:accountId,groupBy,sortBy,movementType,direction,debtSide,search}))if(v)q.set(k,v);try{const r=await fetch(`/api/reports?${q}`),j=await r.json();if(!r.ok)throw new Error(j.error);setResult(j);setPage(nextPage)}catch(e){setReportError(e instanceof Error?e.message:"تعذر إنشاء التقرير")}finally{setBusy(false)}};
+  const columns=reportColumns[type], showDates=type!=="debts";
+  return <section className="reports-workspace" onKeyDown={e=>{if(e.key==="Enter")void runReport(1)}}>
+    <div className="report-toolbar no-print"><label>التقرير<select value={type} onChange={e=>{setType(e.target.value as ReportType);setResult(null)}}><optgroup label="الحركة التجارية"><option value="sales">حركة المبيعات</option><option value="purchases">حركة المشتريات</option><option value="product-sales">تحليل مبيعات الأصناف</option><option value="profit">تحليل الأرباح</option><option value="returns">المرتجعات</option></optgroup><optgroup label="المخزون"><option value="stock">حركة المخزون</option></optgroup><optgroup label="الحسابات"><option value="debts">الحسابات والديون</option><option value="party-ledger">كشف حساب طرف</option><option value="financial">الحركة المالية</option><option value="expenses">المصاريف</option></optgroup><optgroup label="عام"><option value="overview">الملخص الشامل</option></optgroup></select></label>
+    {showDates&&<><label>من<input type="date" dir="ltr" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>إلى<input type="date" dir="ltr" value={to} onChange={e=>setTo(e.target.value)}/></label></>}<button className="primary" onClick={()=>void runReport(1)}>عرض</button><button onClick={()=>window.print()}><Printer/> طباعة</button></div>
+    <div className="report-filters no-print">
+      {["sales","purchases","product-sales","returns","party-ledger"].includes(type)&&<select value={partyId} onChange={e=>setPartyId(e.target.value)}><option value="">{type==="party-ledger"?"اختر الطرف (مطلوب)":"كل الأطراف"}</option>{data.parties.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>}
+      {["product-sales","stock","returns"].includes(type)&&<select value={productId} onChange={e=>setProductId(e.target.value)}><option value="">كل المنتجات</option>{data.products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>}
+      {["sales","purchases","product-sales","stock"].includes(type)&&<select value={warehouseId} onChange={e=>setWarehouseId(e.target.value)}><option value="">كل المخازن</option>{data.warehouses.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select>}
+      {["sales","purchases","financial","expenses"].includes(type)&&<select value={accountId} onChange={e=>setAccountId(e.target.value)}><option value="">كل وسائل الدفع</option>{data.paymentAccounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>}
+      {type==="profit"&&<select value={groupBy} onChange={e=>setGroupBy(e.target.value)}><option value="invoice">حسب الفاتورة</option><option value="product">حسب المنتج</option><option value="party">حسب الطرف</option></select>}{type==="product-sales"&&<select value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="quantity">الأعلى كمية</option><option value="sales">الأعلى مبيعات</option><option value="name">الاسم</option></select>}
+      {type==="stock"&&<select value={movementType} onChange={e=>setMovementType(e.target.value)}><option value="">كل الحركات</option>{["sale","purchase","sale-return","transfer-in","transfer-out","adjustment","opening"].map(x=><option key={x}>{x}</option>)}</select>}{type==="financial"&&<select value={direction} onChange={e=>setDirection(e.target.value)}><option value="">داخل وخارج</option><option value="in">داخل</option><option value="out">خارج</option></select>}{type==="debts"&&<><select value={debtSide} onChange={e=>setDebtSide(e.target.value)}><option value="">الجميع</option><option value="receivable">لنا عليه</option><option value="payable">له علينا</option><option value="clear">حساب خالص</option></select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث بالاسم أو الهاتف"/></>}
+    </div>
+    <div className="print-report-title"><h2>{reportNames[type]}</h2>{showDates&&<span>{from} — {to}</span>}</div>
+    {reportError&&<div className="error report-error">{reportError}</div>}{result&&<div className="report-summary">{Object.entries(result.summary).map(([k,v])=><span key={k}><small>{({count:"العدد",total:"الإجمالي",paid:"المدفوع",due:"المستحق",sales:"المبيعات",purchases:"المشتريات",expenses:"المصاريف",returns:"المرتجعات",received:"المقبوض",cashFlow:"التدفق النقدي الفعلي",profit:"الربح المحسوب",unknownRevenue:"مبيعات بتكلفة غير متوفرة",receivable:"لنا عليه",payable:"له علينا",net:"الصافي",incoming:"الداخل",outgoing:"الخارج",operatingNet:"صافي النشاط",quantity:"الكمية",products:"المنتجات",cost:"التكلفة",revenue:"الإيراد"} as Record<string,string>)[k]??k}</small><b>{typeof v==="number"?number(v):String(v)}</b></span>)}</div>}
+    <div className="report-body">{busy&&<div className="report-loading">جاري إعداد التقرير…</div>}{result&&<div className="erp-table-wrap"><table className="erp-table report-table"><thead><tr><th className="serial">م</th>{columns.map(c=><th key={c[0]}>{c[1]}</th>)}</tr></thead><tbody>{result.rows.map((row:ReportRow,i)=><tr key={String(row.id??i)} onClick={()=>row.documentId&&openDoc(String(row.documentId))}><td className="num-cell">{number((page-1)*100+i+1)}</td>{columns.map(([key])=><td key={key} className={typeof row[key]==="number"?"num-cell":""}>{key==="occurredAt"&&row[key]?formatDateTime(String(row[key])):typeof row[key]==="number"?number(Number(row[key])):typeof row[key]==="boolean"?(row[key]?"متكرر":"مرة واحدة"):String(row[key]??"—")}</td>)}</tr>)}</tbody></table></div>}</div>
+    {result&&<div className="report-pagination no-print"><span>{number(Math.min((page-1)*100+1,result.meta.totalRows))}–{number(Math.min(page*100,result.meta.totalRows))} من {number(result.meta.totalRows)}</span><button disabled={page<=1||busy} onClick={()=>void runReport(page-1)}>السابق</button><button disabled={page>=result.meta.totalPages||busy} onClick={()=>void runReport(page+1)}>التالي</button></div>}
+  </section>;
 }
 function DocumentDetail({
   document,
@@ -1504,14 +1512,7 @@ function Heading({ title }: { title: string }) {
 function Empty({ text }: { text: string }) {
   return <div className="empty">{text}</div>;
 }
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="stat">
-      <small>{label}</small>
-      <strong>{value}</strong>
-    </div>
-  );
-}
+
 function InlineCreate({
   label,
   onSave,

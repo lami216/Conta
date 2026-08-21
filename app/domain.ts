@@ -41,6 +41,8 @@ export interface DocumentLine {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  costAtSale?: number | null;
+  grossProfit?: number | null;
 }
 export interface DocumentRecord {
   id: string;
