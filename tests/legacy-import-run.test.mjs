@@ -25,7 +25,7 @@ test("reading an import run returns public status without mutating it", async ()
  const { getLegacyImportRun } = await import("../legacy/import-run.ts");
  const stored={id:"run-1",state:"products",phase:"products",progress:{processed:127,total:326,label:"المنتجات"},counts:{},reviewCount:0};
  let writes=0;
- const db={collection(name){assert.equal(name,"legacyImportRuns");return {findOne:async query=>{assert.deepEqual(query,{id:"run-1"});return stored},updateOne:async()=>{writes++}}}};
+ const db={collection(name){return {findOne:async query=>{assert.deepEqual(query,{id:"run-1"});return name==="importRuns"?stored:null},updateOne:async()=>{writes++}}}};
  const status=await getLegacyImportRun(db,"run-1");
  assert.equal(status.importRunId,"run-1");assert.equal(status.phase,"products");assert.deepEqual(status.progress,stored.progress);assert.equal(writes,0);
 });
