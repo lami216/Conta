@@ -12,6 +12,11 @@ export async function createLegacyImportRun(db:Db,uploadId:string,stockPolicy:"c
  await db.collection("legacyImportRuns").insertOne(run);console.info(JSON.stringify({event:"legacy_import_started",importRunId:id,phase:"parse",startedAt}));return publicRun(run);
 }
 const publicRun=(run:Record<string,unknown>)=>({importRunId:run.id,state:run.state,phase:run.phase,progress:run.progress,counts:run.counts,reviewCount:run.reviewCount,startedAt:run.startedAt,updatedAt:run.updatedAt,publicError:run.publicError});
+export async function getLegacyImportRun(db:Db,id:string){
+ const run=await db.collection("legacyImportRuns").findOne({id});
+ if(!run)throw Object.assign(new Error("عملية الاستيراد غير موجودة أو انتهت صلاحيتها"),{status:404});
+ return publicRun(run);
+}
 export async function advanceLegacyImportRun(db:Db,id:string){
  const collection=db.collection("legacyImportRuns"),run=await collection.findOne({id});if(!run)throw Object.assign(new Error("عملية الاستيراد غير موجودة أو انتهت صلاحيتها"),{status:404});if(run.state==="completed"||run.state==="failed")return publicRun(run);
  const phase=LEGACY_IMPORT_PHASES[Number(run.phaseIndex)] as LegacyImportPhase|undefined;if(!phase)return publicRun(run);const phaseStarted=Date.now(),total=Number(run.totals?.[countKeys[phase]]??0);
