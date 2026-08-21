@@ -4,6 +4,7 @@ import { createHmac } from "node:crypto";
 import { existsSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
 import initSqlJs from "sql.js";
+import { MongoMemoryServer } from "mongodb-memory-server";
 
 const port = 3219;
 const origin = `http://127.0.0.1:${port}`;
@@ -16,7 +17,8 @@ assert.equal(existsSync(".next/standalone/node_modules/sql.js/dist/sql-wasm.wasm
 const SQL=await initSqlJs(),db=new SQL.Database();
 db.run("CREATE TABLE itemsTB(id INTEGER,title TEXT); INSERT INTO itemsTB VALUES(1,'A'),(2,'B'); CREATE TABLE storesTB(id INTEGER,Name TEXT); INSERT INTO storesTB VALUES(1,'Main');");
 const bytes=db.export();db.close();
-const server=spawn(process.execPath,["server.js"],{cwd:".next/standalone",env:{...process.env,PORT:String(port),HOSTNAME:"127.0.0.1",SESSION_SECRET:secret},stdio:["ignore","pipe","pipe"]});
+const mongo=await MongoMemoryServer.create();
+const server=spawn(process.execPath,["server.js"],{cwd:".next/standalone",env:{...process.env,PORT:String(port),HOSTNAME:"127.0.0.1",SESSION_SECRET:secret,MONGODB_URI:mongo.getUri(),MONGODB_DB:"legacy-production-smoke"},stdio:["ignore","pipe","pipe"]});
 let logs=""; server.stdout.on("data",d=>logs+=d);server.stderr.on("data",d=>logs+=d);
 try {
   for(let i=0;i<60;i++){try{if((await fetch(`${origin}/login`)).status<500)break;}catch{}await delay(250);}
@@ -26,6 +28,7 @@ try {
   const complete=await fetch(`${origin}/api/settings/legacy/upload/complete`,{method:"POST",headers:{...headers,"content-type":"application/json"},body:JSON.stringify({uploadId:upload.uploadId,action:"preview"})});
   if(complete.status!==200)assert.fail(`complete returned ${complete.status}: ${await complete.text()}`);const preview=await complete.json();
   assert.equal(preview.groups.find(x=>x.key==="products").count,2);assert.equal(preview.groups.find(x=>x.key==="warehouses").count,1);
-  console.log(JSON.stringify({wasmPath:`${process.cwd()}/.next/standalone/node_modules/sql.js/dist/sql-wasm.wasm`,wasmExists:true,fixtureOpened:true,httpChunkPreview:true,counts:{products:2,warehouses:1}}));
+  const begin=await fetch(`${origin}/api/settings/legacy/upload/complete`,{method:"POST",headers:{...headers,"content-type":"application/json"},body:JSON.stringify({uploadId:upload.uploadId,action:"import"})});assert.equal(begin.status,202);let run=await begin.json();for(let i=0;i<20&&run.state!=="completed";i++){const status=await fetch(`${origin}/api/settings/legacy/import-runs/${run.importRunId}`,{headers});assert.equal(status.status,200);run=await status.json();}assert.equal(run.state,"completed");
+  console.log(JSON.stringify({wasmPath:`${process.cwd()}/.next/standalone/node_modules/sql.js/dist/sql-wasm.wasm`,wasmExists:true,fixtureOpened:true,httpChunkPreview:true,httpActualImport:true,importState:run.state,counts:{products:2,warehouses:1}}));
 } catch(error) { throw new Error(`${error.message}\nProduction server logs:\n${logs}`); }
-finally {server.kill("SIGTERM");}
+finally {server.kill("SIGTERM");await mongo.stop();}
