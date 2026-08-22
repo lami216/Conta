@@ -23,3 +23,26 @@ test("return report resolves original invoice number",async()=>{await db.dropDat
 test("allTime ignores dates, keeps full summary across pages, and normal range remains bounded",async()=>{await db.dropDatabase();await db.collection("documents").insertMany([doc("old","sale","2020-01-01",[line("o","a",1,100,70)]),doc("new","sale","2026-08-10",[line("n","a",2,100,70)])]);const all=await buildReport(db,{type:"sales",allTime:true,page:1,pageSize:1}),dated=await buildReport(db,filters("sales",{pageSize:1}));assert.equal(all.meta.totalRows,2);assert.equal(all.rows.length,1);assert.equal(all.summary.netSales,300);assert.equal(dated.meta.totalRows,1);assert.equal(dated.summary.netSales,200);assert.equal(parse("type=sales&allTime=true&page=1&pageSize=100").allTime,true);});
 
 test("current product identity fills blank legacy names across product, profit, stock, and purchase reports",async()=>{await db.dropDatabase();await db.collection("products").insertOne({id:"a",name:"الاسم الحالي",sku:"SKU-A"});const blank=line("s","a",1,100,70);blank.description="";await db.collection("documents").insertMany([doc("sale","sale","2026-08-10",[blank]),doc("purchase","purchase","2026-08-10",[{...blank,id:"p",unitPrice:50,lineTotal:50}])]);await db.collection("stockMovements").insertOne({id:"m",documentId:"sale",occurredAt:"2026-08-10T12:00:00Z",productId:"a",productName:"",warehouseName:"Main",type:"sale",balanceBefore:2,quantityDelta:-1,balanceAfter:1,documentNumber:"N-sale"});for(const report of [await buildReport(db,filters("product-sales")),await buildReport(db,filters("profit",{groupBy:"product"})),await buildReport(db,filters("stock")),await buildReport(db,filters("purchases",{productId:"a"}))]){assert.equal(report.rows[0].product,"الاسم الحالي");assert.equal(report.rows[0].sku,"SKU-A");}});
+
+import { reportDateQuery, reportSummaryTone, reportTableModel } from "../app/report-types.ts";
+
+test("report date and all-time requests remain distinct", () => {
+  assert.deepEqual(reportDateQuery(false, "2026-08-01", "2026-08-22"), { from: "2026-08-01", to: "2026-08-22" });
+  assert.deepEqual(reportDateQuery(true, "2026-08-01", "2026-08-22"), { allTime: "true" });
+});
+
+test("report summary tones follow financial meaning rather than numeric sign alone", () => {
+  assert.equal(reportSummaryTone("profit", "profit", 20), "positive");
+  assert.equal(reportSummaryTone("profit", "profit", -20), "negative");
+  assert.equal(reportSummaryTone("debts", "receivable", 20), "negative");
+  assert.equal(reportSummaryTone("party-ledger", "payable", 20), "negative");
+  assert.equal(reportSummaryTone("financial", "net", 20), "positive");
+  assert.equal(reportSummaryTone("financial", "net", -20), "negative");
+  assert.equal(reportSummaryTone("purchases", "total", 20), "neutral");
+});
+
+
+test("report table retains known headers before a result exists", () => {
+  const columns = [["number", "الفاتورة"], ["total", "الإجمالي"]];
+  assert.deepEqual(reportTableModel(columns, null), { columns, rows: [] });
+});

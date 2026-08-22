@@ -8,6 +8,15 @@ export type SaleDraftLine = {
 
 export type PriceMode = "retail" | "wholesale";
 
+export const initialSaleUiState = { priceMode: "retail" as PriceMode, scannerEnabled: false };
+
+/** Clear only a successfully posted sale draft, never invoice history. */
+export function clearPersistedSaleDraft(storage: Pick<Storage, "setItem">) {
+  storage.setItem("conta:sale-lines", "[]");
+  storage.setItem("conta:sale-payment", JSON.stringify("cash"));
+  storage.setItem("conta:sale-party", JSON.stringify(""));
+}
+
 /** Selling tiers choose an editable default and never alter accounting cost. */
 export function sellingPrice(product: Product, mode: PriceMode = "retail") {
   const retail = Number(product.piecePrice ?? 0);
