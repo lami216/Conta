@@ -6,6 +6,23 @@ export type SaleDraftLine = {
   piecePrice: string;
 };
 
+export type PriceMode = "retail" | "wholesale";
+
+/** Selling tiers choose an editable default and never alter accounting cost. */
+export function sellingPrice(product: Product, mode: PriceMode = "retail") {
+  const retail = Number(product.piecePrice ?? 0);
+  const wholesale = Number(product.wholesalePrice ?? 0);
+  return mode === "wholesale" && wholesale > 0 ? wholesale : retail;
+}
+
+export function applyPriceMode<T extends SaleDraftLine>(lines: T[], products: Product[], mode: PriceMode): T[] {
+  const byId = new Map(products.map(product => [product.id, product]));
+  return lines.map(line => {
+    const product = byId.get(line.productId);
+    return product ? { ...line, piecePrice: String(sellingPrice(product, mode)) } : line;
+  });
+}
+
 export function updateSaleDraftLine<T extends SaleDraftLine>(lines: T[], productId: string, patch: Partial<T>): T[] {
   return lines.map(line => line.productId === productId ? { ...line, ...patch } : line);
 }

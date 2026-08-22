@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { updateSaleDraftLine, validateSaleDraft } from "../app/sale-draft.ts";
+import { applyPriceMode, sellingPrice, updateSaleDraftLine, validateSaleDraft } from "../app/sale-draft.ts";
 
 const product = { id: "lion", name: "أسد زيريار", sku: "1", barcode: "", pieceCost: 12000, lastPurchaseCost: 12000, piecePrice: 7500, stocks: { sales: 5 } };
 const draft = (quantity = "1", piecePrice = "7500") => ({ productId: product.id, quantity, piecePrice, unitPrice: "", actualQuantity: "" });
@@ -28,4 +28,14 @@ test("submit validation preserves below-cost price and over-stock quantity in th
 test("submit validation rejects temporarily empty quantity and price", () => {
   const result = validateSaleDraft([draft("", "")], [product], "sales");
   assert.equal(result.errors.length, 2);
+});
+
+test("retail and wholesale tiers select safe editable draft defaults", () => {
+  const tiered = { ...product, piecePrice: 1000, wholesalePrice: 800 };
+  assert.equal(sellingPrice(tiered), 1000);
+  assert.equal(sellingPrice(tiered, "wholesale"), 800);
+  assert.equal(sellingPrice({ ...tiered, wholesalePrice: null }, "wholesale"), 1000);
+  const switched = applyPriceMode([{ ...draft(), piecePrice: "777" }], [tiered], "wholesale");
+  assert.equal(switched[0].piecePrice, "800");
+  assert.equal(updateSaleDraftLine(switched, product.id, { piecePrice: "850" })[0].piecePrice, "850");
 });

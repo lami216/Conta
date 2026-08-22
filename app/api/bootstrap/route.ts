@@ -34,6 +34,7 @@ export async function GET(request: Request) {
       db.collection<{ _id: string; value: number }>("counters").findOne({ _id: "productSequence" }),
     ]);
     const clean = (rows: Array<Record<string, unknown>>) => rows.map(({ _id, ...row }) => ({ id: row.id ?? String(_id), ...row }));
+    const cleanProducts = clean(products).map(product => ({ ...product, wholesalePrice: (product as Record<string, unknown>).wholesalePrice ?? null }));
     const totals = await db.collection("financialMovements").aggregate([{ $group: { _id: "$paymentMethod", income: { $sum: { $cond: [{ $eq: ["$direction", "in"] }, "$amount", 0] } }, expenses: { $sum: { $cond: [{ $eq: ["$direction", "out"] }, "$amount", 0] } }, purchaseTotal: { $sum: { $cond: [{ $eq: ["$type", "purchase"] }, "$amount", 0] } } } }]).toArray();
     const totalMap = new Map(totals.map(row => [String(row._id), row]));
     const accountRows = paymentAccounts.map(account => {
@@ -47,6 +48,6 @@ export async function GET(request: Request) {
       return /^\d{1,6}$/.test(code) ? Math.max(highest, Number(code)) : highest;
     }, 0);
     const nextProductCode = Math.max(highestLegacyCode, Number(productCounter?.value ?? 0)) + 1;
-    return Response.json({ parties: clean(parties), warehouses: clean(warehouses), products: clean(products), documents: clean(documents), movements: clean(movements), recurringExpenses: clean(recurringRows), financialMovements: clean(financialMovements), paymentAccounts: clean(accountRows), accountTransfers: clean(accountTransfers), nextProductCode });
+    return Response.json({ parties: clean(parties), warehouses: clean(warehouses), products: cleanProducts, documents: clean(documents), movements: clean(movements), recurringExpenses: clean(recurringRows), financialMovements: clean(financialMovements), paymentAccounts: clean(accountRows), accountTransfers: clean(accountTransfers), nextProductCode });
   } catch (error) { log("error", "api.bootstrap.failed", { error }); return Response.json({ error: "تعذر تحميل البيانات" }, { status: 500 }); }
 }

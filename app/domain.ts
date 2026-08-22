@@ -32,6 +32,8 @@ export interface Product {
   lastPurchaseCost?: number | null;
   lastPurchaseAt?: string | null;
   piecePrice: number | null;
+  /** Optional wholesale selling price per individual unit. */
+  wholesalePrice: number | null;
   stocks: Record<string, number>;
   isArchived?: boolean;
   archivedAt?: string | null;
