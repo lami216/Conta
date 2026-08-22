@@ -39,3 +39,34 @@ test("retail and wholesale tiers select safe editable draft defaults", () => {
   assert.equal(switched[0].piecePrice, "800");
   assert.equal(updateSaleDraftLine(switched, product.id, { piecePrice: "850" })[0].piecePrice, "850");
 });
+
+import { clearPersistedSaleDraft, initialSaleUiState } from "../app/sale-draft.ts";
+import { finishSuccessfulCommand } from "../app/command-lifecycle.ts";
+
+const memoryStorage = initial => {
+  const values = new Map(Object.entries(initial));
+  return { setItem: (key, value) => values.set(key, value), getItem: key => values.get(key), values };
+};
+
+for (const payment of ["cash", "note"]) test(`successful ${payment} sale clears persisted draft before silent refresh`, async () => {
+  const storage = memoryStorage({ "conta:sale-lines": JSON.stringify([draft(), { ...draft(), productId: "b" }]), "conta:sale-payment": JSON.stringify(payment), "conta:sale-party": JSON.stringify(payment === "note" ? "party-1" : "") });
+  const order = [];
+  await finishSuccessfulCommand(() => { clearPersistedSaleDraft(storage); order.push("clear"); }, async () => { order.push("refresh"); assert.equal(storage.getItem("conta:sale-lines"), "[]"); });
+  assert.deepEqual(order, ["clear", "refresh"]);
+  assert.equal(storage.getItem("conta:sale-payment"), '"cash"');
+  assert.equal(storage.getItem("conta:sale-party"), '""');
+});
+
+test("failed sale preserves the entire draft because success completion is not run", async () => {
+  const original = JSON.stringify([draft(), { ...draft(), productId: "b" }]);
+  const storage = memoryStorage({ "conta:sale-lines": original });
+  await assert.rejects(async () => { throw new Error("sale.post failed"); });
+  assert.equal(storage.getItem("conta:sale-lines"), original);
+});
+
+test("sale UI defaults and successful reset are retail with scanner off", () => {
+  assert.deepEqual(initialSaleUiState, { priceMode: "retail", scannerEnabled: false });
+  let state = { priceMode: "wholesale", scannerEnabled: true };
+  state = { ...initialSaleUiState };
+  assert.deepEqual(state, { priceMode: "retail", scannerEnabled: false });
+});

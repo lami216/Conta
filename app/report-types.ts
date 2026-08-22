@@ -13,3 +13,23 @@ export function reportNumber(value: unknown) {
   const numeric = Number(value);
   return value === null || value === undefined || value === "" || !Number.isFinite(numeric) ? 0 : numeric;
 }
+
+export type SummaryTone = "positive" | "negative" | "neutral";
+export function reportSummaryTone(type: ReportType, key: string, value: unknown): SummaryTone {
+  const amount = reportNumber(value), signed = (): SummaryTone => amount > 0 ? "positive" : amount < 0 ? "negative" : "neutral";
+  if (["receivable", "payable"].includes(key) && ["debts", "party-ledger"].includes(type)) return amount > 0 ? "negative" : "neutral";
+  if (key === "net" && ["debts", "party-ledger"].includes(type)) return amount === 0 ? "neutral" : "negative";
+  if (key === "profit" || (type === "financial" && key === "net")) return signed();
+  if ((type === "sales" && key === "netSales") || (type === "product-sales" && ["sales", "netSales"].includes(key)) || (type === "profit" && key === "revenue") || (type === "stock" && key === "incoming") || (type === "financial" && key === "incoming") || (type === "overview" && key === "sales")) return "positive";
+  if ((type === "returns" && key === "total") || (type === "stock" && key === "outgoing") || (type === "financial" && key === "outgoing") || (type === "expenses" && key === "total") || (type === "overview" && key === "expenses")) return "negative";
+  return "neutral";
+}
+
+export function reportDateQuery(allTime: boolean, from: string, to: string) {
+  return allTime ? { allTime: "true" } : { from, to };
+}
+
+/** Columns remain presentation metadata before a query has returned rows. */
+export function reportTableModel(columns: Array<[string, string]>, result: ReportResponse | null) {
+  return { columns, rows: result?.rows ?? [] };
+}
