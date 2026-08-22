@@ -134,14 +134,16 @@ export async function execute(db: Db, session: ClientSession, body: Input) {
     if (!name) throw new CommandError("اسم المنتج مطلوب");
     const productId = text(body.id);
     if (barcode && await db.collection("products").findOne({ barcode, ...(type === "product.update" ? { id: { $ne: productId } } : {}) }, { session })) throw new CommandError("هذا الباركود مستخدم لمنتج آخر", 409);
-    const pieceCost = optionalNumber(body.pieceCost, "سعر الشراء"), values = { name, barcode, pieceCost, piecePrice: optionalNumber(body.piecePrice, "سعر البيع") };
+    const pieceCost = optionalNumber(body.pieceCost, "سعر الشراء"), values = { name, barcode, pieceCost, piecePrice: optionalNumber(body.piecePrice, "سعر البيع"), wholesalePrice: optionalNumber(body.wholesalePrice, "سعر الجملة") };
     if (type === "product.create") {
       const openingStock = optionalNumber(body.openingStock, "رصيد البداية") ?? 0;
       if (!Number.isInteger(openingStock)) throw new CommandError("رصيد البداية غير صالح");
       if (openingStock > 0 && (!pieceCost || pieceCost <= 0)) throw new CommandError("سعر الشراء للفرد مطلوب عند إدخال رصيد بداية");
       let warehouse = null;
       if (openingStock > 0) {
-        warehouse = await warehouses(db).findOne({ isSalesDefault: true }, { session }) ?? await warehouses(db).findOne({ _id: text(body.openingWarehouseId) }, { session });
+        const openingWarehouseId = text(body.openingWarehouseId);
+        if (!openingWarehouseId) throw new CommandError("مخزن رصيد البداية مطلوب");
+        warehouse = await warehouses(db).findOne({ _id: openingWarehouseId }, { session });
         if (!warehouse) throw new CommandError("مخزن رصيد البداية مطلوب");
       }
       const sku = await nextProductCode(db, session), now = new Date(), product = { id: id("product"), sku, ...values, ...(openingStock > 0 ? { lastPurchaseCost: pieceCost, lastPurchaseAt: now.toISOString() } : {}), stocks: {}, createdAt: now };
@@ -164,7 +166,8 @@ export async function execute(db: Db, session: ClientSession, body: Input) {
     if (due > 0 && !party) throw new CommandError("يجب اختيار طرف عند وجود مبلغ مستحق");
     const businessDate = new Date().toISOString().slice(0, 10);
     const dailySequence = isSale ? (Number((await db.collection("documents").find({ kind: "sale", businessDate }, { session }).sort({ dailySequence: -1 }).limit(1).next())?.dailySequence ?? 0) + 1) : undefined;
-    const doc = { ...baseDocument(isSale ? "sale" : "purchase", isSale ? "SAL" : "PUR"), businessDate, ...(isSale ? { dailySequence } : {}), partyId: partyId || null, partyName: party?.name ?? null, warehouseId, warehouseName: warehouse.name, destinationWarehouseId: null, destinationWarehouseName: null, parentDocumentId: null, paymentMethod, title: null, total, dueTotal: due, paidTotal: requestedPaid, lines: calculated };
+    const pricingMode = body.pricingMode === "wholesale" ? "wholesale" : "retail";
+    const doc = { ...baseDocument(isSale ? "sale" : "purchase", isSale ? "SAL" : "PUR"), businessDate, ...(isSale ? { dailySequence, pricingMode } : {}), partyId: partyId || null, partyName: party?.name ?? null, warehouseId, warehouseName: warehouse.name, destinationWarehouseId: null, destinationWarehouseName: null, parentDocumentId: null, paymentMethod, title: null, total, dueTotal: due, paidTotal: requestedPaid, lines: calculated };
     for (const line of input) await changeStock(db, session, map.get(line.productId)!, warehouse, isSale ? -line.quantity : line.quantity, doc, isSale ? "sale" : "purchase");
     await db.collection("documents").insertOne(doc, { session });
     if (!isSale) for (const line of calculated) await db.collection("products").updateOne({ id: line.productId }, { $set: { lastPurchaseCost: line.unitPrice, lastPurchaseAt: doc.occurredAt } }, { session });

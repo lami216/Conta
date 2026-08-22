@@ -132,13 +132,17 @@ test("product opening stock is validated, auditable, and barcode is unique", asy
   const plainId = await command({ type: "product.create", name: "Name only" });
   assert.ok(await db.collection("products").findOne({ id: plainId }));
   await assert.rejects(command({ type: "product.create", name: "Missing cost", openingStock: 10 }), /سعر الشراء/);
-  const openedId = await command({ type: "product.create", name: "Opened", barcode: "123", openingStock: 10, pieceCost: 100 });
+  await assert.rejects(command({ type: "product.create", name: "Missing warehouse", openingStock: 10, pieceCost: 100 }), /مخزن رصيد البداية/);
+  const openedId = await command({ type: "product.create", name: "Opened", barcode: "123", openingStock: 10, pieceCost: 100, openingWarehouseId: "wh-b", wholesalePrice: 125 });
   const opened = await db.collection("products").findOne({ id: openedId });
-  assert.equal(opened.stocks["wh-main"], 10); assert.equal(opened.lastPurchaseCost, 100);
+  assert.equal(opened.stocks["wh-b"], 10); assert.equal(opened.stocks["wh-main"], undefined); assert.equal(opened.lastPurchaseCost, 100); assert.equal(opened.wholesalePrice, 125);
   assert.deepEqual(await db.collection("stockMovements").findOne({ productId: openedId }, { projection: { _id: 0, type: 1, balanceBefore: 1, balanceAfter: 1, quantityDelta: 1 } }), { type: "opening", quantityDelta: 10, balanceBefore: 0, balanceAfter: 10 });
   assert.equal((await db.collection("documents").findOne({ "lines.productId": openedId })).title, "رصيد بداية");
   await assert.rejects(command({ type: "product.create", name: "Duplicate", barcode: "123" }), /هذا الباركود مستخدم/);
   const otherId = await command({ type: "product.create", name: "Other", barcode: "456" });
+  assert.equal((await db.collection("products").findOne({ id: otherId })).wholesalePrice, null);
+  await command({ type: "product.update", id: otherId, name: "Other", wholesalePrice: 90 });
+  assert.equal((await db.collection("products").findOne({ id: otherId })).wholesalePrice, 90);
   await assert.rejects(command({ type: "product.update", id: otherId, name: "Other", barcode: "123" }), /هذا الباركود مستخدم/);
 });
 

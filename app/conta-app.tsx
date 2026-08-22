@@ -39,7 +39,7 @@ import {
   type PaymentAccount,
 } from "./domain";
 import { reportNumber, type ReportResponse, type ReportType } from "./report-types";
-import { updateSaleDraftLine, validateSaleDraft } from "./sale-draft";
+import { applyPriceMode, sellingPrice, updateSaleDraftLine, validateSaleDraft, type PriceMode } from "./sale-draft";
 import { readApiResponse } from "./api-response";
 
 type View =
@@ -366,19 +366,20 @@ function Num(props: {
   );
 }
 type SelectOption = { value: string; label: string; search?: string };
+export const normalizeSearch = (value: string) => value.trim().toLocaleLowerCase("ar").normalize("NFD").replace(/[\u0640\u064b-\u065f\u0670]/g, "").replace(/\s+/g, " ");
 function SearchableSelect({ value, onChange, options, placeholder, searchPlaceholder, disabled = false, allowEmpty = false }: {
   value: string; onChange: (value: string) => void; options: SelectOption[];
   placeholder: string; searchPlaceholder: string; disabled?: boolean; allowEmpty?: boolean;
 }) {
   const [open, setOpen] = useState(false), [query, setQuery] = useState(""), [active, setActive] = useState(0);
   const root = useRef<HTMLDivElement>(null);
-  const normalized = query.trim().toLocaleLowerCase("ar");
-  const matches = options.map((option, index) => ({ option, index, text: `${option.label} ${option.search ?? ""}`.toLocaleLowerCase("ar") }))
+  const normalized = normalizeSearch(query);
+  const matches = options.map((option, index) => ({ option, index, text: normalizeSearch(`${option.label} ${option.search ?? ""}`) }))
     .filter(x => !normalized || x.text.includes(normalized))
     .sort((a, b) => {
-      const score = (x: typeof a) => x.text === normalized ? 0 : x.text.startsWith(normalized) ? 1 : x.option.label.toLocaleLowerCase("ar").startsWith(normalized) ? 2 : 3;
+      const score = (x: typeof a) => x.text === normalized ? 0 : x.text.startsWith(normalized) ? 1 : normalizeSearch(x.option.label).startsWith(normalized) ? 2 : 3;
       return score(a) - score(b) || a.index - b.index;
-    }).slice(0, 20).map(x => x.option);
+    }).map(x => x.option);
   useEffect(() => {
     const close = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
     document.addEventListener("pointerdown", close); return () => document.removeEventListener("pointerdown", close);
@@ -403,9 +404,9 @@ function SearchableSelect({ value, onChange, options, placeholder, searchPlaceho
     </div>}
   </div>;
 }
-function ProductSearchPicker({ data, query, setQuery, onPick, mode = "sale", warehouseId }: {
+function ProductSearchPicker({ data, query, setQuery, onPick, mode = "sale", warehouseId, priceMode = "retail" }: {
   data: BootstrapData; query: string; setQuery: (value: string) => void; onPick: (product: Product) => void;
-  mode?: "sale" | "purchase" | "transfer" | "adjustment" | "inventory"; warehouseId?: string;
+  mode?: "sale" | "purchase" | "transfer" | "adjustment" | "inventory"; warehouseId?: string; priceMode?: PriceMode;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const term = query.trim().toLocaleLowerCase("ar");
@@ -422,23 +423,38 @@ function ProductSearchPicker({ data, query, setQuery, onPick, mode = "sale", war
   return <div className="product-picker product-search-grid">
     <label className="search"><Search /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label>
     <div className="erp-table-wrap picker-results"><table className="erp-table" aria-label="نتائج بحث المنتجات"><colgroup><col style={{width:"16%"}}/><col style={{width:"36%"}}/><col style={{width:"18%"}}/><col style={{width:"16%"}}/><col style={{width:"14%"}}/></colgroup><thead><tr><th>الرمز</th><th>المنتج</th><th>{mode === "purchase" ? "آخر شراء" : "السعر"}</th><th>المتوفر</th><th>إضافة</th></tr></thead><tbody>
-      {results.map(product => { const stock = Number(product.stocks?.[warehouseId ?? ""] ?? Object.values(product.stocks).reduce((a, b) => a + b, 0)), disabled = mode === "sale" && stock <= 0; return <tr key={product.id} className={selected === product.id ? "selected" : ""} onClick={() => setSelected(product.id)} onDoubleClick={() => add(product)}><td dir="ltr">{product.sku || "—"}</td><td className="name-cell">{product.name}</td><td className="num-cell">{number(mode === "purchase" ? product.lastPurchaseCost ?? product.pieceCost ?? 0 : product.piecePrice ?? 0)}</td><td className="num-cell">{number(stock)}</td><td className="action-cell"><button type="button" className="soft" disabled={disabled} onClick={event => { event.stopPropagation(); add(product); }}>إضافة</button></td></tr>; })}
+      {results.map(product => { const stock = Number(product.stocks?.[warehouseId ?? ""] ?? Object.values(product.stocks).reduce((a, b) => a + b, 0)), disabled = mode === "sale" && stock <= 0; return <tr key={product.id} className={selected === product.id ? "selected" : ""} onClick={() => setSelected(product.id)} onDoubleClick={() => add(product)}><td dir="ltr">{product.sku || "—"}</td><td className="name-cell">{product.name}</td><td className="num-cell">{number(mode === "purchase" ? product.lastPurchaseCost ?? product.pieceCost ?? 0 : sellingPrice(product, priceMode))}</td><td className="num-cell">{number(stock)}</td><td className="action-cell"><button type="button" className="soft" disabled={disabled} onClick={event => { event.stopPropagation(); add(product); }}>إضافة</button></td></tr>; })}
       {term && !results.length && <tr><td colSpan={5}>لا توجد نتائج</td></tr>}
     </tbody></table></div>
   </div>;
 }
 const SearchProducts = ProductSearchPicker;
 
-function BarcodeScanner({ products, onScan }: { products: Product[]; onScan: (product: Product) => void }) {
-  const [enabled, setEnabled] = useState(false), [buffer, setBuffer] = useState(""), [notice, setNotice] = useState("");
-  const input = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (enabled) input.current?.focus(); }, [enabled]);
-  function submit() {
-    const barcode = buffer.trim(), product = products.find(item => !item.isArchived && item.barcode === barcode);
-    if (product) { onScan(product); setNotice(""); } else if (barcode) setNotice("لا يوجد منتج بهذا الباركود");
-    setBuffer(""); requestAnimationFrame(() => input.current?.focus());
-  }
-  return <div className="barcode-scanner"><button type="button" className={enabled ? "soft selected" : "soft"} onClick={() => setEnabled(value => !value)}>{enabled ? "● المسح مفعل" : "مسح باركود"}</button>{enabled && <input ref={input} dir="ltr" autoComplete="off" value={buffer} onChange={event => setBuffer(event.target.value)} onKeyDown={event => { if (event.key === "Enter" || event.key === "Tab") { event.preventDefault(); submit(); } }} placeholder="امسح الباركود ثم Enter" />}{notice && <span>{notice}</span>}</div>;
+function BarcodeScanner({ products, onScan, enabled, onEnabledChange, onError }: { products: Product[]; onScan: (product: Product) => void; enabled?: boolean; onEnabledChange?: (enabled: boolean) => void; onError?: (message: string) => void }) {
+  const [localEnabled, setLocalEnabled] = useState(false);
+  const active = enabled ?? localEnabled;
+  const buffer = useRef("");
+  const lastKeyAt = useRef(0);
+  useEffect(() => {
+    if (!active) { buffer.current = ""; return; }
+    const keydown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.altKey || event.metaKey || event.isComposing) return;
+      const now = performance.now();
+      if (now - lastKeyAt.current > 120) buffer.current = "";
+      lastKeyAt.current = now;
+      if (event.key === "Enter" || event.key === "Tab") {
+        const barcode = buffer.current.trim(); buffer.current = "";
+        if (!barcode) return;
+        event.preventDefault();
+        const product = products.find(item => !item.isArchived && item.barcode === barcode);
+        if (product) onScan(product); else onError?.("لا يوجد منتج بهذا الباركود");
+      } else if (event.key.length === 1) buffer.current += event.key;
+    };
+    window.addEventListener("keydown", keydown, true);
+    return () => window.removeEventListener("keydown", keydown, true);
+  }, [active, onError, onScan, products]);
+  const toggle = () => { const value = !active; onEnabledChange?.(value); if (enabled === undefined) setLocalEnabled(value); };
+  return <button type="button" className={active ? "soft selected scanner-toggle" : "soft scanner-toggle"} aria-pressed={active} onClick={toggle}>قارئ الباركود</button>;
 }
 
 function LineEditor({
@@ -543,7 +559,9 @@ function Pos({
     [partyId, setPartyId] = useSessionDraft("sale-party", ""),
     [quick, setQuick] = useState(false),
     [selectedLine, setSelectedLine] = useState<string | null>(null),
-    [stockNotice, setStockNotice] = useState("");
+    [stockNotice, setStockNotice] = useState(""),
+    [priceMode, setPriceMode] = useState<PriceMode>("retail"),
+    [scannerEnabled, setScannerEnabled] = useState(false);
   const wh = data.warehouses.find((w) => w.isSalesDefault),
     details = lines.flatMap((l) => {
       const p = data.products.find((x) => x.id === l.productId);
@@ -561,10 +579,15 @@ function Pos({
   function add(p: Product) {
     const available = Number(p.stocks?.[wh?.id ?? ""] ?? 0);
     if (!wh || available <= 0) { setStockNotice("المنتج غير متوفر في مخزن البيع"); return; }
-    setLines(current => { const existing = current.find(line => line.productId === p.id); if (!existing) return [lineFor(p), ...current]; if (val(existing.quantity) >= available) { setStockNotice(`الكمية المتوفرة ${number(available)} فقط`); return current; } return current.map(line => line.productId === p.id ? { ...line, quantity: String(val(line.quantity) + 1) } : line); });
+    setLines(current => { const existing = current.find(line => line.productId === p.id); if (!existing) return [{ ...lineFor(p), piecePrice: String(sellingPrice(p, priceMode)) }, ...current]; if (val(existing.quantity) >= available) { setStockNotice(`الكمية المتوفرة ${number(available)} فقط`); return current; } return current.map(line => line.productId === p.id ? { ...line, quantity: String(val(line.quantity) + 1) } : line); });
   }
   function updateSaleLine(product: Product, patch: Partial<DraftLine>) {
     setLines(current => updateSaleDraftLine(current, product.id, patch));
+  }
+
+  function changePriceMode(mode: PriceMode) {
+    setPriceMode(mode);
+    setLines(current => applyPriceMode(current, data.products, mode));
   }
 
   async function submit() {
@@ -581,6 +604,7 @@ function Pos({
         paymentMethod: payment,
         paidAmount: payment === "note" ? 0 : total,
         partyId: payment === "note" ? partyId : null,
+        pricingMode: priceMode,
         lines: lines.map((l) => ({
           productId: l.productId,
           quantity: val(l.quantity),
@@ -593,14 +617,16 @@ function Pos({
     setSelectedLine(null);
     setPayment("cash");
     setPartyId("");
+    setQuery(""); setStockNotice(""); setPriceMode("retail"); setScannerEnabled(false);
     openDoc(id);
   }
   const invoice = <div className="panel invoice-card workspace-invoice">
+    <div className="pos-mode-toolbar"><button type="button" className={priceMode === "retail" ? "soft selected" : "soft"} onClick={() => changePriceMode("retail")}>بيع الفرد</button><button type="button" className={priceMode === "wholesale" ? "soft selected" : "soft"} onClick={() => changePriceMode("wholesale")}>بيع الجملة</button><BarcodeScanner products={data.products} onScan={add} enabled={scannerEnabled} onEnabledChange={setScannerEnabled} onError={setStockNotice} /></div>
     <div className="invoice-card-head"><h3>الفاتورة</h3><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={() => { if (confirm("هل تريد مسح الفاتورة؟")) { setLines([]); } }}>مسح الفاتورة</button>}</div></div>
     <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="erp-table-wrap invoice-preview-list"><table className="erp-table invoice-table" aria-label="منتجات الفاتورة"><colgroup><col style={{width:"38%"}}/><col style={{width:"14%"}}/><col style={{width:"17%"}}/><col style={{width:"19%"}}/><col style={{width:"12%"}}/></colgroup><thead><tr><th>الاسم</th><th>الكمية</th><th>السعر</th><th>المجموع</th><th>حذف</th></tr></thead><tbody>{details.map(({ l, p, total: lineTotal }) => <tr className={selectedLine === p.id ? "selected" : ""} onClick={() => setSelectedLine(p.id)} key={p.id}><td className="name-cell">{p.name}</td><td className="num-cell"><Num value={l.quantity} onChange={value => updateSaleLine(p, { quantity: value })} /></td><td className="num-cell"><Num value={l.piecePrice} onChange={value => updateSaleLine(p, { piecePrice: value })} /></td><td className="num-cell">{number(lineTotal)}</td><td className="action-cell"><button type="button" className="row-delete" aria-label={`حذف ${p.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== p.id)); }}><X /></button></td></tr>)}</tbody></table></div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b></div>}</div>
   </div>;
   const checkout = <aside className="panel workspace-checkout"><div className="checkout-head"><h3>الدفع</h3></div><div className="checkout-body"><div className="invoice-meta-row" aria-label="نوع الفاتورة"><button className={payment !== "note" ? "meta-option selected" : "meta-option"} onClick={() => setPayment("cash")}><Banknote /><span><small>طريقة التحصيل</small><b>دفع مباشر</b></span></button><button className={payment === "note" ? "meta-option selected secondary" : "meta-option secondary"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع البيع</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">طريقة الدفع</span><CompactPaymentSelector accounts={data.paymentAccounts} value={payment} onChange={setPayment} /></div>}{payment === "note" && <><label>اختيار العميل<SearchableSelect value={partyId} onChange={setPartyId} placeholder="اختر العميل" searchPlaceholder="ابحث باسم العميل أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: p.name, search: p.phone }))} /></label><button className="link" onClick={() => setQuick(!quick)}><Plus /> إضافة عميل</button>{quick && <QuickParty run={run} onDone={() => setQuick(false)} />}</>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!lines.length || !wh || (payment === "note" && !partyId)} onClick={() => void submit()}>إتمام البيع</button></div></aside>;
-  return <section className="transaction-page">{stockNotice && <div className="toast stock-toast">{stockNotice}</div>}<div className="transaction-workspace pos-workspace"><div className="workspace-discovery"><div className="panel search-panel"><div className="search-title-row"><div className="panel-title">بحث المنتجات</div><BarcodeScanner products={data.products} onScan={add} /></div><SearchProducts data={data} query={query} setQuery={setQuery} onPick={add} mode="sale" warehouseId={wh?.id} /></div><InvoiceQuickBrowser title="سجل الفواتير" docs={data.documents.filter(d => d.kind === "sale")} openDoc={openDoc} /></div>{invoice}{checkout}</div></section>;
+  return <section className="transaction-page">{stockNotice && <div className="toast stock-toast">{stockNotice}</div>}<div className="transaction-workspace pos-workspace"><div className="workspace-discovery"><div className="panel search-panel"><div className="search-title-row"><div className="panel-title">بحث المنتجات</div></div><SearchProducts data={data} query={query} setQuery={setQuery} onPick={add} mode="sale" warehouseId={wh?.id} priceMode={priceMode} /></div><InvoiceQuickBrowser title="سجل الفواتير" docs={data.documents.filter(d => d.kind === "sale")} openDoc={openDoc} /></div>{invoice}{checkout}</div></section>;
 
 }
 
@@ -987,16 +1013,17 @@ function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
       <button className="soft" aria-pressed={showArchived} onClick={() => setShowArchived(value => !value)}>{showArchived ? "إخفاء المؤرشفة" : "عرض المؤرشفة"}</button>
       <button className="primary" onClick={() => openForm(null)}><Plus /> إضافة منتج</button>
     </div>
-    <div className="panel scroll-panel product-management erp-table-wrap">
-      <table className="erp-table" aria-label="كل المنتجات"><colgroup><col style={{width:"12%"}}/><col style={{width:"25%"}}/><col style={{width:"12%"}}/><col style={{width:"12%"}}/><col style={{width:"14%"}}/><col style={{width:"17%"}}/></colgroup><thead><tr>
-        <th>الرمز</th><th>الاسم</th><th>{sortHeader("price", "سعر البيع")}</th><th>{sortHeader("cost", "آخر شراء")}</th><th>{sortHeader("stock", "المخزون")}</th><th>إجراءات</th>
+    <div className="panel scroll-panel product-management">
+      <div className="erp-table-wrap product-table-viewport">
+      <table className="erp-table" aria-label="كل المنتجات"><colgroup><col style={{width:"10%"}}/><col style={{width:"22%"}}/><col style={{width:"11%"}}/><col style={{width:"11%"}}/><col style={{width:"11%"}}/><col style={{width:"12%"}}/><col style={{width:"23%"}}/></colgroup><thead><tr>
+        <th>الرمز</th><th>الاسم</th><th>{sortHeader("price", "سعر البيع")}</th><th>سعر الجملة</th><th>{sortHeader("cost", "آخر شراء")}</th><th>{sortHeader("stock", "المخزون")}</th><th>إجراءات</th>
       </tr></thead><tbody>
         {products.map(product => {
           const stock = Object.values(product.stocks).reduce((sum, value) => sum + Number(value), 0);
-          return <tr key={product.id}><td dir="ltr">{product.sku || "—"}</td><td className="name-cell">{product.name}{product.isArchived&&<small>مؤرشف</small>}</td><td className="num-cell">{product.piecePrice == null ? "—" : number(product.piecePrice)}</td><td className="num-cell">{product.lastPurchaseCost == null ? "—" : number(product.lastPurchaseCost)}</td><td className="num-cell">{number(stock)}</td><td className="action-cell"><button className="soft" onClick={() => openForm(product)}>تعديل</button><button className="soft" onClick={() => window.alert(`${product.name}\nالرمز: ${product.sku || "—"}\nالباركود: ${product.barcode || "—"}\nالمخزون: ${number(stock)}`)}>عرض التفاصيل</button>{!product.isArchived&&<button className="danger compact-delete" onClick={() => void remove(product)}>حذف</button>}</td></tr>;
+          return <tr key={product.id}><td dir="ltr">{product.sku || "—"}</td><td className="name-cell">{product.name}{product.isArchived&&<small>مؤرشف</small>}</td><td className="num-cell">{product.piecePrice == null ? "—" : number(product.piecePrice)}</td><td className="num-cell">{product.wholesalePrice == null ? "—" : number(product.wholesalePrice)}</td><td className="num-cell">{product.lastPurchaseCost == null ? "—" : number(product.lastPurchaseCost)}</td><td className="num-cell">{number(stock)}</td><td className="action-cell"><button className="soft" onClick={() => openForm(product)}>تعديل</button><button className="soft" onClick={() => window.alert(`${product.name}\nالرمز: ${product.sku || "—"}\nسعر الجملة: ${product.wholesalePrice == null ? "—" : number(product.wholesalePrice)}\nالباركود: ${product.barcode || "—"}\nالمخزون: ${number(stock)}`)}>عرض التفاصيل</button>{!product.isArchived&&<button className="danger compact-delete" onClick={() => void remove(product)}>حذف</button>}</td></tr>;
         })}
         {!products.length && <Empty text="لا توجد منتجات مطابقة للبحث" />}
-      </tbody></table>
+      </tbody></table></div>
     </div>
     {formOpen && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={editing ? `تعديل ${editing.name}` : "إضافة منتج"}><div className="modal-card product-modal"><ProductForm run={run} product={editing} nextCode={data.nextProductCode} warehouses={data.warehouses} close={() => setFormOpen(false)} /></div></div>}
   </section>;
@@ -1018,10 +1045,11 @@ function ProductForm({
   const [name, setName] = useState(product?.name ?? ""),
     [cost, setCost] = useState(String(product?.pieceCost ?? "")),
     [price, setPrice] = useState(String(product?.piecePrice ?? "")),
+    [wholesalePrice, setWholesalePrice] = useState(String(product?.wholesalePrice ?? "")),
     [openingStock, setOpeningStock] = useState(""),
-    [openingWarehouseId, setOpeningWarehouseId] = useState(""),
+    [openingWarehouseId, setOpeningWarehouseId] = useState(warehouses.find(warehouse => warehouse.isSalesDefault)?.id ?? ""),
     [barcode, setBarcode] = useState(product?.barcode ?? "");
-  const barcodeInput = useRef<HTMLInputElement>(null), defaultWarehouse = warehouses.find(warehouse => warehouse.isSalesDefault);
+  const barcodeInput = useRef<HTMLInputElement>(null);
   return (
     <form
       className="panel form-grid product-form"
@@ -1043,6 +1071,7 @@ function ProductForm({
             name,
             pieceCost: cost,
             piecePrice: price,
+            wholesalePrice,
             openingStock: product ? undefined : openingStock,
             openingWarehouseId: product ? undefined : openingWarehouseId,
             barcode,
@@ -1066,8 +1095,9 @@ function ProductForm({
         سعر البيع للفرد
         <Num value={price} onChange={setPrice} />
       </label>
-      {!product && <label>رصيد البداية<Num value={openingStock} onChange={setOpeningStock} /></label>}
-      {!product && val(openingStock) > 0 && (defaultWarehouse ? <p className="note-hint">رصيد البداية سيدخل إلى: {defaultWarehouse.name}</p> : <label>مخزن رصيد البداية<SearchableSelect value={openingWarehouseId} onChange={setOpeningWarehouseId} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={warehouses.map(warehouse => ({ value: warehouse.id, label: warehouse.name }))} /></label>)}
+      <label>سعر الجملة<Num value={wholesalePrice} onChange={setWholesalePrice} /></label>
+      {!product && <label>رصيد البداية<Num value={openingStock} onChange={value => { setOpeningStock(value); if (!value || Number(value) <= 0) setOpeningWarehouseId(""); else if (!openingWarehouseId) setOpeningWarehouseId(warehouses.find(warehouse => warehouse.isSalesDefault)?.id ?? ""); }} /></label>}
+      {!product && val(openingStock) > 0 && <label>مخزن رصيد البداية<SearchableSelect value={openingWarehouseId} onChange={setOpeningWarehouseId} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={warehouses.map(warehouse => ({ value: warehouse.id, label: warehouse.name }))} /></label>}
       <label className="product-code-preview">
         رمز المنتج
         <input dir="ltr" readOnly aria-readonly="true" value={product?.sku || nextCode} />
@@ -1315,19 +1345,20 @@ const movementLabels: Record<string,string>={sale:"بيع",purchase:"شراء","
 const summarySchema: Record<ReportType,Array<[string,string]>>={sales:[["netSales","صافي المبيعات"],["cost","تكلفة الشراء"],["profit","الربح"]],purchases:[["total","إجمالي المشتريات"],["quantity","إجمالي الكمية"],["count","عدد الفواتير"]],"product-sales":[["sales","صافي المبيعات"],["quantity","صافي الكمية"],["profit","الربح"]],profit:[["revenue","صافي المبيعات"],["cost","التكلفة"],["profit","الربح"]],returns:[["total","قيمة المرتجعات"],["quantity","الكمية"]],stock:[["incoming","الداخل"],["outgoing","الخارج"],["movements","عدد الحركات"]],debts:[["receivable","لنا عليه"],["payable","له علينا"],["net","الصافي"]],"party-ledger":[["receivable","لنا عليه"],["payable","له علينا"],["net","الصافي"]],financial:[["incoming","الداخل"],["outgoing","الخارج"],["net","الصافي"]],expenses:[["total","إجمالي المصاريف"],["count","العدد"]],overview:[["sales","المبيعات"],["purchases","المشتريات"],["expenses","المصاريف"],["profit","الربح"]]};
 function Reports({ data, openDoc, type }: { data: BootstrapData; openDoc: (id: string) => void; type: ReportType }) {
   const now=new Date(),[from,setFrom]=useState(`${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,"0")}-01`),[to,setTo]=useState(now.toISOString().slice(0,10)),[partyId,setPartyId]=useState(""),[productId,setProductId]=useState(""),[accountId,setAccountId]=useState(""),[groupBy,setGroupBy]=useState("invoice"),[sortBy,setSortBy]=useState("quantity"),[movementType,setMovementType]=useState(""),[direction,setDirection]=useState(""),[debtSide,setDebtSide]=useState(""),[search,setSearch]=useState(""),[page,setPage]=useState(1),[result,setResult]=useState<ReportResponse|null>(null),[busy,setBusy]=useState(false),[reportError,setReportError]=useState("");
-  const runReport=async(nextPage=1)=>{setBusy(true);setReportError("");const q=new URLSearchParams({type,page:String(nextPage),pageSize:"100"});if(type!=="debts"){q.set("from",from);q.set("to",to)}const add=(key:string,value:string)=>{if(value)q.set(key,value)};if(["sales","purchases","product-sales","profit","returns","stock"].includes(type))add("productId",productId);if(type==="party-ledger")add("partyId",partyId);if(["sales","purchases","financial","expenses"].includes(type))add("paymentAccountId",accountId);if(type==="profit")add("groupBy",groupBy);if(type==="product-sales")add("sortBy",sortBy);if(type==="stock")add("movementType",movementType);if(type==="financial")add("direction",direction);if(type==="debts"){add("debtSide",debtSide);add("search",search)}try{const r=await fetch(`/api/reports?${q}`),j=await r.json();if(!r.ok)throw new Error(j.error);setResult(j);setPage(nextPage)}catch(e){setReportError(e instanceof Error?e.message:"تعذر إنشاء التقرير")}finally{setBusy(false)}};
-  const productOptions=data.products.map(p=>({value:p.id,label:`${p.sku||"—"} — ${p.name}`,search:`${p.name} ${p.sku??""} ${p.barcode??""}`})),accountName=(id:unknown)=>data.paymentAccounts.find(a=>a.id===id||a.code===id)?.name??(id?"حساب غير متاح":"—"),columns=reportColumns(type,productId,groupBy),showDates=type!=="debts";
+  const [allTimeActive,setAllTimeActive]=useState(false);
+  const runReport=async(nextPage=1,allTime=allTimeActive)=>{if(nextPage===1)setAllTimeActive(allTime);setBusy(true);setReportError("");const q=new URLSearchParams({type,page:String(nextPage),pageSize:"100"});if(type!=="debts"){if(allTime)q.set("allTime","true");else{q.set("from",from);q.set("to",to)}}const add=(key:string,value:string)=>{if(value)q.set(key,value)};if(["sales","purchases","product-sales","profit","returns","stock"].includes(type))add("productId",productId);if(type==="party-ledger")add("partyId",partyId);if(["sales","purchases","financial","expenses"].includes(type))add("paymentAccountId",accountId);if(type==="profit")add("groupBy",groupBy);if(type==="product-sales")add("sortBy",sortBy);if(type==="stock")add("movementType",movementType);if(type==="financial")add("direction",direction);if(type==="debts"){add("debtSide",debtSide);add("search",search)}try{const r=await fetch(`/api/reports?${q}`),j=await r.json();if(!r.ok)throw new Error(j.error);setResult(j);setPage(nextPage)}catch(e){setReportError(e instanceof Error?e.message:"تعذر إنشاء التقرير")}finally{setBusy(false)}};
+  const productOptions=data.products.map(p=>({value:p.id,label:`${p.sku||"—"} — ${p.name}${p.isArchived ? " (مؤرشف)" : ""}`,search:`${p.name} ${p.sku??""} ${p.barcode??""}`})),accountName=(id:unknown)=>data.paymentAccounts.find(a=>a.id===id||a.code===id)?.name??(id?"حساب غير متاح":"—"),columns=reportColumns(type,productId,groupBy),showDates=type!=="debts";
   const hasUnknownCost=Boolean(result&&Number(result.summary.unknownRevenue)>0&&["sales","product-sales","profit","overview"].includes(type));
   const numericKeys=new Set(["quantity","unitPrice","total","cost","profit","margin","paid","due","sales","purchases","expenses","received","net","soldQuantity","returnedQuantity","netQuantity","returns","netSales","averagePrice","invoiceCount","before","change","after","incoming","outgoing","receivable","payable","debit","credit","products"]);
   const display=(key:string,value:unknown)=>{if(numericKeys.has(key))return number(reportNumber(value));if(key==="paymentMethod")return accountName(value);if(key==="movementType")return movementLabels[String(value)]??"عملية غير معروفة";if(key==="occurredAt"||key==="lastMovement")return value?formatDateTime(String(value)):"—";if(key==="date")return value?formatDate(String(value)):"—";if(typeof value==="number")return number(reportNumber(value));if(typeof value==="boolean")return value?"متكرر":"مرة واحدة";return String(value??"—")};
   const summaryValue=(_key:string,value:unknown)=>number(reportNumber(value));
-  return <section className="reports-workspace" onKeyDown={e=>{if(e.key==="Enter")void runReport(1)}}><div className="report-toolbar no-print">{showDates&&<><label>من<input type="date" dir="ltr" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>إلى<input type="date" dir="ltr" value={to} onChange={e=>setTo(e.target.value)}/></label></>}<button className="primary" onClick={()=>void runReport(1)}>عرض</button><button onClick={()=>window.print()}><Printer/> طباعة</button></div><div className="report-filters no-print">
+  return <section className="reports-workspace" onKeyDown={e=>{if(e.key==="Enter")void runReport(1)}}><div className="report-toolbar no-print">{showDates&&<><label>من<input type="date" dir="ltr" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>إلى<input type="date" dir="ltr" value={to} onChange={e=>setTo(e.target.value)}/></label></>}<button className="primary" onClick={()=>void runReport(1)}>عرض</button><button onClick={()=>window.print()}><Printer/> طباعة</button>{showDates&&<button type="button" onClick={()=>void runReport(1,true)}>عرض الكل</button>}<div className="report-filters">
   {["sales","purchases","product-sales","profit","returns","stock"].includes(type)&&<SearchableSelect value={productId} onChange={setProductId} options={productOptions} placeholder="كل المنتجات" searchPlaceholder="ابحث بالاسم أو الرمز أو الباركود" allowEmpty/>}
   {type==="party-ledger"&&<SearchableSelect value={partyId} onChange={setPartyId} options={data.parties.map(p=>({value:p.id,label:p.name,search:p.phone}))} placeholder="اختر الطرف (مطلوب)" searchPlaceholder="ابحث بالاسم أو الهاتف"/>}
   {["sales","purchases","financial","expenses"].includes(type)&&<select value={accountId} onChange={e=>setAccountId(e.target.value)}><option value="">كل وسائل الدفع</option>{data.paymentAccounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>}
   {type==="profit"&&<select value={groupBy} onChange={e=>setGroupBy(e.target.value)}><option value="invoice">حسب الفاتورة</option><option value="product">حسب المنتج</option></select>}{type==="product-sales"&&<select value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="quantity">الأعلى كمية</option><option value="sales">الأعلى مبيعات</option><option value="profit">الأعلى ربحًا</option><option value="name">الاسم</option></select>}
   {type==="stock"&&<select value={movementType} onChange={e=>setMovementType(e.target.value)}><option value="">كل الحركات</option>{Object.entries(movementLabels).filter(([k])=>["sale","purchase","sale-return","transfer-in","transfer-out","adjustment","opening"].includes(k)).map(([k,v])=><option value={k} key={k}>{v}</option>)}</select>}{type==="financial"&&<select value={direction} onChange={e=>setDirection(e.target.value)}><option value="">داخل وخارج</option><option value="in">داخل</option><option value="out">خارج</option></select>}{type==="debts"&&<><select value={debtSide} onChange={e=>setDebtSide(e.target.value)}><option value="">الجميع</option><option value="receivable">لنا عليه</option><option value="payable">له علينا</option><option value="clear">حساب خالص</option></select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث بالاسم أو الهاتف"/></>}
-  </div><div className="print-report-title"><h2>{reportNames[type]}</h2>{showDates&&<span>من {formatDate(from)} إلى {formatDate(to)}</span>}</div>{reportError&&<div className="error report-error">{reportError}</div>}{result&&<div className="report-summary-area"><div className="report-kpis">{summarySchema[type].flatMap(([key,label])=>Object.hasOwn(result.summary,key)?[<span className="report-kpi" key={key}><small>{label}</small><b>{summaryValue(key,result.summary[key])}</b></span>]:[])}</div>{hasUnknownCost&&<p className="report-cost-note">بعض السجلات القديمة لا تحتوي تكلفة محفوظة وتم احتساب تكلفتها بصفر.</p>}</div>}<div className="report-body">{busy&&<div className="report-loading">جاري إعداد التقرير…</div>}{result&&<div className="erp-table-wrap"><table className={`erp-table report-table report-table-${type}`}><colgroup>{type==="sales"&&(productId?<><col style={{width:"5%"}}/><col style={{width:"17%"}}/><col style={{width:"18%"}}/><col style={{width:"18%"}}/><col style={{width:"10%"}}/><col style={{width:"11%"}}/><col style={{width:"11%"}}/><col style={{width:"10%"}}/></>:<><col style={{width:"5%"}}/><col style={{width:"18%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/><col style={{width:"13%"}}/><col style={{width:"13%"}}/><col style={{width:"13%"}}/></>)}</colgroup><thead><tr><th className="serial">م</th>{columns.map(c=><th key={c[0]}>{c[1]}</th>)}</tr></thead><tbody>{result.rows.map((row,i)=><tr key={String(row.id??i)} onClick={()=>row.documentId&&openDoc(String(row.documentId))}><td className="num-cell">{number((page-1)*100+i+1)}</td>{columns.map(([key])=><td key={key} title={key==="number"?String(row[key]??""):undefined} className={`${numericKeys.has(key)||typeof row[key]==="number"?"num-cell ":""}${key==="occurredAt"?"date-cell":""}`}>{display(key,row[key])}</td>)}</tr>)}</tbody></table></div>}</div>{result&&<div className="report-pagination no-print"><span>{result.meta.totalRows?number(Math.min((page-1)*100+1,result.meta.totalRows)):"0"}–{number(Math.min(page*100,result.meta.totalRows))} من {number(result.meta.totalRows)}</span><button disabled={page<=1||busy} onClick={()=>void runReport(page-1)}>السابق</button><button disabled={page>=result.meta.totalPages||busy} onClick={()=>void runReport(page+1)}>التالي</button></div>}</section>;
+  </div></div><div className="print-report-title"><h2>{reportNames[type]}</h2>{showDates&&<span>من {formatDate(from)} إلى {formatDate(to)}</span>}</div>{reportError&&<div className="error report-error">{reportError}</div>}<div className="report-body">{busy&&<div className="report-loading">جاري إعداد التقرير…</div>}{result&&<div className="erp-table-wrap"><table className={`erp-table report-table report-table-${type}`}><colgroup>{type==="sales"&&(productId?<><col style={{width:"5%"}}/><col style={{width:"17%"}}/><col style={{width:"18%"}}/><col style={{width:"18%"}}/><col style={{width:"10%"}}/><col style={{width:"11%"}}/><col style={{width:"11%"}}/><col style={{width:"10%"}}/></>:<><col style={{width:"5%"}}/><col style={{width:"18%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/><col style={{width:"13%"}}/><col style={{width:"13%"}}/><col style={{width:"13%"}}/></>)}</colgroup><thead><tr><th className="serial">م</th>{columns.map(c=><th key={c[0]}>{c[1]}</th>)}</tr></thead><tbody>{result.rows.map((row,i)=><tr key={String(row.id??i)} onClick={()=>row.documentId&&openDoc(String(row.documentId))}><td className="num-cell">{number((page-1)*100+i+1)}</td>{columns.map(([key])=><td key={key} title={key==="number"?String(row[key]??""):undefined} className={`${numericKeys.has(key)||typeof row[key]==="number"?"num-cell ":""}${key==="occurredAt"?"date-cell":""}`}>{display(key,row[key])}</td>)}</tr>)}</tbody></table></div>}</div>{result&&<div className="report-pagination no-print"><span>{result.meta.totalRows?number(Math.min((page-1)*100+1,result.meta.totalRows)):"0"}–{number(Math.min(page*100,result.meta.totalRows))} من {number(result.meta.totalRows)}</span><button disabled={page<=1||busy} onClick={()=>void runReport(page-1,allTimeActive)}>السابق</button><button disabled={page>=result.meta.totalPages||busy} onClick={()=>void runReport(page+1,allTimeActive)}>التالي</button></div>}{result&&<div className="report-summary-area"><div className="report-kpis">{summarySchema[type].flatMap(([key,label])=>Object.hasOwn(result.summary,key)?[<span className="report-kpi" key={key}><small>{label}</small><b>{summaryValue(key,result.summary[key])}</b></span>]:[])}</div>{hasUnknownCost&&<p className="report-cost-note">بعض السجلات القديمة لا تحتوي تكلفة محفوظة وتم احتساب تكلفتها بصفر.</p>}</div>}</section>;
 }
 function DocumentDetail({
   document,
