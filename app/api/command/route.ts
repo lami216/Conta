@@ -2,6 +2,7 @@ import type { ClientSession, Db } from "mongodb";
 import { getMongo, getMongoClient } from "../../../lib/mongodb.ts";
 import { log } from "../../../lib/log.ts";
 import { sessionFromRequest, validSameOrigin } from "../../../lib/auth.ts";
+import { isProductExpired } from "../../domain.ts";
 
 type Input = Record<string, unknown>;
 type Line = { productId: string; quantity: number; description?: string; piecePrice?: number; unitPrice?: number; actualQuantity?: number; purchaseCost?: number | null; costAtSale?: number | null; grossProfit?: number | null };
@@ -19,6 +20,12 @@ const optionalNumber = (v: unknown, label: string, integer = false) => {
   const n = positive(v, label, true);
   if (integer && (!Number.isInteger(n) || n <= 0)) throw new CommandError(`${label} غير صالح`);
   return n;
+};
+const optionalDate = (value: unknown) => {
+  const date = text(value);
+  if (!date) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || new Date(`${date}T00:00:00.000Z`).toISOString().slice(0, 10) !== date) throw new CommandError("تاريخ انتهاء الصلاحية غير صالح");
+  return date;
 };
 async function nextProductCode(db: Db, session: ClientSession) {
   const counters = db.collection<{ _id: string; value: number; createdAt?: Date; updatedAt?: Date }>("counters");
@@ -134,7 +141,9 @@ export async function execute(db: Db, session: ClientSession, body: Input) {
     if (!name) throw new CommandError("اسم المنتج مطلوب");
     const productId = text(body.id);
     if (barcode && await db.collection("products").findOne({ barcode, ...(type === "product.update" ? { id: { $ne: productId } } : {}) }, { session })) throw new CommandError("هذا الباركود مستخدم لمنتج آخر", 409);
-    const pieceCost = optionalNumber(body.pieceCost, "سعر الشراء"), values = { name, barcode, pieceCost, piecePrice: optionalNumber(body.piecePrice, "سعر البيع"), wholesalePrice: optionalNumber(body.wholesalePrice, "سعر الجملة") };
+    const note = text(body.note);
+    if (note.length > 1000) throw new CommandError("ملاحظة المنتج طويلة جدًا");
+    const pieceCost = optionalNumber(body.pieceCost, "سعر الشراء"), values = { name, barcode, expiryDate: optionalDate(body.expiryDate), note: note || null, pieceCost, piecePrice: optionalNumber(body.piecePrice, "سعر البيع"), wholesalePrice: optionalNumber(body.wholesalePrice, "سعر الجملة") };
     if (type === "product.create") {
       const openingStock = optionalNumber(body.openingStock, "رصيد البداية") ?? 0;
       if (!Number.isInteger(openingStock)) throw new CommandError("رصيد البداية غير صالح");
@@ -159,6 +168,7 @@ export async function execute(db: Db, session: ClientSession, body: Input) {
   }
   if (type === "sale.post" || type === "purchase.post") {
     const input = lines(body), isSale = type === "sale.post", { warehouse, party, warehouseId, partyId } = await refs(db, session, body, !isSale || text(body.paymentMethod) === "note"), map = await products(db, session, input), paymentMethod = text(body.paymentMethod) || "cash";
+    if (isSale && input.some(line => isProductExpired(map.get(line.productId)!, new Date().toISOString().slice(0, 10)))) throw new CommandError("انتهت صلاحية هذا المنتج ولا يمكن بيعه.");
     if (paymentMethod !== "note") await paymentAccount(db, session, paymentMethod);
     const costs = isSale ? new Map(await Promise.all(input.map(async line => [line.productId, await authoritativeCost(db, session, map.get(line.productId)!)] as const))) : new Map<string, number | null>();
     const calculated = input.map(line => { const p = map.get(line.productId)!; let unitPrice: number, total: number; if (isSale) { const price = positive(line.piecePrice, "سعر الفرد"); const cost = costs.get(line.productId); if (cost != null && price < cost) throw new CommandError(`لا يمكن البيع تحت سعر الشراء. سعر الشراء الحالي: ${cost} MRU`); total = Math.round(line.quantity * price); unitPrice = price; } else { unitPrice = positive(line.unitPrice, "سعر الشراء"); total = Math.round(unitPrice * line.quantity); } return { id: id("line"), productId: line.productId, description: p.name, quantity: line.quantity, unitPrice, lineTotal: total, ...(isSale ? { costAtSale: costs.get(line.productId) ?? null, grossProfit: costs.get(line.productId) == null ? null : total - line.quantity * Number(costs.get(line.productId)) } : {}) }; });

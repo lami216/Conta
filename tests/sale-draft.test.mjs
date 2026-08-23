@@ -70,3 +70,13 @@ test("sale UI defaults and successful reset are retail with scanner off", () => 
   state = { ...initialSaleUiState };
   assert.deepEqual(state, { priceMode: "retail", scannerEnabled: false });
 });
+
+import { isProductExpired } from "../app/domain.ts";
+
+test("expiry is inclusive and frontend draft validation blocks only later dates", () => {
+  const expiring = { ...product, lastPurchaseCost: null, expiryDate: "2026-08-22" };
+  assert.equal(isProductExpired(expiring, "2026-08-22"), false);
+  assert.equal(validateSaleDraft([draft()], [expiring], "sales", "2026-08-22").errors.length, 0);
+  assert.equal(isProductExpired(expiring, "2026-08-23"), true);
+  assert.match(validateSaleDraft([draft()], [expiring], "sales", "2026-08-23").errors.join(" "), /انتهت صلاحية/);
+});

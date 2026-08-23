@@ -46,3 +46,20 @@ test("report table retains known headers before a result exists", () => {
   const columns = [["number", "الفاتورة"], ["total", "الإجمالي"]];
   assert.deepEqual(reportTableModel(columns, null), { columns, rows: [] });
 });
+
+test("unpaged report returns every matching row while retaining full summary", async()=>{
+  await db.dropDatabase();
+  await db.collection("documents").insertMany(Array.from({length:245},(_,i)=>doc(String(i),"sale","2026-08-10",[line(String(i),"a",1,10,4)])));
+  const report=await buildReport(db,filters("sales",{unpaged:true,pageSize:1}));
+  assert.equal(report.meta.totalRows,245); assert.equal(report.rows.length,245); assert.equal(report.summary.netSales,2450);
+  assert.equal(parse("type=sales&from=2026-08-01&to=2026-08-31&unpaged=true").unpaged,true);
+});
+
+test("purchase summary exposes total paid and due and expiry loss is non-cash stock valuation",async()=>{
+  await db.dropDatabase();
+  await db.collection("documents").insertMany([doc("p1","purchase","2026-08-10",[line("l1","a",2,50)],{paidTotal:40,dueTotal:60}),doc("p2","purchase","2026-08-11",[line("l2","a",1,70)],{paidTotal:70,dueTotal:0})]);
+  const purchase=await buildReport(db,filters("purchases",{unpaged:true})); assert.deepEqual([purchase.summary.total,purchase.summary.paid,purchase.summary.due],[170,110,60]);
+  const yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10); await db.collection("products").insertOne({id:"a",name:"A",expiryDate:yesterday,lastPurchaseCost:12,pieceCost:3,stocks:{one:4,two:1}});
+  const before=await db.collection("financialMovements").countDocuments(); const stock=await buildReport(db,filters("stock",{unpaged:true}));
+  assert.equal(stock.summary.expiredInventoryLoss,60); assert.equal(await db.collection("financialMovements").countDocuments(),before); assert.equal((await db.collection("products").findOne({id:"a"})).stocks.one,4);
+});
