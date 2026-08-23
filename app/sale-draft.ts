@@ -1,4 +1,4 @@
-import type { Product } from "./domain";
+import { isProductExpired, type Product } from "./domain";
 
 export type SaleDraftLine = {
   productId: string;
@@ -36,7 +36,7 @@ export function updateSaleDraftLine<T extends SaleDraftLine>(lines: T[], product
   return lines.map(line => line.productId === productId ? { ...line, ...patch } : line);
 }
 
-export function validateSaleDraft(lines: SaleDraftLine[], products: Product[], warehouseId?: string) {
+export function validateSaleDraft(lines: SaleDraftLine[], products: Product[], warehouseId?: string, businessDate?: string) {
   const errors: string[] = [];
   const invalidProductIds = new Set<string>();
   for (const line of lines) {
@@ -45,6 +45,10 @@ export function validateSaleDraft(lines: SaleDraftLine[], products: Product[], w
       errors.push("أحد المنتجات لم يعد متاحًا.");
       invalidProductIds.add(line.productId);
       continue;
+    }
+    if (isProductExpired(product, businessDate)) {
+      errors.push(`${product.name}: انتهت صلاحية هذا المنتج ولا يمكن بيعه.`);
+      invalidProductIds.add(product.id);
     }
     const quantity = Number(line.quantity), price = Number(line.piecePrice);
     const available = Number(product.stocks?.[warehouseId ?? ""] ?? 0);

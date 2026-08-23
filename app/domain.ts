@@ -34,9 +34,17 @@ export interface Product {
   piecePrice: number | null;
   /** Optional wholesale selling price per individual unit. */
   wholesalePrice: number | null;
+  /** Optional business expiry date. The product is sellable through this day. */
+  expiryDate?: string | null;
+  note?: string | null;
   stocks: Record<string, number>;
   isArchived?: boolean;
   archivedAt?: string | null;
+}
+
+export function isProductExpired(product: unknown, businessDate = new Date().toISOString().slice(0, 10)) {
+  const expiryDate = (product as { expiryDate?: unknown } | null)?.expiryDate;
+  return typeof expiryDate === "string" && expiryDate !== "" && expiryDate < businessDate;
 }
 export interface DocumentLine {
   id: string;

@@ -178,3 +178,25 @@ test("payment accounts create and update without exposing the legacy icon", asyn
   assert.deepEqual([account.name, account.color, account.icon, account.isActive], ["Bank updated", "#123456", "landmark", false]);
   assert.ok(await db.collection("paymentAccounts").findOne({ code: "cash" }));
 });
+
+test("product expiry and note normalize, persist, edit, and reject invalid dates", async t => {
+  if (unavailable) return t.skip(unavailable);
+  const blankId = await command({ type: "product.create", name: "Blank expiry", expiryDate: "", note: "  remembered  " });
+  let product = await db.collection("products").findOne({ id: blankId });
+  assert.equal(product.expiryDate, null); assert.equal(product.note, "remembered"); assert.ok(product.sku);
+  await command({ type: "product.update", id: blankId, name: "Blank expiry", expiryDate: "2027-02-28", note: "edited" });
+  product = await db.collection("products").findOne({ id: blankId }); assert.deepEqual([product.expiryDate, product.note], ["2027-02-28", "edited"]);
+  await assert.rejects(command({ type: "product.create", name: "Bad expiry", expiryDate: "2027-02-30" }), /تاريخ انتهاء/);
+});
+
+test("sale permits expiry day, rejects expired stock atomically, and creates no cash expiry movement", async t => {
+  if (unavailable) return t.skip(unavailable);
+  const today = new Date().toISOString().slice(0, 10), yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  await db.collection("products").updateOne({ id: "p1" }, { $set: { expiryDate: today, "stocks.wh-main": 2 } });
+  await command({ type: "sale.post", warehouseId: "wh-main", paymentMethod: "cash", lines: [{ productId: "p1", quantity: 1, piecePrice: 100 }] });
+  await db.collection("products").updateOne({ id: "p1" }, { $set: { expiryDate: yesterday } });
+  const before = [await db.collection("documents").countDocuments(), await db.collection("stockMovements").countDocuments(), await db.collection("financialMovements").countDocuments()];
+  await assert.rejects(command({ type: "sale.post", warehouseId: "wh-main", paymentMethod: "cash", lines: [{ productId: "p1", quantity: 1, piecePrice: 100 }] }), /انتهت صلاحية/);
+  assert.deepEqual([await db.collection("documents").countDocuments(), await db.collection("stockMovements").countDocuments(), await db.collection("financialMovements").countDocuments()], before);
+  assert.equal((await db.collection("products").findOne({ id: "p1" })).stocks["wh-main"], 1);
+});
