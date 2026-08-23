@@ -314,7 +314,7 @@ export default function ContaApp() {
 type PreviewGroup = {key:string;label:string;count:number;created:number;matched:number;review:number;skipped:number;unsupported:number};
 type FilePreview = { format:string;uploadId?:string;source?:{filename?:string;fingerprint?:string};schemaVersion?:number;createdAt?:string;counts?:Record<string,number>;groups?:PreviewGroup[];unknownGroups?:Array<{key:string;label:string;count:number;reason:string;manualMappingSupported:boolean}>;warnings?:string[];criticalConflicts?:number };
 type ImportRun = {importRunId:string;sourceType?:string;filename?:string;state:string;phase:string;progress?:{processed:number;total:number;label:string};counts?:Record<string,{processed:number;created:number;existing:number;skipped:number}>;reviewCount?:number;backupIdBeforeImport?:string;startedAt?:string;completedAt?:string;publicError?:string};
-function SettingsPage({data,reload}:{data:BootstrapData;reload:()=>Promise<void>}) {
+function SettingsPage({reload}:{data:BootstrapData;reload:()=>Promise<void>}) {
   const [selectedFile,setSelectedFile]=useState<File|null>(null),[nativePreview,setNativePreview]=useState<FilePreview|null>(null),[externalPreview,setExternalPreview]=useState<FilePreview|null>(null),[importRun,setImportRun]=useState<ImportRun|null>(null),[history,setHistory]=useState<ImportRun[]>([]),[stockPolicy,setStockPolicy]=useState("keep-current"),[accountPolicy,setAccountPolicy]=useState("keep-current"),[busy,setBusy]=useState(""),[message,setMessage]=useState(""),[failure,setFailure]=useState("");
   const request=async(url:string,file:File)=>readApiResponse(await fetch(url,{method:"POST",headers:{"content-type":file.type||"application/octet-stream"},body:file}));
   const loadHistory=async()=>{try{const value=await readApiResponse(await fetch("/api/settings/import-runs")) as {runs:ImportRun[]};setHistory(value.runs)}catch{}};
@@ -326,10 +326,9 @@ function SettingsPage({data,reload}:{data:BootstrapData;reload:()=>Promise<void>
   const advance=async(run:ImportRun)=>{let current=run;while(current.state!=="completed"){await new Promise(resolve=>setTimeout(resolve,350));current=await readApiResponse(await fetch(`/api/settings/legacy/import-runs/${encodeURIComponent(current.importRunId)}/advance`,{method:"POST",headers:{"content-type":"application/json"},body:"{}"})) as ImportRun;setImportRun(current);if(current.state==="failed")throw new Error(current.publicError||`تعذر الاستيراد. رقم العملية: ${current.importRunId}`)}return current};
   const importExternal=async()=>{if(!externalPreview?.uploadId)return;setBusy("import");setFailure("");try{let run=await readApiResponse(await fetch("/api/settings/legacy/upload/complete",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({uploadId:externalPreview.uploadId,action:"import",stockPolicy,accountBalancePolicy:accountPolicy,filename:selectedFile?.name})})) as ImportRun;setImportRun(run);run=await advance(run);setMessage(`تم الدمج بأمان. نسخة الرجوع: ${run.backupIdBeforeImport}`);await Promise.all([reload(),loadHistory()])}catch(e){setFailure(e instanceof Error?e.message:"تعذر الاستيراد")}finally{setBusy("")}};
   const resume=async(run:ImportRun)=>{setBusy("import");setImportRun(run);setFailure("");try{await advance(run);await Promise.all([reload(),loadHistory()])}catch(e){setFailure(e instanceof Error?e.message:"تعذر استئناف العملية")}finally{setBusy("")}};
-  const summary=[['المنتجات',data.products.length],['الأطراف',data.parties.length],['المخازن',data.warehouses.length],['الفواتير',data.documents.length],['الحركات المالية',data.financialMovements.length]] as const;
-  return <section className="settings-page"><header className="settings-title"><div><small>الإعدادات</small><h1>مركز النسخ والاستيراد</h1></div><div className="compact-counts">{summary.map(([label,value])=><span key={label}>{label} <b>{number(value)}</b></span>)}</div></header>
-    <div className="backup-strip panel"><div><h2>النسخ الاحتياطي</h2><p>نسخة Conta كاملة قابلة للاستعادة.</p></div><button className="primary" disabled={!!busy} onClick={()=>{setBusy("backup");download().then(()=>setMessage("تم إنشاء النسخة وتنزيلها")).catch(e=>setFailure(e.message)).finally(()=>setBusy(""))}}>{busy==="backup"?"جاري الإنشاء…":"إنشاء وتنزيل"}</button></div>
-    <article className="panel import-center"><div className="import-head"><div><h2>الاستعادة والاستيراد</h2><p>يُكتشف نوع الملف أولًا؛ نسخة Conta تُستعاد بالكامل والمصادر الخارجية تُدمج فقط.</p></div><label className="file-button">اختيار ملف<input type="file" accept=".json,.conta.json,.db,.sqlite,application/json,application/vnd.sqlite3" onChange={e=>void chooseFile(e.target.files?.[0]??null)}/></label></div>
+    return <section className="settings-page">
+    <FramedSection title="النسخ الاحتياطي" className="settings-backup"><div><button className="primary" disabled={!!busy} onClick={()=>{setBusy("backup");download().then(()=>setMessage("تم إنشاء النسخة وتنزيلها")).catch(e=>setFailure(e.message)).finally(()=>setBusy(""))}}>{busy==="backup"?"جاري الإنشاء…":"إنشاء وتنزيل"}</button></div></FramedSection>
+    <FramedSection title="الاستعادة والاستيراد" className="settings-import"><div className="import-head"><label className="file-button">اختيار ملف<input type="file" accept=".json,.conta.json,.db,.sqlite,application/json,application/vnd.sqlite3" onChange={e=>void chooseFile(e.target.files?.[0]??null)}/></label></div>
       <ol className="import-steps"><li className={selectedFile?"done":"active"}>1 فحص الملف</li><li className={externalPreview?"done":""}>2 المطابقة</li><li className={externalPreview?.criticalConflicts?"active":""}>3 مراجعة التعارضات</li><li className={externalPreview?"done":""}>4 المعاينة النهائية</li><li className={importRun?"active":""}>5 الاستيراد</li></ol>
       {busy==="inspect"&&<div className="loading-line">جاري فحص الملف دون تعديل البيانات…</div>}
       {nativePreview&&<div className="source-preview"><div><b>نوع الملف: نسخة Conta v{nativePreview.schemaVersion}</b><small>{nativePreview.createdAt&&formatDateTime(nativePreview.createdAt)}</small></div><div className="preview-count-grid">{Object.entries(nativePreview.counts??{}).map(([k,v])=><span key={k}>{k}<b>{number(v)}</b></span>)}</div><button className="danger" disabled={!!busy} onClick={()=>void restore()}>{busy==="restore"?"جاري الاستعادة…":"استعادة كاملة"}</button></div>}
@@ -338,8 +337,8 @@ function SettingsPage({data,reload}:{data:BootstrapData;reload:()=>Promise<void>
         <div className="policy-row"><label>تعارض المخزون<select value={stockPolicy} onChange={e=>setStockPolicy(e.target.value)}><option value="keep-current">الاحتفاظ برصيد Conta</option><option value="use-imported">استخدام الرصيد المستورد</option><option value="manual-resolution">حل يدوي</option></select></label><label>تعارض رصيد الحساب<select value={accountPolicy} onChange={e=>setAccountPolicy(e.target.value)}><option value="keep-current">الاحتفاظ برصيد Conta</option><option value="use-imported">استخدام الرصيد المستورد</option><option value="adjustment">تسجيل Adjustment بالفرق</option></select></label></div>
         <div className="final-actions"><small>سيتم إنشاء نسخة أمان تلقائية قبل أول مرحلة دمج. لن تُجمع الأرصدة أو كميات المخزون.</small><button className="primary" disabled={!!busy||stockPolicy==="manual-resolution"||!!externalPreview.criticalConflicts} onClick={()=>void importExternal()}>{busy==="import"?"جاري الاستيراد…":"تنفيذ الاستيراد"}</button></div></div>}
       {importRun&&<div className="run-progress"><strong>{importRun.state==="completed"?"اكتملت العملية":importRun.state==="failed"?"توقفت العملية ويمكن إعادة المحاولة":`استيراد ${importRun.progress?.label??"البيانات"}`}</strong><span>{number(importRun.progress?.processed??0)} / {number(importRun.progress?.total??0)}</span><small>رقم العملية: {importRun.importRunId}</small></div>}
-    </article>
-    <article className="panel import-history"><h2>سجل عمليات الاستيراد</h2>{history.length===0?<p>لا توجد عمليات بعد.</p>:history.map(run=><div className="history-row" key={run.importRunId}><div><b>{run.filename||"DataAcc SQLite"}</b><small>{run.startedAt&&formatDateTime(run.startedAt)} · {run.importRunId.slice(0,8)}</small></div><span className={`run-state ${run.state}`}>{run.state==="completed"?"مكتملة":run.state==="failed"?"تحتاج إعادة محاولة":"قيد التنفيذ"}</span><span>{Object.values(run.counts??{}).reduce((n,x)=>n+x.created,0)} جديد · {Object.values(run.counts??{}).reduce((n,x)=>n+x.existing,0)} مطابق</span>{run.state!=="completed"&&<button className="soft" disabled={!!busy} onClick={()=>void resume(run)}>متابعة</button>}</div>)}</article>
+    </FramedSection>
+    <FramedSection title="سجل عمليات الاستيراد" className="settings-history">{history.length===0?<p>لا توجد عمليات بعد.</p>:history.map(run=><div className="history-row" key={run.importRunId}><div><b>{run.filename||"DataAcc SQLite"}</b><small>{run.startedAt&&formatDateTime(run.startedAt)} · {run.importRunId.slice(0,8)}</small></div><span className={`run-state ${run.state}`}>{run.state==="completed"?"مكتملة":run.state==="failed"?"تحتاج إعادة محاولة":"قيد التنفيذ"}</span><span>{Object.values(run.counts??{}).reduce((n,x)=>n+x.created,0)} جديد · {Object.values(run.counts??{}).reduce((n,x)=>n+x.existing,0)} مطابق</span>{run.state!=="completed"&&<button className="soft" disabled={!!busy} onClick={()=>void resume(run)}>متابعة</button>}</div>)}</FramedSection>
     {message&&<div className="success">{message}</div>}{failure&&<div className="error">{failure}</div>}
   </section>;
 }
@@ -720,8 +719,7 @@ function Expenses({ data, run, openDoc }: { data: BootstrapData; run: RunCommand
     && (!historyTo || d.occurredAt.slice(0, 10) <= historyTo));
   return <section className="expense-workspace workspace-page">
     <div className="expense-grid">
-      <form className="panel expense-form" onSubmit={async event => { event.preventDefault(); const id = await run({ type: "expense.post", title, amount: val(amount), occurredAt: date, frequency, paymentMethod }, frequency === "once" ? "تم تسجيل المصروف" : "تم حفظ التذكير دون خصم"); setTitle(""); setAmount(""); if (frequency === "once") openDoc(id); }}>
-        <div className="section-title"><h3>مصروف جديد</h3></div>
+      <FramedSection title="مصروف جديد" className="expense-form"><form className="expense-form-body" onSubmit={async event => { event.preventDefault(); const id = await run({ type: "expense.post", title, amount: val(amount), occurredAt: date, frequency, paymentMethod }, frequency === "once" ? "تم تسجيل المصروف" : "تم حفظ التذكير دون خصم"); setTitle(""); setAmount(""); if (frequency === "once") openDoc(id); }}>
         <div className="expense-fields">
           <label>عنوان المصروف<input required value={title} onChange={e => setTitle(e.target.value)} /></label>
           <label>المبلغ<Num value={amount} onChange={setAmount} /></label>
@@ -729,14 +727,14 @@ function Expenses({ data, run, openDoc }: { data: BootstrapData; run: RunCommand
           <label>التكرار<select value={frequency} onChange={e => setFrequency(e.target.value)}><option value="once">مرة واحدة</option><option value="daily">يومي</option><option value="monthly">شهري</option></select></label>
           {frequency === "once" && <label>وسيلة الدفع<select required value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}><option value="">اختر وسيلة الدفع</option>{accounts.map(a => <option key={a.id} value={a.id}>{a.name} — {money(a.balance)}</option>)}</select></label>}
         </div><button className="primary expense-save" disabled={!title || !amount || (frequency === "once" && !paymentMethod)}>{frequency === "once" ? "حفظ الفاتورة" : "حفظ التذكير"}</button>
-      </form>
-      <div className="panel expense-recurring"><div className="section-title"><h3>المصاريف المستحقة</h3><b>{number(data.recurringExpenses.length)}</b></div><div className="erp-table-wrap expense-scroll"><table className="erp-table" aria-label="المصاريف المستحقة"><colgroup><col style={{width:"27%"}}/><col style={{width:"19%"}}/><col style={{width:"17%"}}/><col style={{width:"22%"}}/><col style={{width:"15%"}}/></colgroup><thead><tr><th>المصروف</th><th>الاستحقاق</th><th>المبلغ</th><th>الحالة / الحساب</th><th>إجراء</th></tr></thead><tbody>
+      </form></FramedSection>
+      <FramedSection title={`المصاريف المستحقة · ${number(data.recurringExpenses.length)}`} className="expense-recurring"><div className="erp-table-wrap expense-scroll"><table className="erp-table" aria-label="المصاريف المستحقة"><colgroup><col style={{width:"27%"}}/><col style={{width:"19%"}}/><col style={{width:"17%"}}/><col style={{width:"22%"}}/><col style={{width:"15%"}}/></colgroup><thead><tr><th>المصروف</th><th>الاستحقاق</th><th>المبلغ</th><th>الحالة / الحساب</th><th>إجراء</th></tr></thead><tbody>
         {data.recurringExpenses.map(r => <tr key={r.id}><td className="name-cell">{r.title}</td><td>{formatDate(r.currentDueDate)}</td><td className="num-cell">{money(r.amount)}</td><td>{r.currentPaymentMethodId ? `مدفوع · ${accountName(r.currentPaymentMethodId)}` : r.frequency === "daily" ? "يومي · غير مدفوع" : "شهري · غير مدفوع"}</td><td className="action-cell">{r.currentPaymentMethodId ? accountName(r.currentPaymentMethodId) : <button className="soft" onClick={() => setPaying(r.id)}>تسجيل الدفع</button>}</td></tr>)}
         {!data.recurringExpenses.length && <tr><td colSpan={5}>لا توجد مصاريف متكررة</td></tr>}
-      </tbody></table></div></div>
-      <div className="panel expense-history"><div className="section-title"><h3>سجل المصاريف</h3></div><div className="expense-history-filters"><label className="search"><Search /><input value={historyQuery} onChange={e => setHistoryQuery(e.target.value)} placeholder="بحث بالعنوان أو رقم المستند" /></label><label>من<input dir="ltr" type="date" value={historyFrom} onChange={e => setHistoryFrom(e.target.value)} /></label><label>إلى<input dir="ltr" type="date" value={historyTo} onChange={e => setHistoryTo(e.target.value)} /></label></div><div className="erp-table-wrap expense-scroll"><table className="erp-table" aria-label="سجل المصاريف"><colgroup><col style={{width:"16%"}}/><col style={{width:"24%"}}/><col style={{width:"15%"}}/><col style={{width:"18%"}}/><col style={{width:"13%"}}/><col style={{width:"14%"}}/></colgroup><thead><tr><th>التاريخ</th><th>العنوان</th><th>المبلغ</th><th>وسيلة الدفع</th><th>النوع</th><th>المستند</th></tr></thead><tbody>{expenseDocs.map(document => <tr key={document.id} onClick={() => openDoc(document.id)}><td>{formatDate(document.occurredAt)}</td><td className="name-cell">{document.title ?? "مصروف"}</td><td className="num-cell">{money(document.total)}</td><td>{accountName(document.paymentMethod)}</td><td>{document.recurringId ? "متكرر" : "مرة واحدة"}</td><td dir="ltr">{document.number}</td></tr>)}{!expenseDocs.length && <tr><td colSpan={6}>لا توجد فواتير مطابقة</td></tr>}</tbody></table></div></div>
+      </tbody></table></div></FramedSection>
+      <FramedSection title="سجل المصاريف" className="expense-history"><div className="expense-history-filters"><label className="search"><Search /><input value={historyQuery} onChange={e => setHistoryQuery(e.target.value)} placeholder="بحث بالعنوان أو رقم المستند" /></label><label>من<input dir="ltr" type="date" value={historyFrom} onChange={e => setHistoryFrom(e.target.value)} /></label><label>إلى<input dir="ltr" type="date" value={historyTo} onChange={e => setHistoryTo(e.target.value)} /></label></div><div className="erp-table-wrap expense-scroll"><table className="erp-table" aria-label="سجل المصاريف"><colgroup><col style={{width:"16%"}}/><col style={{width:"24%"}}/><col style={{width:"15%"}}/><col style={{width:"18%"}}/><col style={{width:"13%"}}/><col style={{width:"14%"}}/></colgroup><thead><tr><th>التاريخ</th><th>العنوان</th><th>المبلغ</th><th>وسيلة الدفع</th><th>النوع</th><th>المستند</th></tr></thead><tbody>{expenseDocs.map(document => <tr key={document.id} onClick={() => openDoc(document.id)}><td>{formatDate(document.occurredAt)}</td><td className="name-cell">{document.title ?? "مصروف"}</td><td className="num-cell">{money(document.total)}</td><td>{accountName(document.paymentMethod)}</td><td>{document.recurringId ? "متكرر" : "مرة واحدة"}</td><td dir="ltr">{document.number}</td></tr>)}{!expenseDocs.length && <tr><td colSpan={6}>لا توجد فواتير مطابقة</td></tr>}</tbody></table></div></FramedSection>
     </div>
-    {paying && <div className="modal-overlay" role="dialog" aria-modal="true"><form className="modal-card payment-dialog" onSubmit={async e => { e.preventDefault(); if (!paymentMethod) return; const recurring = data.recurringExpenses.find(r => r.id === paying)!; await run({ type: "expense.materialize", recurringId: paying, dueDate: recurring.currentDueDate, paymentMethod }, "تم تسجيل دفع الاستحقاق"); setPaying(null); }}><div className="section-title"><h3>تسجيل الدفع</h3><button type="button" className="icon" onClick={() => setPaying(null)}><X /></button></div><label>تم الدفع من<select required value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}><option value="">اختر الحساب</option>{accounts.map(a => <option key={a.id} value={a.id}>{a.name} — {money(a.balance)}</option>)}</select></label><button className="primary">تأكيد الدفع</button></form></div>}
+    {paying && <div className="modal-overlay" role="dialog" aria-modal="true"><form className="modal-card payment-dialog" onSubmit={async e => { e.preventDefault(); if (!paymentMethod) return; const recurring = data.recurringExpenses.find(r => r.id === paying)!; await run({ type: "expense.materialize", recurringId: paying, dueDate: recurring.currentDueDate, paymentMethod }, "تم تسجيل دفع الاستحقاق"); setPaying(null); }}><div className="modal-heading"><h3>تسجيل الدفع</h3><button type="button" className="icon" onClick={() => setPaying(null)}><X /></button></div><label>تم الدفع من<select required value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}><option value="">اختر الحساب</option>{accounts.map(a => <option key={a.id} value={a.id}>{a.name} — {money(a.balance)}</option>)}</select></label><button className="primary">تأكيد الدفع</button></form></div>}
   </section>;
 }
 function Banks({ data, run }: { data: BootstrapData; run: RunCommand }) {
@@ -753,18 +751,18 @@ function Banks({ data, run }: { data: BootstrapData; run: RunCommand }) {
   const todayMovements = data.financialMovements.filter(m => m.occurredAt.slice(0, 10) === today);
   const movementLabels: Record<string, string> = { sale: "بيع", purchase: "شراء", expense: "مصروف", "party-receipt": "سداد عميل", "party-payment": "سداد مورد", "transfer-in": "تحويل داخل", "transfer-out": "تحويل خارج" };
   return <section className="banks-workspace workspace-page">
-    <div className="bank-summary"><div><small>إجمالي الأرصدة الحالية</small><b>{money(total)}</b></div><div><small>إجمالي المشتريات</small><b>{money(purchaseTotal)}</b></div><div><small>إجمالي الداخل اليوم</small><b>{money(todayMovements.filter(m => m.direction === "in").reduce((s,m) => s + m.amount, 0))}</b></div><div><small>إجمالي الخارج اليوم</small><b>{money(todayMovements.filter(m => m.direction === "out").reduce((s,m) => s + m.amount, 0))}</b></div></div>
-    <div className="panel bank-panel"><div className="bank-tabs"><button className={tab === "accounts" ? "active" : ""} onClick={() => setTab("accounts")}>وسائل الدفع</button><button className={tab === "movements" ? "active" : ""} onClick={() => setTab("movements")}>حركة الحسابات</button><button className={tab === "transfers" ? "active" : ""} onClick={() => setTab("transfers")}>التحويلات</button></div>
-      {tab === "accounts" && <><div className="section-toolbar"><button className="primary" onClick={() => setEditing({ id: "", code: "", name: "", color: "#1677c8", icon: "wallet", isActive: true, balance: 0, income: 0, expenses: 0, purchaseTotal: 0 })}><Plus /> إضافة وسيلة</button></div><div className="account-cards">{data.paymentAccounts.map(account => <article className={!account.isActive ? "account-card inactive" : "account-card"} style={{ borderColor: account.color }} key={account.id}>{account.code === "cash" && <div className="account-icon" style={{ color: account.color, background: `${account.color}18` }}><Banknote /></div>}<span><small>{account.isActive ? "نشط" : "متوقف"}</small><strong>{account.name}</strong></span><b>{money(account.balance)}</b><div><small>المشتريات {money(account.purchaseTotal)}</small><small>الداخل {money(account.income)} · الخارج {money(account.expenses)}</small></div><button className="soft" onClick={() => setEditing(account)}>تعديل</button></article>)}</div></>}
+    <FramedSection title="ملخص الحسابات" className="bank-summary"><div><small>إجمالي الأرصدة الحالية</small><b>{money(total)}</b></div><div><small>إجمالي المشتريات</small><b>{money(purchaseTotal)}</b></div><div><small>إجمالي الداخل اليوم</small><b>{money(todayMovements.filter(m => m.direction === "in").reduce((s,m) => s + m.amount, 0))}</b></div><div><small>إجمالي الخارج اليوم</small><b>{money(todayMovements.filter(m => m.direction === "out").reduce((s,m) => s + m.amount, 0))}</b></div></FramedSection>
+    <FramedSection title="البنوك والحسابات" className="bank-panel"><div className="bank-tabs"><button className="selection-option" aria-pressed={tab === "accounts"} onClick={() => setTab("accounts")}>وسائل الدفع</button><button className="selection-option" aria-pressed={tab === "movements"} onClick={() => setTab("movements")}>حركة الحسابات</button><button className="selection-option" aria-pressed={tab === "transfers"} onClick={() => setTab("transfers")}>التحويلات</button></div>
+      {tab === "accounts" && <><div className="section-toolbar"><button className="primary" onClick={() => setEditing({ id: "", code: "", name: "", color: "#1677c8", icon: "wallet", isActive: true, balance: 0, income: 0, expenses: 0, purchaseTotal: 0 })}><Plus /> إضافة وسيلة</button></div><div className="erp-table-wrap account-list"><table className="erp-table" aria-label="وسائل الدفع"><thead><tr><th>الحساب</th><th>الحالة</th><th>الرصيد</th><th>المشتريات</th><th>الداخل</th><th>الخارج</th><th>إجراء</th></tr></thead><tbody>{data.paymentAccounts.map(account => <tr className={!account.isActive ? "inactive" : ""} key={account.id}><td className="name-cell">{account.name}</td><td>{account.isActive ? "نشط" : "متوقف"}</td><td className="num-cell">{money(account.balance)}</td><td className="num-cell">{money(account.purchaseTotal)}</td><td className="num-cell positive">{money(account.income)}</td><td className="num-cell negative">{money(account.expenses)}</td><td className="action-cell"><button className="soft" onClick={() => setEditing(account)}>تعديل</button></td></tr>)}</tbody></table></div></>}
       {tab === "movements" && <><div className="bank-filters"><select value={accountFilter} onChange={e => setAccountFilter(e.target.value)}><option value="">كل الحسابات</option>{data.paymentAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select><select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}><option value="">كل الأنواع</option>{Object.entries(movementLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></div><div className="erp-table-wrap ledger-list"><table className="erp-table"><colgroup><col style={{width:"24%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/></colgroup><thead><tr><th>التاريخ</th><th>النوع</th><th>وسيلة الدفع</th><th>الحركة</th><th>المستند</th></tr></thead><tbody>{movements.map(m => <tr key={m.id}><td>{formatDateTime(m.occurredAt)}</td><td>{movementLabels[m.type] ?? m.type}</td><td>{name(m.paymentMethod)}</td><td className="num-cell">{m.direction === "in" ? "+" : "−"}{number(m.amount)}</td><td dir="ltr">{m.documentNumber}</td></tr>)}</tbody></table></div></>}
       {tab === "transfers" && <div className="transfer-layout"><form className="transfer-form" onSubmit={async e => { e.preventDefault(); await run({ type: "account-transfer.post", fromAccountId: from, toAccountId: to, amount: val(amount), note }, "تم التحويل بين الحسابات"); setAmount(""); setNote(""); }}><label>من الحساب<select required value={from} onChange={e => setFrom(e.target.value)}><option value="">اختر المصدر</option>{active.map(a => <option key={a.id} value={a.id}>{a.name} — {money(a.balance)}</option>)}</select></label><label>إلى الحساب<select required value={to} onChange={e => setTo(e.target.value)}><option value="">اختر الوجهة</option>{active.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label>المبلغ<Num value={amount} onChange={setAmount} /></label><label>ملاحظة<input value={note} onChange={e => setNote(e.target.value)} /></label><button className="primary" disabled={!from || !to || from === to || !amount}>اعتماد التحويل</button></form><div className="erp-table-wrap transfer-list"><table className="erp-table"><colgroup><col style={{width:"24%"}}/><col style={{width:"20%"}}/><col style={{width:"20%"}}/><col style={{width:"18%"}}/><col style={{width:"18%"}}/></colgroup><thead><tr><th>التاريخ</th><th>من</th><th>إلى</th><th>المبلغ</th><th>المرجع</th></tr></thead><tbody>{data.accountTransfers.map(t => <tr key={t.id}><td>{formatDateTime(t.occurredAt)}</td><td>{name(t.fromAccountId)}</td><td>{name(t.toAccountId)}</td><td className="num-cell">{number(t.amount)}</td><td dir="ltr">{t.number}</td></tr>)}</tbody></table></div></div>}
-    </div>
+    </FramedSection>
     {editing && <PaymentAccountDialog account={editing} close={() => setEditing(null)} run={run} />}
   </section>;
 }
 function PaymentAccountDialog({ account, close, run }: { account: PaymentAccount; close: () => void; run: RunCommand }) {
   const [name, setName] = useState(account.name), [color, setColor] = useState(account.color), [isActive, setActive] = useState(account.isActive);
-  return <div className="modal-overlay" role="dialog" aria-modal="true"><form className="modal-card account-dialog" onSubmit={async e => { e.preventDefault(); await run({ type: account.id ? "payment-account.update" : "payment-account.create", id: account.id, name, color, isActive }, "تم حفظ وسيلة الدفع"); close(); }}><div className="section-title"><h3>{account.id ? "تعديل وسيلة الدفع" : "وسيلة دفع جديدة"}</h3><button type="button" className="icon" onClick={close}><X /></button></div><label>الاسم<input required value={name} onChange={e => setName(e.target.value)} /></label><label>اللون<input type="color" value={color} onChange={e => setColor(e.target.value)} /></label>{account.id && <label className="active-toggle"><input type="checkbox" checked={isActive} onChange={e => setActive(e.target.checked)} /> متاحة للعمليات الجديدة</label>}<button className="primary">حفظ</button></form></div>;
+  return <div className="modal-overlay" role="dialog" aria-modal="true"><form className="modal-card account-dialog" onSubmit={async e => { e.preventDefault(); await run({ type: account.id ? "payment-account.update" : "payment-account.create", id: account.id, name, color, isActive }, "تم حفظ وسيلة الدفع"); close(); }}><div className="modal-heading"><h3>{account.id ? "تعديل وسيلة الدفع" : "وسيلة دفع جديدة"}</h3><button type="button" className="icon" onClick={close}><X /></button></div><label>الاسم<input required value={name} onChange={e => setName(e.target.value)} /></label><label>اللون<input type="color" value={color} onChange={e => setColor(e.target.value)} /></label>{account.id && <label className="active-toggle"><input type="checkbox" checked={isActive} onChange={e => setActive(e.target.checked)} /> متاحة للعمليات الجديدة</label>}<button className="primary">حفظ</button></form></div>;
 }
 
 function Parties({
@@ -800,7 +798,7 @@ function Parties({
     );
   return (
     <section className="parties-workspace">
-      <div className="toolbar parties-search">
+      <FramedSection title="إدارة العملاء والموردين" className="parties-controls"><div className="parties-search">
         <label className="search">
           <Search />
           <input
@@ -811,7 +809,7 @@ function Parties({
         </label>
       </div>
       <form
-        className="panel mini-form parties-create"
+        className="parties-create"
         onSubmit={async (e) => {
           e.preventDefault();
           await run(
@@ -836,10 +834,10 @@ function Parties({
         <button className="primary">
           <Plus /> إضافة طرف
         </button>
-      </form>
-      <div className="erp-table-wrap party-grid"><table className="erp-table" aria-label="العملاء والموردون"><colgroup><col style={{width:"27%"}}/><col style={{width:"17%"}}/><col style={{width:"14%"}}/><col style={{width:"14%"}}/><col style={{width:"14%"}}/><col style={{width:"14%"}}/></colgroup><thead><tr><th>الاسم</th><th>الهاتف</th><th>لنا عليه</th><th>له علينا</th><th>الصافي</th><th>إجراء</th></tr></thead><tbody>
-        {list.map((p) => <tr key={p.id} onClick={() => openParty(p)}><td className="name-cell">{p.name} <span className="party-badge">زبون ومورد</span></td><td dir="ltr">{p.phone || "—"}</td><td className="num-cell">{number(p.receivable)}</td><td className="num-cell">{number(p.payable)}</td><td className="num-cell">{number(p.receivable - p.payable)}</td><td className="action-cell"><button className="soft" onClick={event => { event.stopPropagation(); openParty(p); }}>كشف الحساب</button></td></tr>)}
-      </tbody></table></div>
+      </form></FramedSection>
+      <FramedSection title="العملاء والموردون" className="parties-list"><div className="erp-table-wrap party-grid"><table className="erp-table" aria-label="العملاء والموردون"><colgroup><col style={{width:"27%"}}/><col style={{width:"17%"}}/><col style={{width:"14%"}}/><col style={{width:"14%"}}/><col style={{width:"14%"}}/><col style={{width:"14%"}}/></colgroup><thead><tr><th>الاسم</th><th>الهاتف</th><th>لنا عليه</th><th>له علينا</th><th>الصافي</th><th>إجراء</th></tr></thead><tbody>
+        {list.map((p) => <tr key={p.id} onClick={() => openParty(p)}><td className="name-cell">{p.name}</td><td dir="ltr">{p.phone || "—"}</td><td className="num-cell">{number(p.receivable)}</td><td className="num-cell">{number(p.payable)}</td><td className="num-cell">{number(p.receivable - p.payable)}</td><td className="action-cell"><button className="soft" onClick={event => { event.stopPropagation(); openParty(p); }}>كشف الحساب</button></td></tr>)}
+      </tbody></table></div></FramedSection>
     </section>
   );
 }
@@ -882,11 +880,11 @@ function PartyPage({
     setAmount("");
   }
   return (
-    <section>
+    <section className="party-detail">
       <button className="back" onClick={close}>
         ← العودة إلى الأطراف
       </button>
-      <div className="panel party-summary">
+      <FramedSection title="ملخص الحساب" className="party-summary">
         <div>
           <h2>{party.name}</h2>
           <p dir="ltr">{party.phone || "—"}</p>
@@ -903,8 +901,8 @@ function PartyPage({
           </span>
           {party.receivable === 0 && party.payable === 0 && <span className="paid-badge">الحساب خالص</span>}
         </div>
-      </div>
-      <div className="panel form-row">
+      </FramedSection>
+      <FramedSection title="تسجيل عملية" className="party-operation"><div className="form-row">
         <label>
           العملية
           <select value={action} onChange={(e) => setAction(e.target.value)}>
@@ -929,8 +927,8 @@ function PartyPage({
         <button className="primary" onClick={() => void submit()}>
           تسجيل العملية
         </button>
-      </div>
-      <div className="filters">
+      </div></FramedSection>
+      <FramedSection title="الحركات" className="party-history"><div className="filters">
         <label>
           من
           <input
@@ -950,11 +948,8 @@ function PartyPage({
           />
         </label>
       </div>
-      <Recent
-        title="الفواتير والدفعات والتسويات"
-        docs={docs}
-        openDoc={openDoc}
-      />
+      <Recent title="الحركات" docs={docs} openDoc={openDoc} bare />
+      </FramedSection>
     </section>
   );
 }
@@ -971,13 +966,13 @@ function Warehouses({ data, run, openDoc }: { data: BootstrapData; run: RunComma
   const totalPieces = inventoryProducts.reduce((sum, product) => sum + qty(product), 0);
   const chooseWarehouse = (value: string) => { setWh(value); setQ(""); setRename(""); setDetailProduct(null); };
   return <section className="warehouse-workspace">
-    <div className="warehouse-head panel"><label>المخزن النشط<SearchableSelect value={wh} onChange={chooseWarehouse} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><div className="warehouse-actions"><span className={active?.isSalesDefault ? "status" : "status muted-status"}>{active?.isSalesDefault ? "مخزن البيع الافتراضي" : "مخزن مسجل"}</span><button className="soft" disabled={active?.isSalesDefault} onClick={() => void run({ type: "warehouse.default", warehouseId: wh }, "تم تحديد مخزن البيع الافتراضي")}>جعله مخزن البيع الافتراضي</button><button className="primary" onClick={() => setManagementOpen(true)}>إدارة المخزن</button></div></div>
-    {managementOpen && <div className="modal-overlay" role="dialog" aria-modal="true"><div className="modal-card warehouse-management"><div className="product-form-head"><div><small>إعدادات غير متكررة</small><h2>إدارة {active?.name ?? "المخزن"}</h2></div><button className="icon" aria-label="إغلاق" onClick={() => setManagementOpen(false)}><X /></button></div><div className="mini-form"><input value={newName} onChange={e => setNewName(e.target.value)} placeholder="اسم مخزن جديد"/><button className="soft" onClick={async () => { await run({ type: "warehouse.create", name: newName }, "تمت إضافة المخزن"); setNewName(""); }}><Plus /> إضافة مخزن</button><input value={rename} onChange={e => setRename(e.target.value)} placeholder={`تعديل اسم ${active?.name ?? "المخزن"}`}/><button className="soft" disabled={!active || !rename.trim()} onClick={async () => { await run({ type: "warehouse.update", id: wh, name: rename }, "تم تعديل اسم المخزن"); setRename(""); }}>حفظ اسم المخزن</button></div></div></div>}
-    <div className={`panel inventory-panel${browserOpen ? " browser-open" : ""}`}>
-      <div className="inventory-toolbar"><Heading title="جرد المخزن" /><div><button className="soft" onClick={() => window.print()}><Printer /> طباعة الجرد</button><button className={browserOpen ? "primary active" : "primary"} aria-expanded={browserOpen} onClick={() => { setBrowserOpen(x => !x); if (browserOpen) setDetailProduct(null); }}>{browserOpen ? "إخفاء الجرد" : "عرض الكل"}</button></div></div>
+    <FramedSection title="المخزن" className="warehouse-head"><label>المخزن النشط<SearchableSelect value={wh} onChange={chooseWarehouse} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><div className="warehouse-actions">{active?.isSalesDefault && <span className="status">مخزن البيع الافتراضي</span>}<button className="soft" disabled={active?.isSalesDefault} onClick={() => void run({ type: "warehouse.default", warehouseId: wh }, "تم تحديد مخزن البيع الافتراضي")}>جعله مخزن البيع الافتراضي</button><button className="primary" onClick={() => setManagementOpen(true)}>إدارة المخزن</button></div></FramedSection>
+    {managementOpen && <div className="modal-overlay" role="dialog" aria-modal="true"><div className="modal-card warehouse-management"><div className="product-form-head"><div><h2>إدارة {active?.name ?? "المخزن"}</h2></div><button className="icon" aria-label="إغلاق" onClick={() => setManagementOpen(false)}><X /></button></div><div className="mini-form"><input value={newName} onChange={e => setNewName(e.target.value)} placeholder="اسم مخزن جديد"/><button className="soft" onClick={async () => { await run({ type: "warehouse.create", name: newName }, "تمت إضافة المخزن"); setNewName(""); }}><Plus /> إضافة مخزن</button><input value={rename} onChange={e => setRename(e.target.value)} placeholder={`تعديل اسم ${active?.name ?? "المخزن"}`}/><button className="soft" disabled={!active || !rename.trim()} onClick={async () => { await run({ type: "warehouse.update", id: wh, name: rename }, "تم تعديل اسم المخزن"); setRename(""); }}>حفظ اسم المخزن</button></div></div></div>}
+    <FramedSection title="جرد المخزن" className={`inventory-panel${browserOpen ? " browser-open" : ""}`}>
+      <div className="inventory-toolbar"><div><button className="soft" onClick={() => window.print()}><Printer /> طباعة الجرد</button><button className={browserOpen ? "primary active" : "primary"} aria-expanded={browserOpen} onClick={() => { setBrowserOpen(x => !x); if (browserOpen) setDetailProduct(null); }}>{browserOpen ? "إخفاء الجرد" : "عرض الكل"}</button></div></div>
       <div className="inventory-stats"><span><small>عدد المنتجات</small><b>{number(inventoryProducts.length)}</b></span><span><small>إجمالي الأفراد</small><b>{number(totalPieces)}</b></span><span><small>القيمة المعروفة</small><b>{money(knownValue)}</b></span><span><small>بدون تكلفة فعلية</small><b>{number(missingCost)}</b></span></div>
-      {browserOpen && <div className="inventory-browser"><div className="inventory-list-panel"><label className="search"><Search /><input value={q} onChange={e => setQ(e.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label><div className="erp-table-wrap warehouse-scroll inventory-body"><table className="erp-table inventory-grid" aria-label="جرد المخزن"><colgroup><col style={{width:"30%"}}/><col style={{width:"16%"}}/><col style={{width:"19%"}}/><col style={{width:"17%"}}/><col style={{width:"18%"}}/></colgroup><thead><tr><th>م</th><th>اسم المنتج</th><th>سعر الشراء</th><th>الكمية الحالية</th><th>قيمة المخزون</th></tr></thead><tbody>{products.map((product, index) => <tr className={detailProduct?.id === product.id ? "selected" : ""} key={product.id} onClick={() => { setDetailProduct(product); setMovementFilter("all"); }}><td className="num-cell">{number(index + 1)}</td><td className="name-cell">{product.name}{isProductExpired(product)&&<small className="expired-badge">منتهي — غير قابل للبيع</small>}</td><td className="num-cell">{product.lastPurchaseCost == null ? "غير معروفة" : money(product.lastPurchaseCost)}</td><td className="num-cell">{number(qty(product))} فرد</td><td className="num-cell">{product.lastPurchaseCost == null ? "غير معروفة" : money(qty(product) * product.lastPurchaseCost)}</td></tr>)}{!products.length && <tr><td colSpan={5}>لا توجد منتجات مطابقة للبحث</td></tr>}</tbody></table></div><div className="inventory-footer"><span>{missingCost ? "قيمة المخزون المعروفة" : "قيمة المخزن الحالية"}<small>{missingCost ? `${number(missingCost)} منتجات ذات مخزون بدون سعر شراء فعلي` : "كل المنتجات ذات المخزون لها تكلفة فعلية"}</small></span><strong>{money(knownValue)}</strong></div></div>{detailProduct ? <ProductMovementPanel product={detailProduct} selectedWarehouseId={wh} data={data} filter={movementFilter} setFilter={setMovementFilter} close={() => setDetailProduct(null)} openDoc={openDoc} /> : <div className="inventory-selection-empty"><Boxes /><b>اختر منتجًا من الجرد لرؤية حركته</b><small>ستظهر هنا تفاصيل المخزون والحركات الفعلية</small></div>}</div>}
-    </div>
+      {browserOpen && <div className="inventory-browser"><div className="inventory-list-panel"><label className="search"><Search /><input value={q} onChange={e => setQ(e.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label><div className="erp-table-wrap warehouse-scroll inventory-body"><table className="erp-table inventory-grid" aria-label="جرد المخزن"><colgroup><col style={{width:"30%"}}/><col style={{width:"16%"}}/><col style={{width:"19%"}}/><col style={{width:"17%"}}/><col style={{width:"18%"}}/></colgroup><thead><tr><th>م</th><th>اسم المنتج</th><th>سعر الشراء</th><th>الكمية الحالية</th><th>قيمة المخزون</th></tr></thead><tbody>{products.map((product, index) => <tr className={detailProduct?.id === product.id ? "selected" : ""} key={product.id} onClick={() => { setDetailProduct(product); setMovementFilter("all"); }}><td className="num-cell">{number(index + 1)}</td><td className="name-cell">{product.name}{isProductExpired(product)&&<small className="expired-badge">منتهي — غير قابل للبيع</small>}</td><td className="num-cell">{product.lastPurchaseCost == null ? "غير معروفة" : money(product.lastPurchaseCost)}</td><td className="num-cell">{number(qty(product))} فرد</td><td className="num-cell">{product.lastPurchaseCost == null ? "غير معروفة" : money(qty(product) * product.lastPurchaseCost)}</td></tr>)}{!products.length && <tr><td colSpan={5}>لا توجد منتجات مطابقة للبحث</td></tr>}</tbody></table></div><div className="inventory-footer"><span>{missingCost ? "القيمة المعروفة" : "قيمة المخزون"}</span><strong>{money(knownValue)}</strong></div></div>{detailProduct ? <ProductMovementPanel product={detailProduct} selectedWarehouseId={wh} data={data} filter={movementFilter} setFilter={setMovementFilter} close={() => setDetailProduct(null)} openDoc={openDoc} /> : <div className="inventory-selection-empty">اختر منتجًا لعرض حركته</div>}</div>}
+    </FramedSection>
   </section>;
 }
 
@@ -1125,7 +1120,7 @@ function MultiStockForm({
     return line.actualQuantity === "" || (val(line.actualQuantity) > before && product?.lastPurchaseCost == null && val(line.unitPrice) <= 0);
   });
   return (
-    <div className="panel form-stack stock-operation-panel">
+    <div className="form-stack stock-operation-panel">
       <div className="form-row">
         <label>
           {mode === "transfer" ? "من" : "المخزن"}
@@ -1185,9 +1180,8 @@ function Transfer(p: {
   const transfers = p.data.documents.filter((document) => document.kind === "transfer");
   return (
     <section className="stock-workspace">
-      <div className="stock-workspace-main"><Heading title="تحويل مرن بين أي مخزنين" />
-      <MultiStockForm {...p} mode="transfer" /></div>
-      <div className="panel records transfer-history"><Heading title="سجل التحويلات" /><div className="erp-table-wrap transfer-list"><table className="erp-table" aria-label="سجل التحويلات"><colgroup><col style={{width:"20%"}}/><col style={{width:"24%"}}/><col style={{width:"20%"}}/><col style={{width:"20%"}}/><col style={{width:"16%"}}/></colgroup><thead><tr><th>التاريخ</th><th>المستند</th><th>من</th><th>إلى</th><th>الكمية</th></tr></thead><tbody>{transfers.map(document => <tr key={document.id} onClick={() => p.openDoc(document.id)}><td>{formatDate(document.occurredAt)}</td><td dir="ltr">{document.number}</td><td>{document.warehouseName ?? "—"}</td><td>{document.destinationWarehouseName ?? "—"}</td><td className="num-cell">{number(document.lines.reduce((sum, line) => sum + Number(line.quantity), 0))}</td></tr>)}{!transfers.length && <tr><td colSpan={5}>لا توجد تحويلات مسجلة</td></tr>}</tbody></table></div></div>
+      <FramedSection title="تحويل بين المخازن" className="stock-workspace-main"><MultiStockForm {...p} mode="transfer" /></FramedSection>
+      <FramedSection title="سجل التحويلات" className="records transfer-history"><div className="erp-table-wrap transfer-list"><table className="erp-table" aria-label="سجل التحويلات"><colgroup><col style={{width:"20%"}}/><col style={{width:"24%"}}/><col style={{width:"20%"}}/><col style={{width:"20%"}}/><col style={{width:"16%"}}/></colgroup><thead><tr><th>التاريخ</th><th>المستند</th><th>من</th><th>إلى</th><th>الكمية</th></tr></thead><tbody>{transfers.map(document => <tr key={document.id} onClick={() => p.openDoc(document.id)}><td>{formatDate(document.occurredAt)}</td><td dir="ltr">{document.number}</td><td>{document.warehouseName ?? "—"}</td><td>{document.destinationWarehouseName ?? "—"}</td><td className="num-cell">{number(document.lines.reduce((sum, line) => sum + Number(line.quantity), 0))}</td></tr>)}{!transfers.length && <tr><td colSpan={5}>لا توجد تحويلات مسجلة</td></tr>}</tbody></table></div></FramedSection>
     </section>
   );
 }
@@ -1200,8 +1194,7 @@ function Adjustment(p: {
 }) {
   return (
     <section className="stock-workspace adjustment-workspace">
-      <div className="stock-workspace-main"><Heading title="تصحيح المخزون بالجرد الفعلي" />
-      <MultiStockForm {...p} mode="adjust" /></div>
+      <FramedSection title="تصحيح المخزون" className="stock-workspace-main"><MultiStockForm {...p} mode="adjust" /></FramedSection>
       <Recent
         title="سجل التصحيحات"
         docs={p.data.documents.filter((d) => d.kind === "adjustment")}
@@ -1475,11 +1468,13 @@ function Recent({
   docs,
   openDoc,
   dateFilter = false,
+  bare = false,
 }: {
   title: string;
   docs: DocumentRecord[];
   openDoc: (id: string) => void;
   dateFilter?: boolean;
+  bare?: boolean;
 }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -1498,7 +1493,8 @@ function Recent({
         return (!from || occurredOn >= from) && (!to || occurredOn <= to);
       })
     : docs;
-  return (<FramedSection title={title} className="records recent-table">{dateFilter && <div className="filters recent-date-filters"><label>من تاريخ<input type="date" value={from} onChange={event => setFrom(event.target.value)} /></label><label>إلى تاريخ<input type="date" value={to} onChange={event => setTo(event.target.value)} /></label></div>}<div className="erp-table-wrap"><table className="erp-table"><colgroup><col style={{width:"18%"}}/><col style={{width:"20%"}}/><col style={{width:"16%"}}/><col style={{width:"22%"}}/><col style={{width:"12%"}}/><col style={{width:"12%"}}/></colgroup><thead><tr><th>التاريخ</th><th>المستند</th><th>النوع</th><th>الطرف</th><th>الحالة</th><th>المبلغ</th></tr></thead><tbody>{visibleDocs.slice(0,100).map(d => <tr key={d.id} onClick={() => openDoc(d.id)}><td>{formatDateTime(d.occurredAt)}</td><td dir="ltr">{d.number}</td><td>{kindLabels[d.kind]}</td><td className="name-cell">{d.partyName ?? d.title ?? "—"}</td><td>{d.dueTotal > 0 && d.paidTotal < d.dueTotal ? "مستحق" : "معتمد"}</td><td className="num-cell">{number(d.total)}</td></tr>)}{!visibleDocs.length && <tr><td colSpan={6}>لا توجد فواتير ضمن الفترة المحددة</td></tr>}</tbody></table></div></FramedSection>);
+  const table = <>{dateFilter && <div className="filters recent-date-filters"><label>من تاريخ<input type="date" value={from} onChange={event => setFrom(event.target.value)} /></label><label>إلى تاريخ<input type="date" value={to} onChange={event => setTo(event.target.value)} /></label></div>}<div className="erp-table-wrap"><table className="erp-table"><colgroup><col style={{width:"18%"}}/><col style={{width:"20%"}}/><col style={{width:"16%"}}/><col style={{width:"22%"}}/><col style={{width:"12%"}}/><col style={{width:"12%"}}/></colgroup><thead><tr><th>التاريخ</th><th>المستند</th><th>النوع</th><th>الطرف</th><th>الحالة</th><th>المبلغ</th></tr></thead><tbody>{visibleDocs.slice(0,100).map(d => <tr key={d.id} onClick={() => openDoc(d.id)}><td>{formatDateTime(d.occurredAt)}</td><td dir="ltr">{d.number}</td><td>{kindLabels[d.kind]}</td><td className="name-cell">{d.partyName ?? d.title ?? "—"}</td><td>{d.dueTotal > 0 && d.paidTotal < d.dueTotal ? "مستحق" : "معتمد"}</td><td className="num-cell">{number(d.total)}</td></tr>)}{!visibleDocs.length && <tr><td colSpan={6}>لا توجد فواتير ضمن الفترة المحددة</td></tr>}</tbody></table></div></>;
+  return bare ? table : <FramedSection title={title} className="records recent-table">{table}</FramedSection>;
 }
 function Heading({ title }: { title: string }) {
   return (
