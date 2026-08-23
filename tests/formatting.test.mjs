@@ -6,6 +6,9 @@ import {
   formatMoney,
   formatNumber,
   formatQuantity,
+  quantity,
+  stockInWarehouse,
+  totalProductStock,
 } from "../app/domain.ts";
 
 const nonLatinDigit = /[٠-٩۰-۹]/;
@@ -23,4 +26,12 @@ test("shared display formatters always emit Latin digits", () => {
   assert.equal(formatMoney(17700), "17 700 MRU");
   assert.match(formatDate(new Date(2026, 7, 18)), /18\/08\/2026/);
   assert.equal(values.some((value) => nonLatinDigit.test(value)), false);
+});
+
+test("quantity has no unit suffix and warehouse stock never falls back globally", () => {
+  const product = { stocks: { warehouseA: 10 } };
+  assert.equal(quantity(4), "4");
+  assert.equal(stockInWarehouse(product, "warehouseB"), 0);
+  assert.equal(stockInWarehouse(product, "warehouseA"), 10);
+  assert.equal(totalProductStock(product), 10);
 });

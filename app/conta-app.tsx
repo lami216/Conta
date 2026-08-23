@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeftRight,
   Banknote,
@@ -32,6 +33,8 @@ import {
   money,
   number,
   quantity,
+  stockInWarehouse,
+  totalProductStock,
   saleLineTotal,
   type BootstrapData,
   type DocumentRecord,
@@ -368,12 +371,13 @@ function Num(props: {
 }
 type SelectOption = { value: string; label: string; search?: string };
 export const normalizeSearch = (value: string) => value.trim().toLocaleLowerCase("ar").normalize("NFD").replace(/[\u0640\u064b-\u065f\u0670]/g, "").replace(/\s+/g, " ");
-function SearchableSelect({ value, onChange, options, placeholder, searchPlaceholder, disabled = false, allowEmpty = false }: {
+function SearchableSelect({ value, onChange, options, placeholder, searchPlaceholder, disabled = false, allowEmpty = false, floating = false }: {
   value: string; onChange: (value: string) => void; options: SelectOption[];
-  placeholder: string; searchPlaceholder: string; disabled?: boolean; allowEmpty?: boolean;
+  placeholder: string; searchPlaceholder: string; disabled?: boolean; allowEmpty?: boolean; floating?: boolean;
 }) {
   const [open, setOpen] = useState(false), [query, setQuery] = useState(""), [active, setActive] = useState(0);
-  const root = useRef<HTMLDivElement>(null);
+  const [floatingStyle, setFloatingStyle] = useState<CSSProperties>({});
+  const root = useRef<HTMLDivElement>(null), popover = useRef<HTMLDivElement>(null);
   const normalized = normalizeSearch(query);
   const matches = options.map((option, index) => ({ option, index, text: normalizeSearch(`${option.label} ${option.search ?? ""}`) }))
     .filter(x => !normalized || x.text.includes(normalized))
@@ -381,33 +385,50 @@ function SearchableSelect({ value, onChange, options, placeholder, searchPlaceho
       const score = (x: typeof a) => x.text === normalized ? 0 : x.text.startsWith(normalized) ? 1 : normalizeSearch(x.option.label).startsWith(normalized) ? 2 : 3;
       return score(a) - score(b) || a.index - b.index;
     }).map(x => x.option);
+  const position = useCallback(() => {
+    if (!floating || !root.current) return;
+    const rect = root.current.getBoundingClientRect(), margin = 8, desiredHeight = Math.min(330, window.innerHeight - margin * 2);
+    const below = window.innerHeight - rect.bottom - margin, above = rect.top - margin, opensUp = below < 220 && above > below;
+    const width = Math.min(Math.max(rect.width, 280), window.innerWidth - margin * 2);
+    const left = Math.min(Math.max(margin, rect.right - width), window.innerWidth - width - margin);
+    setFloatingStyle({ position: "fixed", zIndex: 1000, width, maxWidth: width, left, right: "auto", top: opensUp ? Math.max(margin, rect.top - Math.min(desiredHeight, above) - 5) : rect.bottom + 5, maxHeight: opensUp ? above : below });
+  }, [floating]);
   useEffect(() => {
-    const close = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
+    const close = (event: PointerEvent) => { const node = event.target as Node; if (!root.current?.contains(node) && !popover.current?.contains(node)) setOpen(false); };
     document.addEventListener("pointerdown", close); return () => document.removeEventListener("pointerdown", close);
   }, []);
+  useEffect(() => {
+    if (!open || !floating) return;
+    position();
+    const update = () => position();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => { window.removeEventListener("resize", update); window.removeEventListener("scroll", update, true); };
+  }, [open, floating, position]);
   const choose = (next: string) => { onChange(next); setOpen(false); setQuery(""); setActive(0); };
+  const list = <div ref={popover} className={`combobox-popover${floating ? " combobox-popover-floating" : ""}`} style={floating ? floatingStyle : undefined}>
+    <label className="search"><Search /><input autoFocus value={query} placeholder={searchPlaceholder} onChange={e => { setQuery(e.target.value); setActive(0); }} onKeyDown={e => {
+      if (e.key === "Escape") setOpen(false);
+      if (e.key === "ArrowDown") { e.preventDefault(); setActive(x => Math.min(x + 1, matches.length - 1)); }
+      if (e.key === "ArrowUp") { e.preventDefault(); setActive(x => Math.max(x - 1, 0)); }
+      if (e.key === "Enter" && matches[active]) { e.preventDefault(); choose(matches[active].value); }
+    }} /></label>
+    <div className="combobox-results" role="listbox">
+      {allowEmpty && <button type="button" onClick={() => choose("")}>{placeholder}</button>}
+      {matches.map((option, index) => <button type="button" role="option" aria-selected={option.value === value} className={index === active || option.value === value ? "active" : ""} key={option.value} onMouseEnter={() => setActive(index)} onClick={() => choose(option.value)}>{option.label}</button>)}
+      {!matches.length && <div className="combobox-empty">لا توجد نتائج</div>}
+    </div>
+  </div>;
   return <div className="combobox" ref={root}>
     <button type="button" className="combobox-trigger" disabled={disabled} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(x => !x)}>
       <span>{options.find(x => x.value === value)?.label ?? placeholder}</span><ChevronDown />
     </button>
-    {open && <div className="combobox-popover">
-      <label className="search"><Search /><input autoFocus value={query} placeholder={searchPlaceholder} onChange={e => { setQuery(e.target.value); setActive(0); }} onKeyDown={e => {
-        if (e.key === "Escape") setOpen(false);
-        if (e.key === "ArrowDown") { e.preventDefault(); setActive(x => Math.min(x + 1, matches.length - 1)); }
-        if (e.key === "ArrowUp") { e.preventDefault(); setActive(x => Math.max(x - 1, 0)); }
-        if (e.key === "Enter" && matches[active]) { e.preventDefault(); choose(matches[active].value); }
-      }} /></label>
-      <div className="combobox-results" role="listbox">
-        {allowEmpty && <button type="button" onClick={() => choose("")}>{placeholder}</button>}
-        {matches.map((option, index) => <button type="button" role="option" aria-selected={option.value === value} className={index === active || option.value === value ? "active" : ""} key={option.value} onMouseEnter={() => setActive(index)} onClick={() => choose(option.value)}>{option.label}</button>)}
-        {!matches.length && <div className="combobox-empty">لا توجد نتائج</div>}
-      </div>
-    </div>}
+    {open && (floating ? createPortal(list, document.body) : list)}
   </div>;
 }
-function ProductSearchPicker({ data, query, setQuery, onPick, mode = "sale", warehouseId, priceMode = "retail", collapseResultsWhenIdle = false }: {
+function ProductSearchPicker({ data, query, setQuery, onPick, mode = "sale", warehouseId, priceMode = "retail", collapseResultsWhenIdle = false, stockScope = "all-warehouses" }: {
   data: BootstrapData; query: string; setQuery: (value: string) => void; onPick: (product: Product) => void;
-  mode?: "sale" | "purchase" | "transfer" | "adjustment" | "inventory"; warehouseId?: string; priceMode?: PriceMode; collapseResultsWhenIdle?: boolean;
+  mode?: "sale" | "purchase" | "transfer" | "adjustment" | "inventory"; warehouseId?: string; priceMode?: PriceMode; collapseResultsWhenIdle?: boolean; stockScope?: "selected-warehouse" | "all-warehouses";
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const term = query.trim().toLocaleLowerCase("ar");
@@ -417,14 +438,14 @@ function ProductSearchPicker({ data, query, setQuery, onPick, mode = "sale", war
     return { product, index, score, matches: `${name} ${sku} ${barcode}`.includes(term) };
   }).filter(item => item.matches).sort((a, b) => a.score - b.score || a.index - b.index).slice(0, 30).map(item => item.product) : [], [data.products, term]);
   const add = (product: Product) => {
-    const stock = Number(product.stocks?.[warehouseId ?? ""] ?? Object.values(product.stocks).reduce((a, b) => a + b, 0));
+    const stock = stockScope === "selected-warehouse" ? stockInWarehouse(product, warehouseId) : totalProductStock(product);
     if (mode === "sale" && stock <= 0) return;
     onPick(product); setSelected(null);
   };
   return <div className="product-picker product-search-grid">
-    <label className="search"><Search /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label>
+    <label className="search"><Search /><input disabled={stockScope === "selected-warehouse" && !warehouseId} value={query} onChange={event => setQuery(event.target.value)} placeholder={stockScope === "selected-warehouse" && !warehouseId ? "اختر المخزن أولًا" : "ابحث بالاسم أو الكود أو الباركود"} /></label>
     {(!collapseResultsWhenIdle || term) && (results.length ? <div className="erp-table-wrap picker-results"><table className="erp-table" aria-label="نتائج بحث المنتجات"><colgroup><col style={{width:"16%"}}/><col style={{width:"36%"}}/><col style={{width:"18%"}}/><col style={{width:"16%"}}/><col style={{width:"14%"}}/></colgroup><thead><tr><th>م</th><th>المنتج</th><th>{mode === "purchase" ? "آخر شراء" : "السعر"}</th><th>المتوفر</th><th>إضافة</th></tr></thead><tbody>
-      {results.map((product, index) => { const stock = Number(product.stocks?.[warehouseId ?? ""] ?? Object.values(product.stocks).reduce((a, b) => a + b, 0)), expired = isProductExpired(product), disabled = mode === "sale" && (stock <= 0 || expired); return <tr key={product.id} className={selected === product.id ? "selected" : ""} onClick={() => setSelected(product.id)} onDoubleClick={() => add(product)}><td className="num-cell">{number(index + 1)}</td><td className="name-cell">{product.name}{expired && <small className="expired-badge">منتهي الصلاحية</small>}</td><td className="num-cell">{number(mode === "purchase" ? product.lastPurchaseCost ?? product.pieceCost ?? 0 : sellingPrice(product, priceMode))}</td><td className="num-cell">{number(stock)}</td><td className="action-cell"><button type="button" className="soft" disabled={disabled} onClick={event => { event.stopPropagation(); add(product); }}>إضافة</button></td></tr>; })}
+      {results.map((product, index) => { const stock = stockScope === "selected-warehouse" ? stockInWarehouse(product, warehouseId) : totalProductStock(product), expired = isProductExpired(product), disabled = mode === "sale" && (stock <= 0 || expired); return <tr key={product.id} className={selected === product.id ? "selected" : ""} onClick={() => setSelected(product.id)} onDoubleClick={() => add(product)}><td className="num-cell">{number(index + 1)}</td><td className="name-cell">{product.name}{expired && <small className="expired-badge">منتهي الصلاحية</small>}</td><td className="num-cell">{number(mode === "purchase" ? product.lastPurchaseCost ?? product.pieceCost ?? 0 : sellingPrice(product, priceMode))}</td><td className="num-cell">{number(stock)}</td><td className="action-cell"><button type="button" className="soft" disabled={disabled} onClick={event => { event.stopPropagation(); add(product); }}>إضافة</button></td></tr>; })}
     </tbody></table></div> : <div className="picker-no-results">لا توجد نتائج</div>)}
   </div>;
 }
@@ -537,12 +558,11 @@ function Pos({
     openDoc(id);
   }
   const invoice = <FramedSection title="الفاتورة" className="invoice-card workspace-invoice">
-    <div className="pos-invoice-top"><div className="pos-mode-toolbar"><button type="button" className="selection-option" aria-pressed={priceMode === "retail"} onClick={() => changePriceMode("retail")}>بيع الفرد</button><button type="button" className="selection-option" aria-pressed={priceMode === "wholesale"} onClick={() => changePriceMode("wholesale")}>بيع الجملة</button><BarcodeScanner products={data.products} onScan={add} enabled={scannerEnabled} onEnabledChange={setScannerEnabled} onError={setStockNotice} /></div>
-    <div className="invoice-card-head"><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={() => { if (confirm("هل تريد مسح الفاتورة؟")) { setLines([]); } }}>مسح الفاتورة</button>}</div></div></div>
+    <div className="pos-invoice-top"><div className="pos-mode-toolbar"><button type="button" className="selection-option" aria-pressed={priceMode === "retail"} onClick={() => changePriceMode("retail")}>بيع الفرد</button><button type="button" className="selection-option" aria-pressed={priceMode === "wholesale"} onClick={() => changePriceMode("wholesale")}>بيع الجملة</button><BarcodeScanner products={data.products} onScan={add} enabled={scannerEnabled} onEnabledChange={setScannerEnabled} onError={setStockNotice} />{lines.length > 0 && <button className="clear-draft" onClick={() => { if (confirm("هل تريد مسح الفاتورة؟")) setLines([]); }}>مسح الفاتورة</button>}</div></div>
     <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="erp-table-wrap invoice-preview-list"><table className="erp-table invoice-table" aria-label="منتجات الفاتورة"><colgroup><col style={{width:"38%"}}/><col style={{width:"14%"}}/><col style={{width:"17%"}}/><col style={{width:"19%"}}/><col style={{width:"12%"}}/></colgroup><thead><tr><th>الاسم</th><th>الكمية</th><th>السعر</th><th>المجموع</th><th>حذف</th></tr></thead><tbody>{details.map(({ l, p, total: lineTotal }) => <tr className={selectedLine === p.id ? "selected" : ""} onClick={() => setSelectedLine(p.id)} key={p.id}><td className="name-cell">{p.name}</td><td className="num-cell"><Num value={l.quantity} onChange={value => updateSaleLine(p, { quantity: value })} /></td><td className="num-cell"><Num value={l.piecePrice} onChange={value => updateSaleLine(p, { piecePrice: value })} /></td><td className="num-cell">{number(lineTotal)}</td><td className="action-cell"><button type="button" className="row-delete" aria-label={`حذف ${p.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== p.id)); }}><X /></button></td></tr>)}</tbody></table></div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b></div>}</div>
   </FramedSection>;
-  const checkout = <FramedSection title="الدفع" className="workspace-checkout"><div className="checkout-body"><div className="invoice-meta-row" aria-label="نوع الفاتورة"><button className="meta-option selection-option" aria-pressed={payment !== "note"} onClick={() => setPayment("cash")}><Banknote /><span><small>طريقة التحصيل</small><b>دفع مباشر</b></span></button><button className="meta-option selection-option secondary" aria-pressed={payment === "note"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع البيع</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">طريقة الدفع</span><CompactPaymentSelector accounts={data.paymentAccounts} value={payment} onChange={setPayment} /></div>}{payment === "note" && <><label>اختيار العميل<SearchableSelect value={partyId} onChange={setPartyId} placeholder="اختر العميل" searchPlaceholder="ابحث باسم العميل أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: p.name, search: p.phone }))} /></label><button className="link" onClick={() => setQuick(!quick)}><Plus /> إضافة عميل</button>{quick && <QuickParty run={run} onDone={() => setQuick(false)} />}</>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!lines.length || !wh || (payment === "note" && !partyId)} onClick={() => void submit()}>إتمام البيع</button></div></FramedSection>;
-  return <section className="transaction-page">{stockNotice && <div className="toast stock-toast">{stockNotice}</div>}<div className="transaction-workspace pos-workspace"><div className="workspace-discovery"><FramedSection title="بحث المنتجات" className="search-panel"><SearchProducts data={data} query={query} setQuery={setQuery} onPick={add} mode="sale" warehouseId={wh?.id} priceMode={priceMode} /></FramedSection><InvoiceQuickBrowser title="سجل الفواتير" docs={data.documents.filter(d => d.kind === "sale")} openDoc={openDoc} /></div>{invoice}{checkout}</div></section>;
+  const checkout = <FramedSection title="الدفع" className="workspace-checkout"><div className="checkout-layout"><div className="checkout-body"><div className="invoice-meta-row" aria-label="نوع الفاتورة"><button className="meta-option selection-option" aria-pressed={payment !== "note"} onClick={() => setPayment("cash")}><Banknote /><span><small>طريقة التحصيل</small><b>دفع مباشر</b></span></button><button className="meta-option selection-option secondary" aria-pressed={payment === "note"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع البيع</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">طريقة الدفع</span><CompactPaymentSelector accounts={data.paymentAccounts} value={payment} onChange={setPayment} /></div>}{payment === "note" && <><label>اختيار العميل<SearchableSelect value={partyId} onChange={setPartyId} placeholder="اختر العميل" searchPlaceholder="ابحث باسم العميل أو رقم الهاتف" floating options={data.parties.map(p => ({ value: p.id, label: p.name, search: p.phone }))} /></label><button className="link" onClick={() => setQuick(!quick)}><Plus /> إضافة عميل</button>{quick && <QuickParty run={run} onDone={() => setQuick(false)} />}</>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!lines.length || !wh || (payment === "note" && !partyId)} onClick={() => void submit()}>إتمام البيع</button></div></div></FramedSection>;
+  return <section className="transaction-page">{stockNotice && <div className="toast stock-toast">{stockNotice}</div>}<div className="transaction-workspace pos-workspace"><div className="workspace-discovery"><FramedSection title="بحث المنتجات" className="search-panel"><SearchProducts data={data} query={query} setQuery={setQuery} onPick={add} mode="sale" warehouseId={wh?.id} priceMode={priceMode} stockScope="selected-warehouse" /></FramedSection><InvoiceQuickBrowser title="سجل الفواتير" docs={data.documents.filter(d => d.kind === "sale")} openDoc={openDoc} /></div>{invoice}{checkout}</div></section>;
 
 }
 
@@ -610,8 +630,8 @@ function Purchases({ data, run, openDoc }: { data: BootstrapData; run: RunComman
   }
   return <section className="transaction-page"><div className="transaction-workspace purchase-workspace">
     <div className="workspace-discovery"><FramedSection title="بحث المنتجات" className="search-panel"><BarcodeScanner products={data.products} onScan={pick} /><SearchProducts data={data} query={query} setQuery={setQuery} onPick={pick} mode="purchase" warehouseId={warehouseId} /></FramedSection><InvoiceQuickBrowser title="سجل فواتير الشراء" docs={data.documents.filter(d => d.kind === "purchase")} openDoc={openDoc} /></div>
-    <FramedSection title="فاتورة الشراء" className="invoice-card workspace-invoice"><div className="invoice-card-head"><div><span className="product-count">{number(lines.length)} منتج</span>{lines.length > 0 && <button className="clear-draft" onClick={clearDraft}>مسح الفاتورة</button>}</div></div><div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="erp-table-wrap invoice-preview-list"><table className="erp-table invoice-table"><colgroup><col style={{width:"38%"}}/><col style={{width:"14%"}}/><col style={{width:"17%"}}/><col style={{width:"19%"}}/><col style={{width:"12%"}}/></colgroup><thead><tr><th>الاسم</th><th>الكمية</th><th>سعر الشراء</th><th>المجموع</th><th>حذف</th></tr></thead><tbody>{details.map(({line, product}) => <tr key={product.id} onClick={() => setSelectedLine(product.id)} className={selectedLine === product.id ? "selected" : ""}><td className="name-cell">{product.name}</td><td className="num-cell"><Num value={line.quantity} onChange={value => updatePurchaseLine(product, { quantity: value })} /></td><td className="num-cell"><Num value={line.unitPrice} onChange={value => updatePurchaseLine(product, { unitPrice: value })} /></td><td className="num-cell">{number(val(line.quantity) * val(line.unitPrice))}</td><td className="action-cell"><button type="button" className="row-delete" aria-label={`حذف ${product.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== product.id)); }}><X /></button></td></tr>)}</tbody></table></div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b></div>}</div></FramedSection>
-    <FramedSection title="اعتماد الشراء" className="workspace-checkout"><div className="checkout-body purchase-details"><label>المورد<SearchableSelect disabled={locked} value={partyId} onChange={setPartyId} placeholder="اختر المورد" searchPlaceholder="ابحث باسم المورد أو رقم الهاتف" options={data.parties.map(p => ({ value: p.id, label: `${p.name} — ${p.phone}`, search: p.phone }))} /></label><button className="soft" disabled={!partyId} onClick={() => locked ? confirm("هل تريد تغيير المورد؟ ستبقى المنتجات كما هي.") && setLocked(false) : setLocked(true)}>{locked ? "تعديل المورد" : "تأكيد المورد"}</button><label>مخزن الاستلام<SearchableSelect value={warehouseId} onChange={setWarehouseId} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><button className="link" onClick={() => setAddingWh(!addingWh)}><Plus /> إضافة مخزن</button>{addingWh && <InlineCreate label="اسم المخزن" onSave={async name => { await run({ type: "warehouse.create", name }, "تمت إضافة المخزن"); setAddingWh(false); }} />}<div className="invoice-meta-row"><button className="meta-option selection-option" aria-pressed={payment !== "note"} onClick={() => setPayment("cash")}><Banknote /><span><small>نوع التسوية</small><b>دفع مباشر</b></span></button><button className="meta-option selection-option secondary" aria-pressed={payment === "note"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع التسوية</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">الدفع من حساب</span><CompactPaymentSelector accounts={data.paymentAccounts} value={payment} onChange={setPayment} /></div>}{payment === "note" && <p className="note-hint">ستسجل الفاتورة كاملة دينًا علينا للمورد، دون حركة نقدية.</p>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!locked || !warehouseId || !lines.length} onClick={() => void submit()}>اعتماد فاتورة الشراء</button></div></FramedSection>
+    <FramedSection title="فاتورة الشراء" className="invoice-card workspace-invoice"><div className="invoice-card-head">{lines.length > 0 && <button className="clear-draft" onClick={clearDraft}>مسح الفاتورة</button>}</div><div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="erp-table-wrap invoice-preview-list"><table className="erp-table invoice-table"><colgroup><col style={{width:"38%"}}/><col style={{width:"14%"}}/><col style={{width:"17%"}}/><col style={{width:"19%"}}/><col style={{width:"12%"}}/></colgroup><thead><tr><th>الاسم</th><th>الكمية</th><th>سعر الشراء</th><th>المجموع</th><th>حذف</th></tr></thead><tbody>{details.map(({line, product}) => <tr key={product.id} onClick={() => setSelectedLine(product.id)} className={selectedLine === product.id ? "selected" : ""}><td className="name-cell">{product.name}</td><td className="num-cell"><Num value={line.quantity} onChange={value => updatePurchaseLine(product, { quantity: value })} /></td><td className="num-cell"><Num value={line.unitPrice} onChange={value => updatePurchaseLine(product, { unitPrice: value })} /></td><td className="num-cell">{number(val(line.quantity) * val(line.unitPrice))}</td><td className="action-cell"><button type="button" className="row-delete" aria-label={`حذف ${product.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== product.id)); }}><X /></button></td></tr>)}</tbody></table></div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b></div>}</div></FramedSection>
+    <FramedSection title="اعتماد الشراء" className="workspace-checkout"><div className="checkout-layout"><div className="checkout-body purchase-details"><label>المورد<SearchableSelect disabled={locked} value={partyId} onChange={setPartyId} placeholder="اختر المورد" searchPlaceholder="ابحث باسم المورد أو رقم الهاتف" floating options={data.parties.map(p => ({ value: p.id, label: `${p.name} — ${p.phone}`, search: p.phone }))} /></label><button className="soft" disabled={!partyId} onClick={() => locked ? confirm("هل تريد تغيير المورد؟ ستبقى المنتجات كما هي.") && setLocked(false) : setLocked(true)}>{locked ? "تعديل المورد" : "تأكيد المورد"}</button><label>مخزن الاستلام<SearchableSelect value={warehouseId} onChange={setWarehouseId} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" floating options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><button className="link" onClick={() => setAddingWh(!addingWh)}><Plus /> إضافة مخزن</button>{addingWh && <InlineCreate label="اسم المخزن" onSave={async name => { await run({ type: "warehouse.create", name }, "تمت إضافة المخزن"); setAddingWh(false); }} />}<div className="invoice-meta-row"><button className="meta-option selection-option" aria-pressed={payment !== "note"} onClick={() => setPayment("cash")}><Banknote /><span><small>نوع التسوية</small><b>دفع مباشر</b></span></button><button className="meta-option selection-option secondary" aria-pressed={payment === "note"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع التسوية</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">الدفع من حساب</span><CompactPaymentSelector accounts={data.paymentAccounts} value={payment} onChange={setPayment} /></div>}{payment === "note" && <p className="note-hint">ستسجل الفاتورة كاملة دينًا علينا للمورد، دون حركة نقدية.</p>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!locked || !warehouseId || !lines.length} onClick={() => void submit()}>اعتماد فاتورة الشراء</button></div></div></FramedSection>
   </div></section>;
 
 }
@@ -882,19 +902,20 @@ function Warehouses({ data, run, openDoc }: { data: BootstrapData; run: RunComma
     <FramedSection title="المخزن" className="warehouse-head" allowOverflow><label>المخزن النشط<SearchableSelect value={wh} onChange={chooseWarehouse} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><div className="warehouse-actions">{active?.isSalesDefault && <span className="status">مخزن البيع الافتراضي</span>}<button className="soft" disabled={active?.isSalesDefault} onClick={() => void run({ type: "warehouse.default", warehouseId: wh }, "تم تحديد مخزن البيع الافتراضي")}>جعله مخزن البيع الافتراضي</button><button className="primary" onClick={() => setManagementOpen(true)}>إدارة المخزن</button></div></FramedSection>
     {managementOpen && <div className="modal-overlay" role="dialog" aria-modal="true"><div className="modal-card warehouse-management"><div className="product-form-head"><div><h2>إدارة {active?.name ?? "المخزن"}</h2></div><button className="icon" aria-label="إغلاق" onClick={() => setManagementOpen(false)}><X /></button></div><div className="mini-form"><input value={newName} onChange={e => setNewName(e.target.value)} placeholder="اسم مخزن جديد"/><button className="soft" onClick={async () => { await run({ type: "warehouse.create", name: newName }, "تمت إضافة المخزن"); setNewName(""); }}><Plus /> إضافة مخزن</button><input value={rename} onChange={e => setRename(e.target.value)} placeholder={`تعديل اسم ${active?.name ?? "المخزن"}`}/><button className="soft" disabled={!active || !rename.trim()} onClick={async () => { await run({ type: "warehouse.update", id: wh, name: rename }, "تم تعديل اسم المخزن"); setRename(""); }}>حفظ اسم المخزن</button></div></div></div>}
     <FramedSection title="جرد المخزن" className={`inventory-panel${browserOpen ? " browser-open" : ""}`}>
-      <div className="inventory-overview"><div className="inventory-toolbar"><button className="soft" onClick={() => window.print()}><Printer /> طباعة الجرد</button><button className={browserOpen ? "primary active" : "primary"} aria-expanded={browserOpen} onClick={() => { setBrowserOpen(x => !x); if (browserOpen) setDetailProduct(null); }}>{browserOpen ? "إخفاء الجرد" : "عرض الكل"}</button></div><div className="inventory-overview-metrics"><span><small>عدد المنتجات</small><b>{number(inventoryProducts.length)}</b></span><span><small>إجمالي الأفراد</small><b>{number(totalPieces)}</b></span><span><small>قيمة المخزون</small><b>{money(inventoryValue)}</b></span></div></div>
-      {browserOpen && <div className="inventory-browser"><div className="inventory-list-panel"><label className="search"><Search /><input value={q} onChange={e => setQ(e.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label><div className="erp-table-wrap warehouse-scroll inventory-body"><table className="erp-table inventory-grid" aria-label="جرد المخزن"><colgroup><col style={{width:"30%"}}/><col style={{width:"16%"}}/><col style={{width:"19%"}}/><col style={{width:"17%"}}/><col style={{width:"18%"}}/></colgroup><thead><tr><th>م</th><th>اسم المنتج</th><th>سعر الشراء</th><th>الكمية الحالية</th><th>قيمة المخزون</th></tr></thead><tbody>{products.map((product, index) => <tr className={detailProduct?.id === product.id ? "selected" : ""} key={product.id} onClick={() => { setDetailProduct(product); setMovementFilter("all"); }}><td className="num-cell">{number(index + 1)}</td><td className="name-cell">{product.name}{isProductExpired(product)&&<small className="expired-badge">منتهي — غير قابل للبيع</small>}</td><td className="num-cell">{money(inventoryUnitCost(product))}</td><td className="num-cell">{number(qty(product))} فرد</td><td className="num-cell">{money(qty(product) * inventoryUnitCost(product))}</td></tr>)}{!products.length && <tr><td colSpan={5}>لا توجد منتجات مطابقة للبحث</td></tr>}</tbody></table></div></div>{detailProduct ? <ProductMovementPanel product={detailProduct} selectedWarehouseId={wh} data={data} filter={movementFilter} setFilter={setMovementFilter} close={() => setDetailProduct(null)} openDoc={openDoc} /> : <div className="inventory-selection-empty">اختر منتجًا لعرض حركته</div>}</div>}
+      <div className="inventory-overview"><div className="inventory-toolbar"><button className="soft" onClick={() => window.print()}><Printer /> طباعة الجرد</button><button className={browserOpen ? "primary active" : "primary"} aria-expanded={browserOpen} onClick={() => { setBrowserOpen(x => !x); if (browserOpen) setDetailProduct(null); }}>{browserOpen ? "إخفاء الجرد" : "عرض الكل"}</button></div>{browserOpen && <div className="inventory-overview-metrics"><span><small>عدد المنتجات</small><b>{number(inventoryProducts.length)}</b></span><span><small>إجمالي الكمية</small><b>{number(totalPieces)}</b></span><span><small>قيمة المخزون</small><b>{number(inventoryValue)}</b></span></div>}</div>
+      {browserOpen && <div className="inventory-browser"><div className="inventory-list-panel"><label className="search"><Search /><input value={q} onChange={e => setQ(e.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label><div className="erp-table-wrap warehouse-scroll inventory-body"><table className="erp-table inventory-grid" aria-label="جرد المخزن"><colgroup><col style={{width:"30%"}}/><col style={{width:"16%"}}/><col style={{width:"19%"}}/><col style={{width:"17%"}}/><col style={{width:"18%"}}/></colgroup><thead><tr><th>م</th><th>اسم المنتج</th><th>سعر الشراء</th><th>الكمية الحالية</th><th>قيمة المخزون</th></tr></thead><tbody>{products.map((product, index) => <tr className={detailProduct?.id === product.id ? "selected" : ""} key={product.id} onClick={() => { setDetailProduct(product); setMovementFilter("all"); }}><td className="num-cell">{number(index + 1)}</td><td className="name-cell">{product.name}{isProductExpired(product)&&<small className="expired-badge">منتهي — غير قابل للبيع</small>}</td><td className="num-cell">{number(inventoryUnitCost(product))}</td><td className="num-cell">{number(qty(product))}</td><td className="num-cell">{number(qty(product) * inventoryUnitCost(product))}</td></tr>)}{!products.length && <tr><td colSpan={5}>لا توجد منتجات مطابقة للبحث</td></tr>}</tbody></table></div></div>{detailProduct ? <ProductMovementPanel product={detailProduct} selectedWarehouseId={wh} data={data} filter={movementFilter} setFilter={setMovementFilter} close={() => setDetailProduct(null)} openDoc={openDoc} /> : <div className="inventory-selection-empty">اختر منتجًا لعرض حركته</div>}</div>}
     </FramedSection>
   </section>;
 }
 
 function ProductMovementPanel({ product, selectedWarehouseId, data, filter, setFilter, close, openDoc }: { product: Product; selectedWarehouseId: string; data: BootstrapData; filter: string; setFilter: (value: string) => void; close: () => void; openDoc: (id: string) => void }) {
   const docs = data.documents.filter(document => document.status === "posted" && document.lines.some(line => line.productId === product.id));
-  const current = Object.values(product.stocks).reduce((sum, value) => sum + Number(value), 0), selectedQty = Number(product.stocks[selectedWarehouseId] ?? 0);
+  const current = totalProductStock(product), selectedQty = stockInWarehouse(product, selectedWarehouseId);
+  const selectedWarehouse = data.warehouses.find(warehouse => warehouse.id === selectedWarehouseId);
   const movementDocs = docs.filter(document => filter === "all" || document.kind === filter).sort((a,b) => +new Date(b.occurredAt) - +new Date(a.occurredAt));
   const labels: Record<string, string> = { purchase: "شراء", sale: "بيع", transfer: "تحويل", adjustment: "تصحيح", return: "إرجاع", opening: "رصيد افتتاحي" };
   const party = (document: DocumentRecord) => document.partyName || data.parties.find(p => p.id === document.partyId)?.name || (document.kind === "sale" ? "بيع مباشر" : "غير محدد");
-  return <FramedSection title="تفاصيل المنتج وحركته" className="product-movement-panel"><div className="movement-product-head"><strong>{product.name}</strong><button className="icon" aria-label="إغلاق التفاصيل" onClick={close}><X /></button></div><div className="movement-summary"><span><small>مخزون هذا المخزن</small><b>{number(selectedQty)} فرد</b></span><span><small>إجمالي المخزون</small><b>{number(current)} فرد</b></span><span><small>تكلفة الوحدة</small><b>{money(inventoryUnitCost(product))}</b></span><span><small>قيمة المخزون هنا</small><b>{money(selectedQty * inventoryUnitCost(product))}</b></span></div><div className="movement-filters">{[["all","الكل"],["purchase","شراء"],["sale","بيع"],["transfer","تحويل"],["adjustment","تصحيح"]].map(([id,label]) => <button key={id} className="choice selection-option" aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}</button>)}</div><div className="erp-table-wrap movement-timeline"><table className="erp-table" aria-label="سجل حركة المنتج"><colgroup><col style={{width:"17%"}}/><col style={{width:"13%"}}/><col style={{width:"27%"}}/><col style={{width:"13%"}}/><col style={{width:"14%"}}/><col style={{width:"16%"}}/></colgroup><thead><tr><th>التاريخ</th><th>العملية</th><th>الطرف / المخزن</th><th>الكمية</th><th>السعر</th><th>المستند</th></tr></thead><tbody>{movementDocs.map(document => { const line = document.lines.find(item => item.productId === product.id)!; const movement = data.movements.find(move => move.documentId === document.id && move.productId === product.id && move.warehouseId === (document.warehouseId ?? selectedWarehouseId)); const details = document.kind === "purchase" ? party(document) : document.kind === "sale" ? party(document) : document.kind === "transfer" ? `${document.warehouseName ?? "—"} ← ${document.destinationWarehouseName ?? "—"}` : `${document.warehouseName ?? movement?.warehouseName ?? "—"} · ${number(movement?.balanceBefore ?? 0)} ← ${number(movement?.balanceAfter ?? 0)} · ${document.title ?? "بدون سبب"}`; return <tr key={document.id} onClick={() => openDoc(document.id)}><td>{formatDate(document.occurredAt)}</td><td>{labels[document.kind] ?? document.kind}</td><td title={details}>{details}</td><td className="num-cell">{number(movement?.quantityDelta ?? line.quantity)}</td><td className="num-cell">{document.kind === "purchase" || document.kind === "sale" ? money(line.unitPrice) : "—"}</td><td dir="ltr">{document.number}</td></tr>})}{!movementDocs.length && <tr><td colSpan={6}>لا توجد حركات فعلية ضمن هذا الفلتر</td></tr>}</tbody></table></div></FramedSection>;
+  return <FramedSection title="تفاصيل المنتج وحركته" className="product-movement-panel"><div className="movement-product-head"><strong>{product.name}</strong><button className="icon" aria-label="إغلاق التفاصيل" onClick={close}><X /></button></div><div className="movement-summary"><span><small>الكمية في {selectedWarehouse?.name ?? "المخزن"}</small><b>{number(selectedQty)}</b></span><span><small>إجمالي الكمية</small><b>{number(current)}</b></span><span><small>تكلفة الوحدة</small><b>{number(inventoryUnitCost(product))}</b></span><span><small>القيمة في {selectedWarehouse?.name ?? "المخزن"}</small><b>{number(selectedQty * inventoryUnitCost(product))}</b></span></div><div className="movement-filters">{[["all","الكل"],["purchase","شراء"],["sale","بيع"],["transfer","تحويل"],["adjustment","تصحيح"]].map(([id,label]) => <button key={id} className="choice selection-option" aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}</button>)}</div><div className="erp-table-wrap movement-timeline"><table className="erp-table" aria-label="سجل حركة المنتج"><colgroup><col style={{width:"17%"}}/><col style={{width:"13%"}}/><col style={{width:"27%"}}/><col style={{width:"13%"}}/><col style={{width:"14%"}}/><col style={{width:"16%"}}/></colgroup><thead><tr><th>التاريخ</th><th>العملية</th><th>الطرف / المخزن</th><th>الكمية</th><th>السعر</th><th>المستند</th></tr></thead><tbody>{movementDocs.map(document => { const line = document.lines.find(item => item.productId === product.id)!; const movement = data.movements.find(move => move.documentId === document.id && move.productId === product.id && move.warehouseId === (document.warehouseId ?? selectedWarehouseId)); const details = document.kind === "purchase" ? party(document) : document.kind === "sale" ? party(document) : document.kind === "transfer" ? `${document.warehouseName ?? "—"} ← ${document.destinationWarehouseName ?? "—"}` : `${document.warehouseName ?? movement?.warehouseName ?? "—"} · ${number(movement?.balanceBefore ?? 0)} ← ${number(movement?.balanceAfter ?? 0)} · ${document.title ?? "بدون سبب"}`; return <tr key={document.id} onClick={() => openDoc(document.id)}><td>{formatDate(document.occurredAt)}</td><td>{labels[document.kind] ?? document.kind}</td><td title={details}>{details}</td><td className="num-cell">{number(movement?.quantityDelta ?? line.quantity)}</td><td className="num-cell">{document.kind === "purchase" || document.kind === "sale" ? money(line.unitPrice) : "—"}</td><td dir="ltr">{document.number}</td></tr>})}{!movementDocs.length && <tr><td colSpan={6}>لا توجد حركات فعلية ضمن هذا الفلتر</td></tr>}</tbody></table></div></FramedSection>;
 }
 
 function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
@@ -964,7 +985,7 @@ function ProductForm({ run, close, product, warehouses }: { run: RunCommand; clo
 
 function StockDraftTable({ mode, lines, products, warehouseId, onChange, onRemove }: { mode: "transfer" | "adjust"; lines: DraftLine[]; products: Product[]; warehouseId: string; onChange: (line: DraftLine) => void; onRemove: (id: string) => void }) {
   const adjustment = mode === "adjust";
-  return <div className="erp-table-wrap stock-draft"><table className="erp-table" aria-label="المنتجات الجاري تنفيذ العملية عليها"><colgroup><col style={{width:"7%"}}/><col style={{width:adjustment?"27%":"37%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/>{adjustment&&<col style={{width:"20%"}}/>}<col style={{width:"8%"}}/></colgroup><thead><tr><th>م</th><th>المنتج</th><th>{adjustment ? "المخزون الحالي" : "المتوفر"}</th><th>{adjustment ? "الكمية الفعلية" : "الكمية للتحويل"}</th>{adjustment&&<th>تكلفة الوحدة</th>}<th>حذف</th></tr></thead><tbody>{lines.map((line,index)=>{const product=products.find(item=>item.id===line.productId)!;const available=Number(product?.stocks[warehouseId]??0);const increasing=adjustment&&line.actualQuantity!==""&&val(line.actualQuantity)>available;return <tr key={line.productId}><td className="num-cell">{number(index+1)}</td><td>{product.name}</td><td className="num-cell">{number(available)}</td><td><Num value={adjustment?line.actualQuantity:line.quantity} onChange={value=>onChange(adjustment?{...line,actualQuantity:value}:{...line,quantity:value})}/></td>{adjustment&&<td>{increasing&&product.lastPurchaseCost==null?<Num value={line.unitPrice} onChange={value=>onChange({...line,unitPrice:value})} placeholder="مطلوب"/>:<span className="draft-cost">{money(inventoryUnitCost(product))}</span>}</td>}<td className="action-cell"><button type="button" className="icon danger" aria-label={`حذف ${product.name}`} onClick={()=>onRemove(line.productId)}><X/></button></td></tr>})}{!lines.length&&<tr><td colSpan={adjustment?6:5} className="draft-empty">أضف منتجًا لبدء العملية</td></tr>}</tbody></table></div>;
+  return <div className="erp-table-wrap stock-draft"><table className="erp-table" aria-label="المنتجات الجاري تنفيذ العملية عليها"><colgroup><col style={{width:"7%"}}/><col style={{width:adjustment?"27%":"37%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/>{adjustment&&<col style={{width:"20%"}}/>}<col style={{width:"8%"}}/></colgroup><thead><tr><th>م</th><th>المنتج</th><th>{adjustment ? "المخزون الحالي" : "المتوفر"}</th><th>{adjustment ? "الكمية الفعلية" : "الكمية للتحويل"}</th>{adjustment&&<th>تكلفة الوحدة</th>}<th>حذف</th></tr></thead><tbody>{lines.map((line,index)=>{const product=products.find(item=>item.id===line.productId)!;const available=Number(product?.stocks[warehouseId]??0);const increasing=adjustment&&line.actualQuantity!==""&&val(line.actualQuantity)>available;return <tr key={line.productId}><td className="num-cell">{number(index+1)}</td><td>{product.name}</td><td className="num-cell">{number(available)}</td><td><Num value={adjustment?line.actualQuantity:line.quantity} onChange={value=>onChange(adjustment?{...line,actualQuantity:value}:{...line,quantity:value})}/></td>{adjustment&&<td>{increasing&&product.lastPurchaseCost==null?<Num value={line.unitPrice} onChange={value=>onChange({...line,unitPrice:value})} placeholder="مطلوب"/>:<span className="draft-cost">{number(inventoryUnitCost(product))}</span>}</td>}<td className="action-cell"><button type="button" className="icon danger" aria-label={`حذف ${product.name}`} onClick={()=>onRemove(line.productId)}><X/></button></td></tr>})}{!lines.length&&<tr><td colSpan={adjustment?6:5} className="draft-empty">أضف منتجًا لبدء العملية</td></tr>}</tbody></table></div>;
 }
 
 function MultiStockForm({
@@ -1054,6 +1075,7 @@ function MultiStockForm({
         setQuery={setQ}
         mode={mode === "adjust" ? "adjustment" : "transfer"}
         warehouseId={from}
+        stockScope="selected-warehouse"
         collapseResultsWhenIdle
         onPick={(p) => {
           setLines((x) =>
@@ -1129,8 +1151,8 @@ function Records({
       (!to || d.occurredAt.slice(0, 10) <= to),
   );
   return (
-    <section>
-      <div className="filters">
+    <section className="records-workspace">
+      <FramedSection title="بحث السجلات" className="records-filters"><div className="filters">
         <label className="search">
           <Search />
           <input
@@ -1155,7 +1177,7 @@ function Records({
           type="date" dir="ltr" value={to}
           onChange={(e) => setTo(e.target.value)}
         /></label>
-      </div>
+      </div></FramedSection>
       <Recent title="كل السجلات القابلة للتتبع" docs={docs} openDoc={openDoc} />
     </section>
   );
@@ -1192,6 +1214,28 @@ function Reports({ data, openDoc, type }: { data: BootstrapData; openDoc: (id: s
   {type==="stock"&&<select value={movementType} onChange={e=>setMovementType(e.target.value)}><option value="">كل الحركات</option>{Object.entries(movementLabels).filter(([k])=>["sale","purchase","sale-return","transfer-in","transfer-out","adjustment","opening"].includes(k)).map(([k,v])=><option value={k} key={k}>{v}</option>)}</select>}{type==="financial"&&<select value={direction} onChange={e=>setDirection(e.target.value)}><option value="">داخل وخارج</option><option value="in">داخل</option><option value="out">خارج</option></select>}{type==="debts"&&<><select value={debtSide} onChange={e=>setDebtSide(e.target.value)}><option value="">الجميع</option><option value="receivable">لنا عليه</option><option value="payable">له علينا</option><option value="clear">حساب خالص</option></select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث بالاسم أو الهاتف"/></>}
   </div></FramedSection><div className="print-report-title"><h2>{reportNames[type]}</h2>{showDates&&<span>{allTimeActive ? "كل الفترة" : <>من {formatDate(from)} إلى {formatDate(to)}</>}</span>}</div>{reportError&&<div className="error report-error">{reportError}</div>}<FramedSection title={reportNames[type]} className="report-body">{busy&&<div className="report-loading">جاري إعداد التقرير…</div>}<div className="erp-table-wrap"><table className={`erp-table report-table report-table-${type}`}><colgroup>{type==="sales"&&(productId?<><col style={{width:"5%"}}/><col style={{width:"17%"}}/><col style={{width:"18%"}}/><col style={{width:"18%"}}/><col style={{width:"10%"}}/><col style={{width:"11%"}}/><col style={{width:"11%"}}/><col style={{width:"10%"}}/></>:<><col style={{width:"5%"}}/><col style={{width:"18%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/><col style={{width:"13%"}}/><col style={{width:"13%"}}/><col style={{width:"13%"}}/></>)}</colgroup><thead><tr><th className="serial">م</th>{columns.map(c=><th key={c[0]}>{c[1]}</th>)}</tr></thead><tbody>{table.rows.map((row,i)=><tr key={String(row.id??i)} onClick={()=>row.documentId&&openDoc(String(row.documentId))}><td className="num-cell">{number(i+1)}</td>{columns.map(([key])=><td key={key} title={key==="number"?String(row[key]??""):undefined} className={`${numericKeys.has(key)||typeof row[key]==="number"?"num-cell ":""}${key==="occurredAt"?"date-cell":""}`}>{display(key,row[key])}</td>)}</tr>)}</tbody></table></div></FramedSection>{result&&<div className="report-summary-area"><div className="report-kpis">{summarySchema[type].flatMap(([key,label])=>Object.hasOwn(result.summary,key)?[<span className="report-kpi" key={key}><small>{label}</small><b className={`summary-${reportSummaryTone(type,key,result.summary[key])}`}>{summaryValue(key,result.summary[key])}</b></span>]:[])}</div></div>}</section>;
 }
+function PrintableDocument({ document: record, data }: { document: DocumentRecord; data: BootstrapData }) {
+  const sale = record.kind === "sale", purchase = record.kind === "purchase";
+  const account = data.paymentAccounts.find(item => item.id === record.paymentMethod || item.code === record.paymentMethod);
+  const payment = record.paymentMethod === "note" ? "ملاحظة / دين" : account?.name ?? "—";
+  const remaining = Math.max(0, record.dueTotal - record.paidTotal);
+  return <article className="invoice-print-sheet" aria-label={`نسخة طباعة ${kindLabels[record.kind]}`}>
+    <header className="invoice-print-header"><div><strong>Conta</strong><span>نظام المتجر</span></div><h1>{kindLabels[record.kind]}</h1><b dir="ltr">{record.number}</b></header>
+    <div className="invoice-print-meta">
+      <span>رقم الفاتورة <b dir="ltr">{record.number}</b></span><span>التاريخ <b>{formatDateTime(record.occurredAt)}</b></span>
+      {sale && <span>العميل <b>{record.partyName || "بيع مباشر"}</b></span>}
+      {purchase && <span>المورد <b>{record.partyName || "غير محدد"}</b></span>}
+      {(sale || purchase) && <span>{purchase ? "المخزن المستلم" : "المخزن"} <b>{record.warehouseName || "—"}</b></span>}
+      {(sale || purchase) && <span>{purchase ? "طريقة التسوية" : "طريقة الدفع"} <b>{payment}</b></span>}
+      {sale && <span>الحالة <b>{remaining > 0 ? "متبقي / دين" : "مدفوعة"}</b></span>}
+      {!sale && !purchase && record.title && <span>البيان <b>{record.title}</b></span>}
+    </div>
+    {!!record.lines.length && <table className="invoice-print-table"><thead><tr><th>م</th><th>المنتج</th><th>الكمية</th><th>سعر الوحدة (MRU)</th><th>المجموع (MRU)</th></tr></thead><tbody>{record.lines.map((line, index) => <tr key={line.id}><td>{number(index + 1)}</td><td>{line.description}</td><td>{quantity(line.quantity)}</td><td>{number(line.unitPrice)}</td><td>{number(line.lineTotal)}</td></tr>)}</tbody></table>}
+    <div className="invoice-print-totals"><span>الإجمالي <strong>{money(record.total)}</strong></span>{record.dueTotal > 0 && <><span>المدفوع <strong>{money(record.paidTotal)}</strong></span><span>المتبقي <strong>{money(remaining)}</strong></span></>}</div>
+    <footer>تم إنشاء هذه الفاتورة بواسطة Conta</footer>
+  </article>;
+}
+
 function DocumentDetail({
   document,
   data,
@@ -1205,6 +1249,14 @@ function DocumentDetail({
 }) {
   const [returning, setReturning] = useState(false),
     [returns, setReturns] = useState<Record<string, string>>({});
+  function printDocument() {
+    const root = window.document.documentElement;
+    const cleanup = () => root.classList.remove("print-document-mode");
+    root.classList.add("print-document-mode");
+    window.addEventListener("afterprint", cleanup, { once: true });
+    window.print();
+    window.setTimeout(cleanup, 1500);
+  }
   function download() {
     const content = [
       `${kindLabels[document.kind]} ${document.number}`,
@@ -1231,7 +1283,7 @@ function DocumentDetail({
         <button className="back" onClick={close}>
           ← العودة
         </button>
-        <button className="soft" onClick={() => window.print()}>
+        <button className="soft" onClick={printDocument}>
           <Printer /> طباعة
         </button>
         <button className="soft" onClick={download}>
@@ -1342,6 +1394,7 @@ function DocumentDetail({
         </div>
       )}
       <Linked document={document} data={data} />
+      <PrintableDocument document={document} data={data} />
     </section>
   );
 }
