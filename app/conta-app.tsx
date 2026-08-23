@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  displayDocumentNumber,
   formatDate,
   isProductExpired,
   formatDateTime,
@@ -51,7 +52,8 @@ type View =
   | "pos"
   | "purchases"
   | "expenses"
-  | "parties"
+  | "customers"
+  | "suppliers"
   | "warehouses"
   | "transfers"
   | "adjustments"
@@ -96,10 +98,14 @@ function useSessionDraft<T>(key: string, initial: T) {
 const nav: Array<{ id: View; label: string; icon: typeof ShoppingCart }> = [
   { id: "pos", label: "نقطة البيع", icon: ShoppingCart },
   { id: "products", label: "المنتجات", icon: PackagePlus },
-  { id: "parties", label: "العملاء والموردون", icon: Users },
+
   { id: "banks", label: "البنوك", icon: Landmark },
   { id: "reports", label: "التقارير", icon: Receipt },
   { id: "settings", label: "الإعدادات", icon: SettingsIcon },
+];
+const partyNav: Array<{ id: View; label: string; icon: typeof Users }> = [
+  { id: "customers", label: "العملاء", icon: Users },
+  { id: "suppliers", label: "الموردون", icon: Users },
 ];
 const invoiceNav: Array<{ id: View; label: string; icon: typeof Receipt }> = [
   { id: "purchases", label: "فواتير الشراء", icon: PackagePlus },
@@ -132,6 +138,7 @@ export default function ContaApp() {
     [invoiceMenu, setInvoiceMenu] = useState(false),
     [warehouseMenu, setWarehouseMenu] = useState(false),
     [reportMenu, setReportMenu] = useState(false),
+    [partyMenu, setPartyMenu] = useState(false),
     [reportType, setReportType] = useState<ReportType>("sales"),
     [doc, setDoc] = useState<DocumentRecord | null>(null),
     [partyDetail, setPartyDetail] = useState<Party | null>(null),
@@ -139,18 +146,20 @@ export default function ContaApp() {
   const warehouseMenuRef = useRef<HTMLDivElement>(null);
   const invoiceMenuRef = useRef<HTMLDivElement>(null);
   const reportMenuRef = useRef<HTMLDivElement>(null);
+  const partyMenuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const close = (event: PointerEvent) => {
       if (!warehouseMenuRef.current?.contains(event.target as Node)) setWarehouseMenu(false);
       if (!invoiceMenuRef.current?.contains(event.target as Node)) setInvoiceMenu(false);
-      if (!reportMenuRef.current?.contains(event.target as Node)) setReportMenu(false);
+      if (!reportMenuRef.current?.contains(event.target as Node)) setReportMenu(false); setPartyMenu(false);
+      if (!partyMenuRef.current?.contains(event.target as Node)) setPartyMenu(false);
     };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
   }, []);
   const navigate = (id: View) => {
     if (id !== "adjustments") setAdjustmentPrefill(null);
-    setView(id); setDoc(null); setPartyDetail(null); setMenu(false); setWarehouseMenu(false); setInvoiceMenu(false); setReportMenu(false);
+    setView(id); setDoc(null); setPartyDetail(null); setMenu(false); setWarehouseMenu(false); setInvoiceMenu(false); setReportMenu(false); setPartyMenu(false);
   };
   const openStockAdjustment = (prefill: AdjustmentPrefill) => {
     setAdjustmentPrefill(prefill);
@@ -236,9 +245,7 @@ export default function ContaApp() {
               {warehouseNav.map(n => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => navigate(n.id)}><n.icon /><span>{n.label}</span></button>)}
             </div>}
           </div>
-          {nav.slice(1).filter(n => n.id !== "reports" && n.id !== "settings").map((n) => (
-            <button key={n.id} className={view === n.id ? "nav active" : "nav"} onClick={() => navigate(n.id)}><n.icon /><span>{n.label}</span></button>
-          ))}
+          {nav.slice(1).filter(n => n.id !== "reports" && n.id !== "settings").map((n) => n.id === "banks" ? <div key="party-and-bank" className="party-nav-group"><div className="nav-menu party-nav-menu" ref={partyMenuRef}><button className={partyNav.some(item => item.id === view) ? "nav active" : "nav"} aria-expanded={partyMenu} onClick={() => setPartyMenu(value => !value)}><Users/><span>العملاء والموردون</span><ChevronDown className="chevron"/></button>{partyMenu && <div className="nav-popover party-nav-popover">{partyNav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => navigate(item.id)}><item.icon/><span>{item.label}</span></button>)}</div>}</div><button className={view === n.id ? "nav active" : "nav"} onClick={() => navigate(n.id)}><n.icon/><span>{n.label}</span></button></div> : <button key={n.id} className={view === n.id ? "nav active" : "nav"} onClick={() => navigate(n.id)}><n.icon/><span>{n.label}</span></button>)}
           <div className="nav-menu report-nav-menu" ref={reportMenuRef}>
             <button className={view === "reports" ? "nav active" : "nav"} aria-expanded={reportMenu} onClick={() => setReportMenu(value => !value)}><Receipt/><span>التقارير</span><ChevronDown className="chevron"/></button>
             {reportMenu && <div className="nav-popover report-nav-popover">{reportOrder.map(id => <button key={id} aria-current={reportType === id ? "page" : undefined} className={reportType === id ? "active" : ""} onClick={() => { setReportType(id); navigate("reports"); }}><span>{reportNames[id]}</span></button>)}</div>}
@@ -255,7 +262,7 @@ export default function ContaApp() {
           <button className="icon mobile" onClick={() => setMenu(true)}>
             <Menu />
           </button>
-          <h1>{[...nav, ...invoiceNav, ...warehouseNav].find((n) => n.id === view)?.label}</h1>
+          <h1>{[...nav, ...invoiceNav, ...warehouseNav, ...partyNav].find((n) => n.id === view)?.label}</h1>
           <button className="icon refresh" title="تحديث البيانات" aria-label="تحديث البيانات" onClick={() => void reload()}><RefreshCw /></button>
         </header>
         <div className="content">
@@ -288,8 +295,8 @@ export default function ContaApp() {
               {view === "expenses" && (
                 <Expenses data={data} run={run} openDoc={openDoc} />
               )}{" "}
-              {view === "parties" && (
-                <Parties data={data} run={run} openParty={setPartyDetail} />
+              {(view === "customers" || view === "suppliers") && (
+                <Parties partyType={view === "customers" ? "customer" : "supplier"} data={data} run={run} openParty={setPartyDetail} />
               )}{" "}
               {view === "products" && <Products data={data} run={run} />}{" "}
               {view === "warehouses" && (
@@ -544,7 +551,7 @@ function Pos({
         warehouseId: wh?.id,
         paymentMethod: payment,
         paidAmount: payment === "note" ? 0 : total,
-        partyId: payment === "note" ? partyId : null,
+        partyId: partyId || null,
         pricingMode: priceMode,
         lines: lines.map((l) => ({
           productId: l.productId,
@@ -561,7 +568,7 @@ function Pos({
     <div className="pos-invoice-top"><div className="pos-mode-toolbar"><button type="button" className="selection-option" aria-pressed={priceMode === "retail"} onClick={() => changePriceMode("retail")}>بيع الفرد</button><button type="button" className="selection-option" aria-pressed={priceMode === "wholesale"} onClick={() => changePriceMode("wholesale")}>بيع الجملة</button><BarcodeScanner products={data.products} onScan={add} enabled={scannerEnabled} onEnabledChange={setScannerEnabled} onError={setStockNotice} />{lines.length > 0 && <button className="clear-draft" onClick={() => { if (confirm("هل تريد مسح الفاتورة؟")) setLines([]); }}>مسح الفاتورة</button>}</div></div>
     <div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="erp-table-wrap invoice-preview-list"><table className="erp-table invoice-table" aria-label="منتجات الفاتورة"><colgroup><col style={{width:"38%"}}/><col style={{width:"14%"}}/><col style={{width:"17%"}}/><col style={{width:"19%"}}/><col style={{width:"12%"}}/></colgroup><thead><tr><th>الاسم</th><th>الكمية</th><th>السعر</th><th>المجموع</th><th>حذف</th></tr></thead><tbody>{details.map(({ l, p, total: lineTotal }) => <tr className={selectedLine === p.id ? "selected" : ""} onClick={() => setSelectedLine(p.id)} key={p.id}><td className="name-cell">{p.name}</td><td className="num-cell"><Num value={l.quantity} onChange={value => updateSaleLine(p, { quantity: value })} /></td><td className="num-cell"><Num value={l.piecePrice} onChange={value => updateSaleLine(p, { piecePrice: value })} /></td><td className="num-cell">{number(lineTotal)}</td><td className="action-cell"><button type="button" className="row-delete" aria-label={`حذف ${p.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== p.id)); }}><X /></button></td></tr>)}</tbody></table></div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b></div>}</div>
   </FramedSection>;
-  const checkout = <FramedSection title="الدفع" className="workspace-checkout"><div className="checkout-layout"><div className="checkout-body"><div className="invoice-meta-row" aria-label="نوع الفاتورة"><button className="meta-option selection-option" aria-pressed={payment !== "note"} onClick={() => setPayment("cash")}><Banknote /><span><small>طريقة التحصيل</small><b>دفع مباشر</b></span></button><button className="meta-option selection-option secondary" aria-pressed={payment === "note"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع البيع</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">طريقة الدفع</span><CompactPaymentSelector accounts={data.paymentAccounts} value={payment} onChange={setPayment} /></div>}{payment === "note" && <><label>اختيار العميل<SearchableSelect value={partyId} onChange={setPartyId} placeholder="اختر العميل" searchPlaceholder="ابحث باسم العميل أو رقم الهاتف" floating options={data.parties.map(p => ({ value: p.id, label: p.name, search: p.phone }))} /></label><button className="link" onClick={() => setQuick(!quick)}><Plus /> إضافة عميل</button>{quick && <QuickParty run={run} onDone={() => setQuick(false)} />}</>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!lines.length || !wh || (payment === "note" && !partyId)} onClick={() => void submit()}>إتمام البيع</button></div></div></FramedSection>;
+  const checkout = <FramedSection title="الدفع" className="workspace-checkout"><div className="checkout-layout"><div className="checkout-body"><div className="invoice-meta-row" aria-label="نوع الفاتورة"><button className="meta-option selection-option" aria-pressed={payment !== "note"} onClick={() => setPayment("cash")}><Banknote /><span><small>طريقة التحصيل</small><b>دفع مباشر</b></span></button><button className="meta-option selection-option secondary" aria-pressed={payment === "note"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع البيع</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">طريقة الدفع</span><CompactPaymentSelector accounts={data.paymentAccounts} value={payment} onChange={setPayment} /></div>}<><label>العميل<SearchableSelect value={partyId} onChange={setPartyId} placeholder="بيع مباشر" searchPlaceholder="ابحث باسم العميل أو رقم الهاتف" floating allowEmpty options={data.parties.filter(p => p.partyType === "customer").map(p => ({ value: p.id, label: p.name, search: p.phone }))} /></label><button className="link" onClick={() => setQuick(!quick)}><Plus /> إضافة عميل</button>{quick && <QuickCustomer run={run} onDone={id => { setPartyId(id); setQuick(false); }} />}{payment === "note" && !partyId && <small className="validation-hint">اختر عميلاً حقيقياً للبيع بالدين</small>}</></div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!lines.length || !wh || (payment === "note" && !partyId)} onClick={() => void submit()}>إتمام البيع</button></div></div></FramedSection>;
   return <section className="transaction-page">{stockNotice && <div className="toast stock-toast">{stockNotice}</div>}<div className="transaction-workspace pos-workspace"><div className="workspace-discovery"><FramedSection title="بحث المنتجات" className="search-panel"><SearchProducts data={data} query={query} setQuery={setQuery} onPick={add} mode="sale" warehouseId={wh?.id} priceMode={priceMode} stockScope="selected-warehouse" /></FramedSection><InvoiceQuickBrowser title="سجل الفواتير" docs={data.documents.filter(d => d.kind === "sale")} openDoc={openDoc} /></div>{invoice}{checkout}</div></section>;
 
 }
@@ -575,7 +582,7 @@ function CompactPaymentSelector({ accounts, value, onChange }: { accounts: Payme
   </div>;
 }
 
-function QuickParty({ run, onDone }: { run: RunCommand; onDone: () => void }) {
+function QuickCustomer({ run, onDone }: { run: RunCommand; onDone: (id: string) => void }) {
   const [name, setName] = useState(""),
     [phone, setPhone] = useState("");
   return (
@@ -594,8 +601,8 @@ function QuickParty({ run, onDone }: { run: RunCommand; onDone: () => void }) {
       <button
         className="primary"
         onClick={async () => {
-          await run({ type: "party.create", name, phone }, "تمت إضافة العميل");
-          onDone();
+          const id = await run({ type: "party.create", partyType: "customer", name, phone }, "تمت إضافة العميل");
+          onDone(id);
         }}
       >
         حفظ
@@ -631,7 +638,7 @@ function Purchases({ data, run, openDoc }: { data: BootstrapData; run: RunComman
   return <section className="transaction-page"><div className="transaction-workspace purchase-workspace">
     <div className="workspace-discovery"><FramedSection title="بحث المنتجات" className="search-panel"><BarcodeScanner products={data.products} onScan={pick} /><SearchProducts data={data} query={query} setQuery={setQuery} onPick={pick} mode="purchase" warehouseId={warehouseId} /></FramedSection><InvoiceQuickBrowser title="سجل فواتير الشراء" docs={data.documents.filter(d => d.kind === "purchase")} openDoc={openDoc} /></div>
     <FramedSection title="فاتورة الشراء" className="invoice-card workspace-invoice"><div className="invoice-card-head">{lines.length > 0 && <button className="clear-draft" onClick={clearDraft}>مسح الفاتورة</button>}</div><div className={lines.length ? "invoice-preview has-items" : "invoice-preview"}>{lines.length ? <div className="erp-table-wrap invoice-preview-list"><table className="erp-table invoice-table"><colgroup><col style={{width:"38%"}}/><col style={{width:"14%"}}/><col style={{width:"17%"}}/><col style={{width:"19%"}}/><col style={{width:"12%"}}/></colgroup><thead><tr><th>الاسم</th><th>الكمية</th><th>سعر الشراء</th><th>المجموع</th><th>حذف</th></tr></thead><tbody>{details.map(({line, product}) => <tr key={product.id} onClick={() => setSelectedLine(product.id)} className={selectedLine === product.id ? "selected" : ""}><td className="name-cell">{product.name}</td><td className="num-cell"><Num value={line.quantity} onChange={value => updatePurchaseLine(product, { quantity: value })} /></td><td className="num-cell"><Num value={line.unitPrice} onChange={value => updatePurchaseLine(product, { unitPrice: value })} /></td><td className="num-cell">{number(val(line.quantity) * val(line.unitPrice))}</td><td className="action-cell"><button type="button" className="row-delete" aria-label={`حذف ${product.name}`} onClick={event => { event.stopPropagation(); setLines(current => current.filter(item => item.productId !== product.id)); }}><X /></button></td></tr>)}</tbody></table></div> : <div className="empty-invoice-state"><span><ReceiptText /></span><b>الفاتورة فارغة</b></div>}</div></FramedSection>
-    <FramedSection title="اعتماد الشراء" className="workspace-checkout"><div className="checkout-layout"><div className="checkout-body purchase-details"><label>المورد<SearchableSelect disabled={locked} value={partyId} onChange={setPartyId} placeholder="اختر المورد" searchPlaceholder="ابحث باسم المورد أو رقم الهاتف" floating options={data.parties.map(p => ({ value: p.id, label: `${p.name} — ${p.phone}`, search: p.phone }))} /></label><button className="soft" disabled={!partyId} onClick={() => locked ? confirm("هل تريد تغيير المورد؟ ستبقى المنتجات كما هي.") && setLocked(false) : setLocked(true)}>{locked ? "تعديل المورد" : "تأكيد المورد"}</button><label>مخزن الاستلام<SearchableSelect value={warehouseId} onChange={setWarehouseId} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" floating options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><button className="link" onClick={() => setAddingWh(!addingWh)}><Plus /> إضافة مخزن</button>{addingWh && <InlineCreate label="اسم المخزن" onSave={async name => { await run({ type: "warehouse.create", name }, "تمت إضافة المخزن"); setAddingWh(false); }} />}<div className="invoice-meta-row"><button className="meta-option selection-option" aria-pressed={payment !== "note"} onClick={() => setPayment("cash")}><Banknote /><span><small>نوع التسوية</small><b>دفع مباشر</b></span></button><button className="meta-option selection-option secondary" aria-pressed={payment === "note"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع التسوية</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">الدفع من حساب</span><CompactPaymentSelector accounts={data.paymentAccounts} value={payment} onChange={setPayment} /></div>}{payment === "note" && <p className="note-hint">ستسجل الفاتورة كاملة دينًا علينا للمورد، دون حركة نقدية.</p>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!locked || !warehouseId || !lines.length} onClick={() => void submit()}>اعتماد فاتورة الشراء</button></div></div></FramedSection>
+    <FramedSection title="اعتماد الشراء" className="workspace-checkout"><div className="checkout-layout"><div className="checkout-body purchase-details"><label>المورد<SearchableSelect disabled={locked} value={partyId} onChange={setPartyId} placeholder="اختر المورد" searchPlaceholder="ابحث باسم المورد أو رقم الهاتف" floating options={data.parties.filter(p => p.partyType === "supplier").map(p => ({ value: p.id, label: `${p.name} — ${p.phone}`, search: p.phone }))} /></label><button className="soft" disabled={!partyId} onClick={() => locked ? confirm("هل تريد تغيير المورد؟ ستبقى المنتجات كما هي.") && setLocked(false) : setLocked(true)}>{locked ? "تعديل المورد" : "تأكيد المورد"}</button><label>مخزن الاستلام<SearchableSelect value={warehouseId} onChange={setWarehouseId} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" floating options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><button className="link" onClick={() => setAddingWh(!addingWh)}><Plus /> إضافة مخزن</button>{addingWh && <InlineCreate label="اسم المخزن" onSave={async name => { await run({ type: "warehouse.create", name }, "تمت إضافة المخزن"); setAddingWh(false); }} />}<div className="invoice-meta-row"><button className="meta-option selection-option" aria-pressed={payment !== "note"} onClick={() => setPayment("cash")}><Banknote /><span><small>نوع التسوية</small><b>دفع مباشر</b></span></button><button className="meta-option selection-option secondary" aria-pressed={payment === "note"} onClick={() => setPayment("note")}><PencilLine /><span><small>نوع التسوية</small><b>ملاحظة</b></span></button></div>{payment !== "note" && <div className="payment-section"><span className="payment-label">الدفع من حساب</span><CompactPaymentSelector accounts={data.paymentAccounts} value={payment} onChange={setPayment} /></div>}{payment === "note" && <p className="note-hint">ستسجل الفاتورة كاملة دينًا علينا للمورد، دون حركة نقدية.</p>}</div><div className="checkout-footer"><div className="total invoice-total"><span>الإجمالي</span><strong>{money(total)}</strong></div><button className="primary wide" disabled={!locked || !warehouseId || !lines.length} onClick={() => void submit()}>اعتماد فاتورة الشراء</button></div></div></FramedSection>
   </div></section>;
 
 }
@@ -648,7 +655,7 @@ function Expenses({ data, run, openDoc }: { data: BootstrapData; run: RunCommand
   const accounts = data.paymentAccounts.filter(account => account.isActive);
   const accountName = (id: string | null) => data.paymentAccounts.find(a => a.id === id || a.code === id)?.name ?? "—";
   const expenseDocs = data.documents.filter(d => d.kind === "expense"
-    && (!historyQuery.trim() || `${d.title ?? ""} ${d.number}`.toLocaleLowerCase("ar").includes(historyQuery.trim().toLocaleLowerCase("ar")))
+    && (!historyQuery.trim() || `${d.title ?? ""} ${displayDocumentNumber(d)} ${d.number} ${d.legacyBillCode ?? ""}`.toLocaleLowerCase("ar").includes(historyQuery.trim().toLocaleLowerCase("ar")))
     && (!historyFrom || d.occurredAt.slice(0, 10) >= historyFrom)
     && (!historyTo || d.occurredAt.slice(0, 10) <= historyTo));
   return <section className="expense-workspace workspace-page">
@@ -666,7 +673,7 @@ function Expenses({ data, run, openDoc }: { data: BootstrapData; run: RunCommand
         {data.recurringExpenses.map(r => <tr key={r.id}><td className="name-cell">{r.title}</td><td>{formatDate(r.currentDueDate)}</td><td className="num-cell">{money(r.amount)}</td><td>{r.currentPaymentMethodId ? `مدفوع · ${accountName(r.currentPaymentMethodId)}` : r.frequency === "daily" ? "يومي · غير مدفوع" : "شهري · غير مدفوع"}</td><td className="action-cell">{r.currentPaymentMethodId ? accountName(r.currentPaymentMethodId) : <button className="soft" onClick={() => setPaying(r.id)}>تسجيل الدفع</button>}</td></tr>)}
         {!data.recurringExpenses.length && <tr><td colSpan={5}>لا توجد مصاريف متكررة</td></tr>}
       </tbody></table></div></FramedSection>
-      <FramedSection title="سجل المصاريف" className="expense-history"><div className="expense-history-filters"><label className="search"><Search /><input value={historyQuery} onChange={e => setHistoryQuery(e.target.value)} placeholder="بحث بالعنوان أو رقم المستند" /></label><label>من<input dir="ltr" type="date" value={historyFrom} onChange={e => setHistoryFrom(e.target.value)} /></label><label>إلى<input dir="ltr" type="date" value={historyTo} onChange={e => setHistoryTo(e.target.value)} /></label></div><div className="erp-table-wrap expense-scroll"><table className="erp-table" aria-label="سجل المصاريف"><colgroup><col style={{width:"16%"}}/><col style={{width:"24%"}}/><col style={{width:"15%"}}/><col style={{width:"18%"}}/><col style={{width:"13%"}}/><col style={{width:"14%"}}/></colgroup><thead><tr><th>التاريخ</th><th>العنوان</th><th>المبلغ</th><th>وسيلة الدفع</th><th>النوع</th><th>المستند</th></tr></thead><tbody>{expenseDocs.map(document => <tr key={document.id} onClick={() => openDoc(document.id)}><td>{formatDate(document.occurredAt)}</td><td className="name-cell">{document.title ?? "مصروف"}</td><td className="num-cell">{money(document.total)}</td><td>{accountName(document.paymentMethod)}</td><td>{document.recurringId ? "متكرر" : "مرة واحدة"}</td><td dir="ltr">{document.number}</td></tr>)}{!expenseDocs.length && <tr><td colSpan={6}>لا توجد فواتير مطابقة</td></tr>}</tbody></table></div></FramedSection>
+      <FramedSection title="سجل المصاريف" className="expense-history"><div className="expense-history-filters"><label className="search"><Search /><input value={historyQuery} onChange={e => setHistoryQuery(e.target.value)} placeholder="بحث بالعنوان أو رقم المستند" /></label><label>من<input dir="ltr" type="date" value={historyFrom} onChange={e => setHistoryFrom(e.target.value)} /></label><label>إلى<input dir="ltr" type="date" value={historyTo} onChange={e => setHistoryTo(e.target.value)} /></label></div><div className="erp-table-wrap expense-scroll"><table className="erp-table" aria-label="سجل المصاريف"><colgroup><col style={{width:"16%"}}/><col style={{width:"24%"}}/><col style={{width:"15%"}}/><col style={{width:"18%"}}/><col style={{width:"13%"}}/><col style={{width:"14%"}}/></colgroup><thead><tr><th>التاريخ</th><th>العنوان</th><th>المبلغ</th><th>وسيلة الدفع</th><th>النوع</th><th>المستند</th></tr></thead><tbody>{expenseDocs.map(document => <tr key={document.id} onClick={() => openDoc(document.id)}><td>{formatDate(document.occurredAt)}</td><td className="name-cell">{document.title ?? "مصروف"}</td><td className="num-cell">{money(document.total)}</td><td>{accountName(document.paymentMethod)}</td><td>{document.recurringId ? "متكرر" : "مرة واحدة"}</td><td dir="ltr">{displayDocumentNumber(document)}</td></tr>)}{!expenseDocs.length && <tr><td colSpan={6}>لا توجد فواتير مطابقة</td></tr>}</tbody></table></div></FramedSection>
     </div>
     {paying && <div className="modal-overlay" role="dialog" aria-modal="true"><form className="modal-card payment-dialog" onSubmit={async e => { e.preventDefault(); if (!paymentMethod) return; const recurring = data.recurringExpenses.find(r => r.id === paying)!; await run({ type: "expense.materialize", recurringId: paying, dueDate: recurring.currentDueDate, paymentMethod }, "تم تسجيل دفع الاستحقاق"); setPaying(null); }}><div className="modal-heading"><h3>تسجيل الدفع</h3><button type="button" className="icon" onClick={() => setPaying(null)}><X /></button></div><label>تم الدفع من<select required value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}><option value="">اختر الحساب</option>{accounts.map(a => <option key={a.id} value={a.id}>{a.name} — {money(a.balance)}</option>)}</select></label><button className="primary">تأكيد الدفع</button></form></div>}
   </section>;
@@ -688,7 +695,7 @@ function Banks({ data, run }: { data: BootstrapData; run: RunCommand }) {
     <FramedSection title="ملخص الحسابات" className="bank-summary"><div><small>إجمالي الأرصدة الحالية</small><b>{money(total)}</b></div><div><small>إجمالي المشتريات</small><b>{money(purchaseTotal)}</b></div><div><small>إجمالي الداخل اليوم</small><b>{money(todayMovements.filter(m => m.direction === "in").reduce((s,m) => s + m.amount, 0))}</b></div><div><small>إجمالي الخارج اليوم</small><b>{money(todayMovements.filter(m => m.direction === "out").reduce((s,m) => s + m.amount, 0))}</b></div></FramedSection>
     <FramedSection title="البنوك والحسابات" className="bank-panel"><div className="bank-tabs"><button className="selection-option" aria-pressed={tab === "accounts"} onClick={() => setTab("accounts")}>وسائل الدفع</button><button className="selection-option" aria-pressed={tab === "movements"} onClick={() => setTab("movements")}>حركة الحسابات</button><button className="selection-option" aria-pressed={tab === "transfers"} onClick={() => setTab("transfers")}>التحويلات</button></div>
       {tab === "accounts" && <><div className="section-toolbar"><button className="primary" onClick={() => setEditing({ id: "", code: "", name: "", color: "#1677c8", icon: "wallet", isActive: true, balance: 0, income: 0, expenses: 0, purchaseTotal: 0 })}><Plus /> إضافة وسيلة</button></div><div className="erp-table-wrap account-list"><table className="erp-table" aria-label="وسائل الدفع"><thead><tr><th>الحساب</th><th>الحالة</th><th>الرصيد</th><th>المشتريات</th><th>الداخل</th><th>الخارج</th><th>إجراء</th></tr></thead><tbody>{data.paymentAccounts.map(account => <tr className={!account.isActive ? "inactive" : ""} key={account.id}><td className="name-cell">{account.name}</td><td>{account.isActive ? "نشط" : "متوقف"}</td><td className="num-cell">{money(account.balance)}</td><td className="num-cell">{money(account.purchaseTotal)}</td><td className="num-cell positive">{money(account.income)}</td><td className="num-cell negative">{money(account.expenses)}</td><td className="action-cell"><button className="soft" onClick={() => setEditing(account)}>تعديل</button></td></tr>)}</tbody></table></div></>}
-      {tab === "movements" && <><div className="bank-filters"><select value={accountFilter} onChange={e => setAccountFilter(e.target.value)}><option value="">كل الحسابات</option>{data.paymentAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select><select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}><option value="">كل الأنواع</option>{Object.entries(movementLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></div><div className="erp-table-wrap ledger-list"><table className="erp-table"><colgroup><col style={{width:"24%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/></colgroup><thead><tr><th>التاريخ</th><th>النوع</th><th>وسيلة الدفع</th><th>الحركة</th><th>المستند</th></tr></thead><tbody>{movements.map(m => <tr key={m.id}><td>{formatDateTime(m.occurredAt)}</td><td>{movementLabels[m.type] ?? m.type}</td><td>{name(m.paymentMethod)}</td><td className="num-cell">{m.direction === "in" ? "+" : "−"}{number(m.amount)}</td><td dir="ltr">{m.documentNumber}</td></tr>)}</tbody></table></div></>}
+      {tab === "movements" && <><div className="bank-filters"><select value={accountFilter} onChange={e => setAccountFilter(e.target.value)}><option value="">كل الحسابات</option>{data.paymentAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select><select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}><option value="">كل الأنواع</option>{Object.entries(movementLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></div><div className="erp-table-wrap ledger-list"><table className="erp-table"><colgroup><col style={{width:"24%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/></colgroup><thead><tr><th>التاريخ</th><th>النوع</th><th>وسيلة الدفع</th><th>الحركة</th><th>المستند</th></tr></thead><tbody>{movements.map(m => <tr key={m.id}><td>{formatDateTime(m.occurredAt)}</td><td>{movementLabels[m.type] ?? m.type}</td><td>{name(m.paymentMethod)}</td><td className="num-cell">{m.direction === "in" ? "+" : "−"}{number(m.amount)}</td><td dir="ltr">{displayDocumentNumber(data.documents.find(d => d.id === m.documentId) ?? { number: m.documentNumber, kind: "payment" } as DocumentRecord)}</td></tr>)}</tbody></table></div></>}
       {tab === "transfers" && <div className="transfer-layout"><form className="transfer-form" onSubmit={async e => { e.preventDefault(); await run({ type: "account-transfer.post", fromAccountId: from, toAccountId: to, amount: val(amount), note }, "تم التحويل بين الحسابات"); setAmount(""); setNote(""); }}><label>من الحساب<select required value={from} onChange={e => setFrom(e.target.value)}><option value="">اختر المصدر</option>{active.map(a => <option key={a.id} value={a.id}>{a.name} — {money(a.balance)}</option>)}</select></label><label>إلى الحساب<select required value={to} onChange={e => setTo(e.target.value)}><option value="">اختر الوجهة</option>{active.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label>المبلغ<Num value={amount} onChange={setAmount} /></label><label>ملاحظة<input value={note} onChange={e => setNote(e.target.value)} /></label><button className="primary" disabled={!from || !to || from === to || !amount}>اعتماد التحويل</button></form><div className="erp-table-wrap transfer-list"><table className="erp-table"><colgroup><col style={{width:"24%"}}/><col style={{width:"20%"}}/><col style={{width:"20%"}}/><col style={{width:"18%"}}/><col style={{width:"18%"}}/></colgroup><thead><tr><th>التاريخ</th><th>من</th><th>إلى</th><th>المبلغ</th><th>المرجع</th></tr></thead><tbody>{data.accountTransfers.map(t => <tr key={t.id}><td>{formatDateTime(t.occurredAt)}</td><td>{name(t.fromAccountId)}</td><td>{name(t.toAccountId)}</td><td className="num-cell">{number(t.amount)}</td><td dir="ltr">{t.number}</td></tr>)}</tbody></table></div></div>}
     </FramedSection>
     {editing && <PaymentAccountDialog account={editing} close={() => setEditing(null)} run={run} />}
@@ -699,193 +706,22 @@ function PaymentAccountDialog({ account, close, run }: { account: PaymentAccount
   return <div className="modal-overlay" role="dialog" aria-modal="true"><form className="modal-card account-dialog" onSubmit={async e => { e.preventDefault(); await run({ type: account.id ? "payment-account.update" : "payment-account.create", id: account.id, name, color, isActive }, "تم حفظ وسيلة الدفع"); close(); }}><div className="modal-heading"><h3>{account.id ? "تعديل وسيلة الدفع" : "وسيلة دفع جديدة"}</h3><button type="button" className="icon" onClick={close}><X /></button></div><label>الاسم<input required value={name} onChange={e => setName(e.target.value)} /></label><label>اللون<input type="color" value={color} onChange={e => setColor(e.target.value)} /></label>{account.id && <label className="active-toggle"><input type="checkbox" checked={isActive} onChange={e => setActive(e.target.checked)} /> متاحة للعمليات الجديدة</label>}<button className="primary">حفظ</button></form></div>;
 }
 
-function Parties({
-  data,
-  run,
-  openParty,
-}: {
-  data: BootstrapData;
-  run: RunCommand;
-  openParty: (p: Party) => void;
-}) {
-  const [q, setQ] = useState(""),
-    [name, setName] = useState(""),
-    [phone, setPhone] = useState("");
-  const list = [...data.parties]
-    .sort((a, b) => {
-      const s = q.toLowerCase();
-      const score = (p: Party) =>
-        p.name.toLowerCase() === s
-          ? 0
-          : p.name.toLowerCase().startsWith(s)
-            ? 1
-            : p.name.toLowerCase().includes(s)
-              ? 2
-              : p.phone.includes(s)
-                ? 3
-                : 9;
-      return score(a) - score(b);
-    })
-    .filter(
-      (p) =>
-        !q || `${p.name} ${p.phone}`.toLowerCase().includes(q.toLowerCase()),
-    );
-  return (
-    <section className="parties-workspace">
-      <FramedSection title="إدارة العملاء والموردين" className="parties-controls"><div className="parties-search">
-        <label className="search">
-          <Search />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="ابحث باسم الزبون أو المورد أو رقم الهاتف"
-          />
-        </label>
-      </div>
-      <form
-        className="parties-create"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          await run(
-            { type: "party.create", name, phone },
-            "تمت إضافة الطرف كعميل ومورد تلقائيًا",
-          );
-          setName("");
-          setPhone("");
-        }}
-      >
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="اسم العميل أو المورد"
-        />
-        <input
-          dir="ltr"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder="رقم الهاتف"
-        />
-        <button className="primary">
-          <Plus /> إضافة طرف
-        </button>
-      </form></FramedSection>
-      <FramedSection title="العملاء والموردون" className="parties-list"><div className="erp-table-wrap party-grid"><table className="erp-table" aria-label="العملاء والموردون"><colgroup><col style={{width:"27%"}}/><col style={{width:"17%"}}/><col style={{width:"14%"}}/><col style={{width:"14%"}}/><col style={{width:"14%"}}/><col style={{width:"14%"}}/></colgroup><thead><tr><th>الاسم</th><th>الهاتف</th><th>لنا عليه</th><th>له علينا</th><th>الصافي</th><th>إجراء</th></tr></thead><tbody>
-        {list.map((p) => <tr key={p.id} onClick={() => openParty(p)}><td className="name-cell">{p.name}</td><td dir="ltr">{p.phone || "—"}</td><td className="num-cell">{number(p.receivable)}</td><td className="num-cell">{number(p.payable)}</td><td className="num-cell">{number(p.receivable - p.payable)}</td><td className="action-cell"><button className="soft" onClick={event => { event.stopPropagation(); openParty(p); }}>كشف الحساب</button></td></tr>)}
-      </tbody></table></div></FramedSection>
-    </section>
-  );
+function Parties({ partyType, data, run, openParty }: { partyType: "customer" | "supplier"; data: BootstrapData; run: RunCommand; openParty: (p: Party) => void }) {
+  const [q,setQ]=useState(""),[name,setName]=useState(""),[phone,setPhone]=useState("");
+  const customer=partyType==="customer", noun=customer?"العميل":"المورد", plural=customer?"العملاء":"الموردون";
+  const list=data.parties.filter(p=>p.partyType===partyType&&(!q||`${p.name} ${p.phone}`.toLocaleLowerCase("ar").includes(q.toLocaleLowerCase("ar")))).sort((a,b)=>a.name.localeCompare(b.name,"ar"));
+  return <section className={`${customer?"customer":"supplier"}-workspace parties-workspace`}>
+    <FramedSection title={`إدارة ${plural}`} className="parties-controls"><label className="search"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="بحث بالاسم أو الهاتف"/></label><form className="parties-create" onSubmit={async e=>{e.preventDefault();await run({type:"party.create",partyType,name,phone},`تمت إضافة ${noun}`);setName("");setPhone("")}}><input required value={name} onChange={e=>setName(e.target.value)} placeholder={`اسم ${noun}`}/><input dir="ltr" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="رقم الهاتف"/><button className="primary"><Plus/> إضافة {noun}</button></form></FramedSection>
+    <FramedSection title={plural} className="parties-list"><div className="erp-table-wrap party-grid"><table className="erp-table" aria-label={plural}><thead><tr><th>م</th><th>اسم {noun}</th><th>الهاتف</th><th>{customer?"المستحق لنا":"المستحق للمورد"}</th><th>إجراء</th></tr></thead><tbody>{list.map((party,index)=><tr key={party.id} onClick={()=>openParty(party)}><td className="num-cell">{number(index+1)}</td><td className="name-cell">{party.name}</td><td dir="ltr">{party.phone||"—"}</td><td className="num-cell">{money(customer?party.receivable:party.payable)}</td><td className="action-cell"><button className="soft" onClick={event=>{event.stopPropagation();openParty(party)}}>كشف الحساب</button></td></tr>)}{!list.length&&<tr><td colSpan={5}>{customer?"لا يوجد عملاء حتى الآن":"لا يوجد موردون"}</td></tr>}</tbody></table></div></FramedSection>
+  </section>;
 }
-function PartyPage({
-  party,
-  data,
-  close,
-  openDoc,
-  run,
-}: {
-  party: Party;
-  data: BootstrapData;
-  close: () => void;
-  openDoc: (id: string) => void;
-  run: RunCommand;
-}) {
-  const [from, setFrom] = useState(""),
-    [to, setTo] = useState(""),
-    [amount, setAmount] = useState(""),
-    [side, setSide] = useState("receivable"),
-    [paymentMethod, setPaymentMethod] = useState("cash"),
-    [action, setAction] = useState("payment");
-  const docs = data.documents.filter(
-    (d) =>
-      d.partyId === party.id &&
-      (!from || d.occurredAt.slice(0, 10) >= from) &&
-      (!to || d.occurredAt.slice(0, 10) <= to),
-  );
-  async function submit() {
-    await run(
-      {
-        type: `${action}.post`,
-        partyId: party.id,
-        amount: val(amount),
-        side,
-        paymentMethod,
-      },
-      action === "offset" ? "تمت المقاصة" : "تم تسجيل العملية",
-    );
-    setAmount("");
-  }
-  return (
-    <section className="party-detail">
-      <button className="back" onClick={close}>
-        ← العودة إلى الأطراف
-      </button>
-      <FramedSection title="ملخص الحساب" className="party-summary">
-        <div>
-          <h2>{party.name}</h2>
-          <p dir="ltr">{party.phone || "—"}</p>
-        </div>
-        <div className="hero-stats">
-          <span>
-            لنا عليه <b>{money(party.receivable)}</b>
-          </span>
-          <span>
-            له علينا <b>{money(party.payable)}</b>
-          </span>
-          <span>
-            الصافي <b>{money(party.net)}</b>
-          </span>
-          {party.receivable === 0 && party.payable === 0 && <span className="paid-badge">الحساب خالص</span>}
-        </div>
-      </FramedSection>
-      <FramedSection title="تسجيل عملية" className="party-operation"><div className="form-row">
-        <label>
-          العملية
-          <select value={action} onChange={(e) => setAction(e.target.value)}>
-            <option value="payment">تسجيل سداد</option>
-            {party.receivable > 0 && party.payable > 0 && <option value="offset">مقاصة</option>}
-          </select>
-        </label>
-        {action !== "offset" && (
-          <label>
-            جهة الرصيد
-            <select value={side} onChange={(e) => setSide(e.target.value)}>
-              <option value="receivable">الطرف دفع لنا</option>
-              <option value="payable">نحن دفعنا للطرف</option>
-            </select>
-          </label>
-        )}
-        {action === "payment" && <label>طريقة الدفع<select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>{data.paymentAccounts.filter(method => method.isActive).map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}</select></label>}
-        <label>
-          المبلغ
-          <Num value={action === "offset" && !amount ? String(Math.min(party.receivable, party.payable)) : amount} onChange={setAmount} />
-        </label>
-        <button className="primary" onClick={() => void submit()}>
-          تسجيل العملية
-        </button>
-      </div></FramedSection>
-      <FramedSection title="الحركات" className="party-history"><div className="filters">
-        <label>
-          من
-          <input
-            type="date"
-            dir="ltr"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-        </label>
-        <label>
-          إلى
-          <input
-            type="date"
-            dir="ltr"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-          />
-        </label>
-      </div>
-      <Recent title="الحركات" docs={docs} openDoc={openDoc} bare />
-      </FramedSection>
-    </section>
-  );
+function PartyPage({party,data,close,openDoc,run}:{party:Party;data:BootstrapData;close:()=>void;openDoc:(id:string)=>void;run:RunCommand}) {
+  const [from,setFrom]=useState(""),[to,setTo]=useState(""),[amount,setAmount]=useState(""),[paymentMethod,setPaymentMethod]=useState("cash");
+  const customer=party.partyType==="customer", balance=customer?party.receivable:party.payable;
+  const kinds=customer?["sale","return","payment","settlement"]:["purchase","payment","settlement"];
+  const docs=data.documents.filter(d=>d.partyId===party.id&&kinds.includes(d.kind)&&(!from||d.occurredAt.slice(0,10)>=from)&&(!to||d.occurredAt.slice(0,10)<=to));
+  const submit=async()=>{await run({type:"payment.post",partyId:party.id,amount:val(amount),side:customer?"receivable":"payable",paymentMethod},customer?"تم تسجيل تحصيل العميل":"تم تسجيل دفع المورد");setAmount("")};
+  return <section className={`party-detail ${customer?"customer-detail":"supplier-detail"}`}><button className="back" onClick={close}>← العودة إلى {customer?"العملاء":"الموردين"}</button><FramedSection title={customer?"حساب العميل":"حساب المورد"} className="party-summary"><div><h2>{party.name}</h2><p dir="ltr">{party.phone||"—"}</p></div><div className="hero-stats"><span>{customer?"المستحق لنا":"المستحق للمورد"}<b>{money(balance)}</b></span>{balance===0&&<span className="paid-badge">الحساب خالص</span>}</div></FramedSection><FramedSection title={customer?"تسجيل تحصيل من العميل":"دفع للمورد"} className="party-operation"><div className="form-row"><label>حساب الدفع<select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)}>{data.paymentAccounts.filter(a=>a.isActive).map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label>المبلغ<Num value={amount} onChange={setAmount}/></label><button className="primary" disabled={!amount||val(amount)>balance} onClick={()=>void submit()}>{customer?"تسجيل التحصيل":"دفع للمورد"}</button></div></FramedSection><FramedSection title="سجل المعاملات" className="party-history"><div className="filters"><label>من<input type="date" dir="ltr" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>إلى<input type="date" dir="ltr" value={to} onChange={e=>setTo(e.target.value)}/></label></div><Recent title="الحركات" docs={docs} openDoc={openDoc} bare/></FramedSection></section>;
 }
 
 function Warehouses({ data, run, openDoc }: { data: BootstrapData; run: RunCommand; openDoc: (id: string) => void }) {
@@ -915,7 +751,7 @@ function ProductMovementPanel({ product, selectedWarehouseId, data, filter, setF
   const movementDocs = docs.filter(document => filter === "all" || document.kind === filter).sort((a,b) => +new Date(b.occurredAt) - +new Date(a.occurredAt));
   const labels: Record<string, string> = { purchase: "شراء", sale: "بيع", transfer: "تحويل", adjustment: "تصحيح", return: "إرجاع", opening: "رصيد افتتاحي" };
   const party = (document: DocumentRecord) => document.partyName || data.parties.find(p => p.id === document.partyId)?.name || (document.kind === "sale" ? "بيع مباشر" : "غير محدد");
-  return <FramedSection title="تفاصيل المنتج وحركته" className="product-movement-panel"><div className="movement-product-head"><strong>{product.name}</strong><button className="icon" aria-label="إغلاق التفاصيل" onClick={close}><X /></button></div><div className="movement-summary"><span><small>الكمية في {selectedWarehouse?.name ?? "المخزن"}</small><b>{number(selectedQty)}</b></span><span><small>إجمالي الكمية</small><b>{number(current)}</b></span><span><small>تكلفة الوحدة</small><b>{number(inventoryUnitCost(product))}</b></span><span><small>القيمة في {selectedWarehouse?.name ?? "المخزن"}</small><b>{number(selectedQty * inventoryUnitCost(product))}</b></span></div><div className="movement-filters">{[["all","الكل"],["purchase","شراء"],["sale","بيع"],["transfer","تحويل"],["adjustment","تصحيح"]].map(([id,label]) => <button key={id} className="choice selection-option" aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}</button>)}</div><div className="erp-table-wrap movement-timeline"><table className="erp-table" aria-label="سجل حركة المنتج"><colgroup><col style={{width:"17%"}}/><col style={{width:"13%"}}/><col style={{width:"27%"}}/><col style={{width:"13%"}}/><col style={{width:"14%"}}/><col style={{width:"16%"}}/></colgroup><thead><tr><th>التاريخ</th><th>العملية</th><th>الطرف / المخزن</th><th>الكمية</th><th>السعر</th><th>المستند</th></tr></thead><tbody>{movementDocs.map(document => { const line = document.lines.find(item => item.productId === product.id)!; const movement = data.movements.find(move => move.documentId === document.id && move.productId === product.id && move.warehouseId === (document.warehouseId ?? selectedWarehouseId)); const details = document.kind === "purchase" ? party(document) : document.kind === "sale" ? party(document) : document.kind === "transfer" ? `${document.warehouseName ?? "—"} ← ${document.destinationWarehouseName ?? "—"}` : `${document.warehouseName ?? movement?.warehouseName ?? "—"} · ${number(movement?.balanceBefore ?? 0)} ← ${number(movement?.balanceAfter ?? 0)} · ${document.title ?? "بدون سبب"}`; return <tr key={document.id} onClick={() => openDoc(document.id)}><td>{formatDate(document.occurredAt)}</td><td>{labels[document.kind] ?? document.kind}</td><td title={details}>{details}</td><td className="num-cell">{number(movement?.quantityDelta ?? line.quantity)}</td><td className="num-cell">{document.kind === "purchase" || document.kind === "sale" ? money(line.unitPrice) : "—"}</td><td dir="ltr">{document.number}</td></tr>})}{!movementDocs.length && <tr><td colSpan={6}>لا توجد حركات فعلية ضمن هذا الفلتر</td></tr>}</tbody></table></div></FramedSection>;
+  return <FramedSection title="تفاصيل المنتج وحركته" className="product-movement-panel"><div className="movement-product-head"><strong>{product.name}</strong><button className="icon" aria-label="إغلاق التفاصيل" onClick={close}><X /></button></div><div className="movement-summary"><span><small>الكمية في {selectedWarehouse?.name ?? "المخزن"}</small><b>{number(selectedQty)}</b></span><span><small>إجمالي الكمية</small><b>{number(current)}</b></span><span><small>تكلفة الوحدة</small><b>{number(inventoryUnitCost(product))}</b></span><span><small>القيمة في {selectedWarehouse?.name ?? "المخزن"}</small><b>{number(selectedQty * inventoryUnitCost(product))}</b></span></div><div className="movement-filters">{[["all","الكل"],["purchase","شراء"],["sale","بيع"],["transfer","تحويل"],["adjustment","تصحيح"]].map(([id,label]) => <button key={id} className="choice selection-option" aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}</button>)}</div><div className="erp-table-wrap movement-timeline"><table className="erp-table" aria-label="سجل حركة المنتج"><colgroup><col style={{width:"17%"}}/><col style={{width:"13%"}}/><col style={{width:"27%"}}/><col style={{width:"13%"}}/><col style={{width:"14%"}}/><col style={{width:"16%"}}/></colgroup><thead><tr><th>التاريخ</th><th>العملية</th><th>الطرف / المخزن</th><th>الكمية</th><th>السعر</th><th>المستند</th></tr></thead><tbody>{movementDocs.map(document => { const line = document.lines.find(item => item.productId === product.id)!; const movement = data.movements.find(move => move.documentId === document.id && move.productId === product.id && move.warehouseId === (document.warehouseId ?? selectedWarehouseId)); const details = document.kind === "purchase" ? party(document) : document.kind === "sale" ? party(document) : document.kind === "transfer" ? `${document.warehouseName ?? "—"} ← ${document.destinationWarehouseName ?? "—"}` : `${document.warehouseName ?? movement?.warehouseName ?? "—"} · ${number(movement?.balanceBefore ?? 0)} ← ${number(movement?.balanceAfter ?? 0)} · ${document.title ?? "بدون سبب"}`; return <tr key={document.id} onClick={() => openDoc(document.id)}><td>{formatDate(document.occurredAt)}</td><td>{labels[document.kind] ?? document.kind}</td><td title={details}>{details}</td><td className="num-cell">{number(movement?.quantityDelta ?? line.quantity)}</td><td className="num-cell">{document.kind === "purchase" || document.kind === "sale" ? money(line.unitPrice) : "—"}</td><td dir="ltr">{displayDocumentNumber(document)}</td></tr>})}{!movementDocs.length && <tr><td colSpan={6}>لا توجد حركات فعلية ضمن هذا الفلتر</td></tr>}</tbody></table></div></FramedSection>;
 }
 
 function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
@@ -1107,7 +943,7 @@ function Transfer(p: {
   return (
     <section className="stock-workspace">
       <FramedSection title="تحويل بين المخازن" className="stock-workspace-main" allowOverflow><MultiStockForm {...p} mode="transfer" /></FramedSection>
-      <FramedSection title="سجل التحويلات" className="records transfer-history"><div className="erp-table-wrap transfer-list"><table className="erp-table" aria-label="سجل التحويلات"><colgroup><col style={{width:"20%"}}/><col style={{width:"24%"}}/><col style={{width:"20%"}}/><col style={{width:"20%"}}/><col style={{width:"16%"}}/></colgroup><thead><tr><th>التاريخ</th><th>المستند</th><th>من</th><th>إلى</th><th>الكمية</th></tr></thead><tbody>{transfers.map(document => <tr key={document.id} onClick={() => p.openDoc(document.id)}><td>{formatDate(document.occurredAt)}</td><td dir="ltr">{document.number}</td><td>{document.warehouseName ?? "—"}</td><td>{document.destinationWarehouseName ?? "—"}</td><td className="num-cell">{number(document.lines.reduce((sum, line) => sum + Number(line.quantity), 0))}</td></tr>)}{!transfers.length && <tr><td colSpan={5}>لا توجد تحويلات مسجلة</td></tr>}</tbody></table></div></FramedSection>
+      <FramedSection title="سجل التحويلات" className="records transfer-history"><div className="erp-table-wrap transfer-list"><table className="erp-table" aria-label="سجل التحويلات"><colgroup><col style={{width:"20%"}}/><col style={{width:"24%"}}/><col style={{width:"20%"}}/><col style={{width:"20%"}}/><col style={{width:"16%"}}/></colgroup><thead><tr><th>التاريخ</th><th>المستند</th><th>من</th><th>إلى</th><th>الكمية</th></tr></thead><tbody>{transfers.map(document => <tr key={document.id} onClick={() => p.openDoc(document.id)}><td>{formatDate(document.occurredAt)}</td><td dir="ltr">{displayDocumentNumber(document)}</td><td>{document.warehouseName ?? "—"}</td><td>{document.destinationWarehouseName ?? "—"}</td><td className="num-cell">{number(document.lines.reduce((sum, line) => sum + Number(line.quantity), 0))}</td></tr>)}{!transfers.length && <tr><td colSpan={5}>لا توجد تحويلات مسجلة</td></tr>}</tbody></table></div></FramedSection>
     </section>
   );
 }
@@ -1144,7 +980,7 @@ function Records({
     (d) =>
       (!kind || d.kind === kind) &&
       (!q ||
-        `${d.number} ${d.partyName ?? ""} ${d.title ?? ""}`
+        `${displayDocumentNumber(d)} ${d.number} ${d.legacyBillCode ?? ""} ${d.partyName ?? ""} ${d.title ?? ""}`
           .toLowerCase()
           .includes(q.toLowerCase())) &&
       (!from || d.occurredAt.slice(0, 10) >= from) &&
@@ -1182,7 +1018,7 @@ function Records({
     </section>
   );
 }
-const reportNames: Record<ReportType,string> = { overview:"الملخص الشامل",sales:"حركة المبيعات",purchases:"حركة المشتريات","product-sales":"تحليل مبيعات الأصناف",stock:"حركة المخزون",profit:"تحليل الأرباح",debts:"الحسابات والديون","party-ledger":"كشف حساب طرف",financial:"الحركة المالية",expenses:"المصاريف",returns:"المرتجعات" };
+const reportNames: Record<ReportType,string> = { overview:"التقرير الشامل",sales:"حركة المبيعات",purchases:"حركة المشتريات","product-sales":"تحليل مبيعات الأصناف",stock:"حركة المخزون",profit:"تحليل الأرباح",debts:"الحسابات والديون","party-ledger":"كشف حساب طرف",financial:"الحركة المالية",expenses:"المصاريف",returns:"المرتجعات" };
 const reportColumns = (type: ReportType, productId: string, groupBy: string): Array<[string,string]> => ({
  overview:[["date","التاريخ"],["sales","المبيعات"],["purchases","المشتريات"],["expenses","المصاريف"],["received","المقبوض"],["paid","المدفوع"],["net","صافي الحركة"]],
  sales:productId?[["number","رقم الفاتورة"],["occurredAt","التاريخ"],["product","المنتج"],["quantity","الكمية"],["unitPrice","سعر البيع"],["cost","تكلفة الشراء"],["profit","الربح"]]:[["number","رقم الفاتورة"],["occurredAt","التاريخ"],["party","العميل / بيع مباشر"],["total","قيمة البيع"],["cost","تكلفة الشراء"],["profit","الربح"]],
@@ -1190,7 +1026,7 @@ const reportColumns = (type: ReportType, productId: string, groupBy: string): Ar
  "product-sales":[["product","اسم المنتج"],["soldQuantity","الكمية المباعة"],["returnedQuantity","المرتجع"],["netQuantity","صافي الكمية"],["sales","إجمالي المبيعات"],["returns","قيمة المرتجعات"],["netSales","صافي المبيعات"],["averagePrice","متوسط سعر البيع"],["profit","الربح"]],
  stock:[["occurredAt","التاريخ"],["product","المنتج"],["warehouse","المخزن"],["movementType","العملية"],["before","قبل"],["change","التغيير"],["after","بعد"],["documentNumber","المستند"]],
  profit:groupBy==="product"?[["product","اسم المنتج"],["quantity","الكمية"],["revenue","صافي المبيعات"],["cost","التكلفة"],["profit","الربح"],["margin","الهامش %"],["invoiceCount","عدد الفواتير"]]:[["number","رقم الفاتورة"],["occurredAt","التاريخ"],["revenue","صافي المبيعات"],["cost","التكلفة"],["profit","الربح"],["margin","الهامش %"]],
- debts:[["name","اسم الطرف"],["phone","الهاتف"],["receivable","لنا عليه"],["payable","له علينا"],["net","الصافي"],["lastMovement","آخر حركة"]],
+ debts:[["name","اسم الحساب"],["accountType","نوع الحساب"],["phone","الهاتف"],["balance","الرصيد المستحق"],["lastMovement","آخر حركة"]],
  "party-ledger":[["occurredAt","التاريخ"],["movementType","نوع العملية"],["documentNumber","رقم المستند"],["description","البيان"],["debit","مدين"],["credit","دائن"],["paymentMethod","وسيلة الدفع"]],
  financial:[["occurredAt","التاريخ"],["paymentMethod","وسيلة الدفع"],["movementType","نوع العملية"],["incoming","داخل"],["outgoing","خارج"],["party","الطرف"],["documentNumber","المستند"]],
  expenses:[["occurredAt","التاريخ"],["title","عنوان المصروف"],["recurring","النوع"],["paymentMethod","وسيلة الدفع"],["total","المبلغ"],["number","المستند"]],
@@ -1203,12 +1039,13 @@ function Reports({ data, openDoc, type }: { data: BootstrapData; openDoc: (id: s
   const [allTimeActive,setAllTimeActive]=useState(false);
   const runReport=async(allTime=allTimeActive)=>{setAllTimeActive(allTime);setBusy(true);setReportError("");const q=new URLSearchParams({type,unpaged:"true"});if(type!=="debts")Object.entries(reportDateQuery(allTime,from,to)).forEach(([key,value])=>q.set(key,value));const add=(key:string,value:string)=>{if(value)q.set(key,value)};if(["sales","purchases","product-sales","profit","returns","stock"].includes(type))add("productId",productId);if(type==="party-ledger")add("partyId",partyId);if(["sales","purchases","financial","expenses"].includes(type))add("paymentAccountId",accountId);if(type==="profit")add("groupBy",groupBy);if(type==="product-sales")add("sortBy",sortBy);if(type==="stock")add("movementType",movementType);if(type==="financial")add("direction",direction);if(type==="debts"){add("debtSide",debtSide);add("search",search)}try{const r=await fetch(`/api/reports?${q}`),j=await r.json();if(!r.ok)throw new Error(j.error);setResult(j)}catch(e){setReportError(e instanceof Error?e.message:"تعذر إنشاء التقرير")}finally{setBusy(false)}};
   const productOptions=data.products.map(p=>({value:p.id,label:`${p.name}${p.isArchived ? " (مؤرشف)" : ""}`,search:`${p.name} ${p.sku??""} ${p.barcode??""}`})),accountName=(id:unknown)=>data.paymentAccounts.find(a=>a.id===id||a.code===id)?.name??(id?"حساب غير متاح":"—"),table=reportTableModel(reportColumns(type,productId,groupBy),result),columns=table.columns,showDates=type!=="debts";
-  const numericKeys=new Set(["quantity","unitPrice","total","cost","profit","margin","paid","due","sales","purchases","expenses","received","net","soldQuantity","returnedQuantity","netQuantity","returns","netSales","averagePrice","invoiceCount","before","change","after","incoming","outgoing","receivable","payable","debit","credit","products"]);
+  const numericKeys=new Set(["quantity","unitPrice","total","cost","profit","margin","paid","due","sales","purchases","expenses","received","net","soldQuantity","returnedQuantity","netQuantity","returns","netSales","averagePrice","invoiceCount","before","change","after","incoming","outgoing","receivable","payable","balance","debit","credit","products"]);
   const display=(key:string,value:unknown)=>{if(numericKeys.has(key))return number(reportNumber(value));if(key==="paymentMethod")return accountName(value);if(key==="movementType")return movementLabels[String(value)]??"عملية غير معروفة";if(key==="occurredAt"||key==="lastMovement")return value?formatDateTime(String(value)):"—";if(key==="date")return value?formatDate(String(value)):"—";if(typeof value==="number")return number(reportNumber(value));if(typeof value==="boolean")return value?"متكرر":"مرة واحدة";return String(value??"—")};
   const summaryValue=(_key:string,value:unknown)=>number(reportNumber(value));
+  if(type==="overview") return <section className="reports-workspace overview-workspace" onKeyDown={e=>{if(e.key==="Enter")void runReport()}}><div className="overview-print-title"><strong>Conta</strong><h2>التقرير الشامل</h2><span>{allTimeActive?"الفترة: كل السجلات":`الفترة: من ${formatDate(from)} إلى ${formatDate(to)}`}</span></div><FramedSection title="بيانات التقرير" className="report-toolbar overview-toolbar no-print"><label>من<input type="date" dir="ltr" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>إلى<input type="date" dir="ltr" value={to} onChange={e=>setTo(e.target.value)}/></label><button className="primary" onClick={()=>void runReport(false)}>عرض</button><button className="primary" onClick={()=>void runReport(true)}>عرض الكل</button><button onClick={()=>window.print()}><Printer/> طباعة</button></FramedSection>{reportError&&<div className="error">{reportError}</div>}{busy&&<div className="report-loading">جاري إعداد التقرير…</div>}{result?<div className="overview-grid"><FramedSection title="الحسابات" className="overview-accounts"><div className="erp-table-wrap"><table className="erp-table"><thead><tr><th>م</th><th>اسم الحساب</th><th>نوع الحساب</th><th>مستحق له</th><th>مستحق عليه</th></tr></thead><tbody>{(result.parties??[]).map((p,i)=><tr key={String(p.id)}><td>{number(i+1)}</td><td>{p.name}</td><td>{p.partyType==="customer"?"عميل":"مورد"}</td><td className="num-cell">{p.partyType==="supplier"?number(reportNumber(p.payable)):"—"}</td><td className="num-cell">{p.partyType==="customer"?number(reportNumber(p.receivable)):"—"}</td></tr>)}</tbody></table></div></FramedSection><FramedSection title="الفواتير" className="overview-invoices"><div className="erp-table-wrap"><table className="erp-table"><thead><tr><th>نوع الفاتورة</th><th>رقم الفاتورة</th><th>التاريخ</th><th>الربح</th></tr></thead><tbody>{(result.invoices??[]).map(d=><tr key={String(d.id)} onClick={()=>d.documentId&&openDoc(String(d.documentId))}><td>{d.type}</td><td dir="ltr">{String(d.number)}</td><td>{formatDate(String(d.occurredAt))}</td><td className="num-cell">{d.kind==="sale"?number(reportNumber(d.profit)):"—"}</td></tr>)}</tbody></table></div><div className="overview-business-strip">{[["sales","صافي المبيعات"],["purchases","المشتريات"],["expenses","المصاريف"],["profit","الربح"]].map(([key,label])=><span key={key}><small>{label}</small><b>{number(reportNumber(result.summary[key]))}</b></span>)}</div></FramedSection><FramedSection title="الذمم والحسابات · الأرصدة الحالية" className="overview-statement">{[["supplierPayables","إجمالي المستحق للموردين علينا","negative"],["customerReceivables","إجمالي المستحق لنا من العملاء","positive"],["supplierCount","عدد الموردين",""],["customerCount","عدد العملاء",""]].map(([key,label,tone])=><div key={key}><span>{label}</span><b className={tone}>{number(reportNumber(result.summary[key]))}</b></div>)}</FramedSection><FramedSection title="الحركة والسيولة · الأرصدة الحالية" className="overview-statement">{[["cashIn","إجمالي الداخل إلى الخزنة"],["cashOut","إجمالي الخارج من الخزنة"],["cashBalance","رصيد الخزنة الحالي"],["inventoryValue","إجمالي تكلفة المخزون الحالية"],["bankBalance","إجمالي أرصدة البنوك الحالية"]].map(([key,label])=><div key={key}><span>{label}</span><b>{number(reportNumber(result.summary[key]))}</b></div>)}</FramedSection></div>:<div className="overview-empty">اختر الفترة ثم اضغط عرض</div>}</section>;
   return <section className="reports-workspace" onKeyDown={e=>{if(e.key==="Enter")void runReport()}}><FramedSection title="بيانات البحث" className="report-toolbar no-print">{showDates&&<><label>من<input type="date" dir="ltr" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>إلى<input type="date" dir="ltr" value={to} onChange={e=>setTo(e.target.value)}/></label></>}<button className="primary" onClick={()=>void runReport()}>عرض</button><button onClick={()=>window.print()}><Printer/> طباعة</button>{showDates&&<button type="button" className="primary" onClick={()=>void runReport(true)}>عرض الكل</button>}<div className="report-filters">
   {["sales","purchases","product-sales","profit","returns","stock"].includes(type)&&<SearchableSelect value={productId} onChange={setProductId} options={productOptions} placeholder="كل المنتجات" searchPlaceholder="ابحث بالاسم أو الرمز أو الباركود" allowEmpty/>}
-  {type==="party-ledger"&&<SearchableSelect value={partyId} onChange={setPartyId} options={data.parties.map(p=>({value:p.id,label:p.name,search:p.phone}))} placeholder="اختر الطرف (مطلوب)" searchPlaceholder="ابحث بالاسم أو الهاتف"/>}
+  {type==="party-ledger"&&<SearchableSelect value={partyId} onChange={setPartyId} options={data.parties.map(p=>({value:p.id,label:`${p.name} — ${p.partyType === "customer" ? "عميل" : "مورد"}`,search:p.phone}))} placeholder="اختر الطرف (مطلوب)" searchPlaceholder="ابحث بالاسم أو الهاتف"/>}
   {["sales","purchases","financial","expenses"].includes(type)&&<select value={accountId} onChange={e=>setAccountId(e.target.value)}><option value="">كل وسائل الدفع</option>{data.paymentAccounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>}
   {type==="profit"&&<select value={groupBy} onChange={e=>setGroupBy(e.target.value)}><option value="invoice">حسب الفاتورة</option><option value="product">حسب المنتج</option></select>}{type==="product-sales"&&<select value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="quantity">الأعلى كمية</option><option value="sales">الأعلى مبيعات</option><option value="profit">الأعلى ربحًا</option><option value="name">الاسم</option></select>}
   {type==="stock"&&<select value={movementType} onChange={e=>setMovementType(e.target.value)}><option value="">كل الحركات</option>{Object.entries(movementLabels).filter(([k])=>["sale","purchase","sale-return","transfer-in","transfer-out","adjustment","opening"].includes(k)).map(([k,v])=><option value={k} key={k}>{v}</option>)}</select>}{type==="financial"&&<select value={direction} onChange={e=>setDirection(e.target.value)}><option value="">داخل وخارج</option><option value="in">داخل</option><option value="out">خارج</option></select>}{type==="debts"&&<><select value={debtSide} onChange={e=>setDebtSide(e.target.value)}><option value="">الجميع</option><option value="receivable">لنا عليه</option><option value="payable">له علينا</option><option value="clear">حساب خالص</option></select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث بالاسم أو الهاتف"/></>}
@@ -1220,9 +1057,9 @@ function PrintableDocument({ document: record, data }: { document: DocumentRecor
   const payment = record.paymentMethod === "note" ? "ملاحظة / دين" : account?.name ?? "—";
   const remaining = Math.max(0, record.dueTotal - record.paidTotal);
   return <article className="invoice-print-sheet" aria-label={`نسخة طباعة ${kindLabels[record.kind]}`}>
-    <header className="invoice-print-header"><div><strong>Conta</strong><span>نظام المتجر</span></div><h1>{kindLabels[record.kind]}</h1><b dir="ltr">{record.number}</b></header>
+    <header className="invoice-print-header"><div><strong>Conta</strong><span>نظام المتجر</span></div><h1>{kindLabels[record.kind]}</h1><b dir="ltr">{displayDocumentNumber(record)}</b></header>
     <div className="invoice-print-meta">
-      <span>رقم الفاتورة <b dir="ltr">{record.number}</b></span><span>التاريخ <b>{formatDateTime(record.occurredAt)}</b></span>
+      <span>رقم الفاتورة <b dir="ltr">{displayDocumentNumber(record)}</b></span><span>التاريخ <b>{formatDateTime(record.occurredAt)}</b></span>
       {sale && <span>العميل <b>{record.partyName || "بيع مباشر"}</b></span>}
       {purchase && <span>المورد <b>{record.partyName || "غير محدد"}</b></span>}
       {(sale || purchase) && <span>{purchase ? "المخزن المستلم" : "المخزن"} <b>{record.warehouseName || "—"}</b></span>}
@@ -1259,7 +1096,7 @@ function DocumentDetail({
   }
   function download() {
     const content = [
-      `${kindLabels[document.kind]} ${document.number}`,
+      `${kindLabels[document.kind]} ${displayDocumentNumber(document)}`,
       `التاريخ: ${document.occurredAt}`,
       `الطرف: ${document.partyName ?? "—"}`,
       `المخزن: ${document.warehouseName ?? "—"}`,
@@ -1273,7 +1110,7 @@ function DocumentDetail({
     a.href = URL.createObjectURL(
       new Blob([content], { type: "text/plain;charset=utf-8" }),
     );
-    a.download = `${document.number}.txt`;
+    a.download = `${displayDocumentNumber(document)}.txt`;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -1299,7 +1136,7 @@ function DocumentDetail({
         <div className="document-head">
           <div>
             <span>{kindLabels[document.kind]}</span>
-            <h2>{document.number}</h2>
+            <h2>{displayDocumentNumber(document)}</h2>
             <small>{document.occurredAt}</small>
           </div>
           <b>{document.status === "posted" ? "معتمد" : document.status}</b>
@@ -1409,7 +1246,7 @@ function Linked({
     (d) =>
       d.parentDocumentId === document.id || d.id === document.parentDocumentId,
   );
-  return linked.length ? (<div className="panel"><Heading title="المعاملات المرتبطة" /><div className="erp-table-wrap"><table className="erp-table"><colgroup><col style={{width:"34%"}}/><col style={{width:"36%"}}/><col style={{width:"30%"}}/></colgroup><thead><tr><th>المعاملة</th><th>المستند</th><th>المبلغ</th></tr></thead><tbody>{linked.map(d => <tr key={d.id}><td>{kindLabels[d.kind]}</td><td dir="ltr">{d.number}</td><td className="num-cell">{number(d.total)}</td></tr>)}</tbody></table></div></div>) : null;
+  return linked.length ? (<div className="panel"><Heading title="المعاملات المرتبطة" /><div className="erp-table-wrap"><table className="erp-table"><colgroup><col style={{width:"34%"}}/><col style={{width:"36%"}}/><col style={{width:"30%"}}/></colgroup><thead><tr><th>المعاملة</th><th>المستند</th><th>المبلغ</th></tr></thead><tbody>{linked.map(d => <tr key={d.id}><td>{kindLabels[d.kind]}</td><td dir="ltr">{displayDocumentNumber(d)}</td><td className="num-cell">{number(d.total)}</td></tr>)}</tbody></table></div></div>) : null;
 }
 
 function InvoiceQuickBrowser({ title, docs, openDoc }: { title: string; docs: DocumentRecord[]; openDoc: (id: string) => void }) {
@@ -1417,7 +1254,7 @@ function InvoiceQuickBrowser({ title, docs, openDoc }: { title: string; docs: Do
   const today = localDay(new Date()), [from, setFrom] = useState(today), [to, setTo] = useState(today);
   const visible = docs.filter(document => { const day = document.businessDate ?? localDay(document.occurredAt); return day >= from && day <= to; });
   const statusCustomer = (document: DocumentRecord) => { const credit = document.paymentMethod === "note" || document.dueTotal > 0 || document.paidTotal < document.total; const customer = document.partyName?.trim() || "بيع مباشر"; if (credit) return `${customer} · ملاحظة`; if (document.status === "posted" || document.paidTotal >= document.total) return `${customer} · مدفوعة`; return `${customer} · معتمدة`; };
-  return <FramedSection title={title} className="quick-invoices"><div className="quick-invoice-head"><div className="history-dates"><label>من<input type="date" dir="ltr" value={from} onChange={event => setFrom(event.target.value)} /></label><label>إلى<input type="date" dir="ltr" value={to} onChange={event => setTo(event.target.value)} /></label></div></div><div className="erp-table-wrap quick-invoice-list"><table className="erp-table"><colgroup><col style={{width:"30%"}}/><col style={{width:"44%"}}/><col style={{width:"26%"}}/></colgroup><thead><tr><th>رقم الفاتورة</th><th>الحالة / العميل</th><th>المبلغ</th></tr></thead><tbody>{visible.slice(0,100).map(document => <tr key={document.id} onClick={() => openDoc(document.id)}><td dir="ltr">{document.number}</td><td>{statusCustomer(document)}</td><td className="num-cell">{number(document.total)}</td></tr>)}{!visible.length && <tr><td colSpan={3}>لا توجد فواتير في هذه الفترة</td></tr>}</tbody></table></div></FramedSection>;
+  return <FramedSection title={title} className="quick-invoices"><div className="quick-invoice-head"><div className="history-dates"><label>من<input type="date" dir="ltr" value={from} onChange={event => setFrom(event.target.value)} /></label><label>إلى<input type="date" dir="ltr" value={to} onChange={event => setTo(event.target.value)} /></label></div></div><div className="erp-table-wrap quick-invoice-list"><table className="erp-table"><colgroup><col style={{width:"30%"}}/><col style={{width:"44%"}}/><col style={{width:"26%"}}/></colgroup><thead><tr><th>رقم الفاتورة</th><th>الحالة / العميل</th><th>المبلغ</th></tr></thead><tbody>{visible.slice(0,100).map(document => <tr key={document.id} onClick={() => openDoc(document.id)}><td dir="ltr">{displayDocumentNumber(document)}</td><td>{statusCustomer(document)}</td><td className="num-cell">{number(document.total)}</td></tr>)}{!visible.length && <tr><td colSpan={3}>لا توجد فواتير في هذه الفترة</td></tr>}</tbody></table></div></FramedSection>;
 }
 
 function Recent({
@@ -1450,7 +1287,7 @@ function Recent({
         return (!from || occurredOn >= from) && (!to || occurredOn <= to);
       })
     : docs;
-  const table = <>{dateFilter && <div className="filters recent-date-filters"><label>من تاريخ<input type="date" value={from} onChange={event => setFrom(event.target.value)} /></label><label>إلى تاريخ<input type="date" value={to} onChange={event => setTo(event.target.value)} /></label></div>}<div className="erp-table-wrap"><table className="erp-table"><colgroup><col style={{width:"18%"}}/><col style={{width:"20%"}}/><col style={{width:"16%"}}/><col style={{width:"22%"}}/><col style={{width:"12%"}}/><col style={{width:"12%"}}/></colgroup><thead><tr><th>التاريخ</th><th>المستند</th><th>النوع</th><th>الطرف</th><th>الحالة</th><th>المبلغ</th></tr></thead><tbody>{visibleDocs.slice(0,100).map(d => <tr key={d.id} onClick={() => openDoc(d.id)}><td>{formatDateTime(d.occurredAt)}</td><td dir="ltr">{d.number}</td><td>{kindLabels[d.kind]}</td><td className="name-cell">{d.partyName ?? d.title ?? "—"}</td><td>{d.dueTotal > 0 && d.paidTotal < d.dueTotal ? "مستحق" : "معتمد"}</td><td className="num-cell">{number(d.total)}</td></tr>)}{!visibleDocs.length && <tr><td colSpan={6}>لا توجد فواتير ضمن الفترة المحددة</td></tr>}</tbody></table></div></>;
+  const table = <>{dateFilter && <div className="filters recent-date-filters"><label>من تاريخ<input type="date" value={from} onChange={event => setFrom(event.target.value)} /></label><label>إلى تاريخ<input type="date" value={to} onChange={event => setTo(event.target.value)} /></label></div>}<div className="erp-table-wrap"><table className="erp-table"><colgroup><col style={{width:"18%"}}/><col style={{width:"20%"}}/><col style={{width:"16%"}}/><col style={{width:"22%"}}/><col style={{width:"12%"}}/><col style={{width:"12%"}}/></colgroup><thead><tr><th>التاريخ</th><th>المستند</th><th>النوع</th><th>الطرف</th><th>الحالة</th><th>المبلغ</th></tr></thead><tbody>{visibleDocs.slice(0,100).map(d => <tr key={d.id} onClick={() => openDoc(d.id)}><td>{formatDateTime(d.occurredAt)}</td><td dir="ltr">{displayDocumentNumber(d)}</td><td>{kindLabels[d.kind]}</td><td className="name-cell">{d.partyName ?? d.title ?? "—"}</td><td>{d.dueTotal > 0 && d.paidTotal < d.dueTotal ? "مستحق" : "معتمد"}</td><td className="num-cell">{number(d.total)}</td></tr>)}{!visibleDocs.length && <tr><td colSpan={6}>لا توجد فواتير ضمن الفترة المحددة</td></tr>}</tbody></table></div></>;
   return bare ? table : <FramedSection title={title} className="records recent-table">{table}</FramedSection>;
 }
 function Heading({ title }: { title: string }) {

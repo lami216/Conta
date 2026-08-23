@@ -18,7 +18,7 @@ beforeEach(async () => {
   await db.dropDatabase();
   await db.collection("warehouses").insertMany([{ _id: "wh-main", name: "Main", isSalesDefault: true }, { _id: "wh-b", name: "B" }]);
   await db.collection("products").insertOne({ id: "p1", name: "Tea", sku: "TEA", barcode: "", pieceCost: 50, piecePrice: 100, stocks: {} });
-  await db.collection("parties").insertOne({ id: "party", name: "Party", phone: "", receivable: 0, payable: 0, net: 0 });
+  await db.collection("parties").insertMany([{ id: "party", name: "Customer", phone: "", receivable: 0, payable: 0, net: 0, partyType: "customer" }, { id: "supplier", name: "Supplier", phone: "", receivable: 0, payable: 0, net: 0, partyType: "supplier" }]);
   await db.collection("paymentAccounts").insertOne({ id: "cash-id", code: "cash", name: "Cash", isActive: true, balance: 10000 });
 });
 async function command(body) {
@@ -29,12 +29,12 @@ async function command(body) {
 
 test("first purchase initializes missing stock, movement, and supplier payable atomically", async t => {
   if (unavailable) return t.skip(unavailable);
-  await command({ type: "purchase.post", warehouseId: "wh-main", partyId: "party", paymentMethod: "note", paidAmount: 500, lines: [{ productId: "p1", quantity: 50, unitPrice: 50 }] });
+  await command({ type: "purchase.post", warehouseId: "wh-main", partyId: "supplier", paymentMethod: "note", paidAmount: 500, lines: [{ productId: "p1", quantity: 50, unitPrice: 50 }] });
   assert.equal((await db.collection("products").findOne({ id: "p1" })).stocks["wh-main"], 50);
   assert.deepEqual(await db.collection("stockMovements").findOne({}, { projection: { _id: 0, balanceBefore: 1, balanceAfter: 1, quantityDelta: 1 } }), { quantityDelta: 50, balanceBefore: 0, balanceAfter: 50 });
   const doc = await db.collection("documents").findOne({ kind: "purchase" });
   assert.deepEqual([doc.total, doc.paidTotal, doc.dueTotal], [2500, 0, 2500]);
-  assert.deepEqual(await db.collection("parties").findOne({ id: "party" }, { projection: { _id: 0, payable: 1, net: 1 } }), { payable: 2500, net: -2500 });
+  assert.deepEqual(await db.collection("parties").findOne({ id: "supplier" }, { projection: { _id: 0, payable: 1, net: 1 } }), { payable: 2500, net: -2500 });
 });
 
 test("sale decreases stock and insufficient sale rolls every write back", async t => {
@@ -91,7 +91,7 @@ test("payments, offset, settlement, expense and invalid input preserve balance i
   await command({ type: "expense.post", title: "Rent", amount: 100, occurredAt: "2026-08-15", paymentMethod: "cash-id" });
   assert.equal(await db.collection("documents").countDocuments({ kind: "expense" }), 1);
   const count = await db.collection("documents").countDocuments();
-  await assert.rejects(command({ type: "purchase.post", warehouseId: "unknown", partyId: "party", lines: [{ productId: "p1", quantity: -1, unitPrice: 1 }] }));
+  await assert.rejects(command({ type: "purchase.post", warehouseId: "unknown", partyId: "supplier", lines: [{ productId: "p1", quantity: -1, unitPrice: 1 }] }));
   assert.equal(await db.collection("documents").countDocuments(), count);
 });
 
@@ -150,7 +150,7 @@ test("purchases alone may overdraw a payment account", async t => {
   if (unavailable) return t.skip(unavailable);
   await db.collection("paymentAccounts").updateOne({ id: "cash-id" }, { $set: { balance: 100 } });
   await db.collection("paymentAccounts").insertOne({ id: "bank", code: "bank", name: "Bank", isActive: true, balance: 100 });
-  await command({ type: "purchase.post", warehouseId: "wh-main", partyId: "party", paymentMethod: "cash-id", lines: [{ productId: "p1", quantity: 10, unitPrice: 100 }] });
+  await command({ type: "purchase.post", warehouseId: "wh-main", partyId: "supplier", paymentMethod: "cash-id", lines: [{ productId: "p1", quantity: 10, unitPrice: 100 }] });
   assert.equal((await db.collection("paymentAccounts").findOne({ id: "cash-id" })).balance, -900);
   await assert.rejects(command({ type: "account-transfer.post", fromAccountId: "bank", toAccountId: "cash-id", amount: 1000 }), /الرصيد غير كاف/);
   await assert.rejects(command({ type: "expense.post", title: "Large", amount: 1000, occurredAt: "2026-08-15", paymentMethod: "bank" }), /الرصيد غير كاف/);

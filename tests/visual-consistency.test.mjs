@@ -15,7 +15,7 @@ test("remaining ERP pages use framed regions without legacy title bands", () => 
 });
 test("parties and banks use framed ERP tables", () => {
   const parties = between("function Parties", "function PartyPage");
-  assert.match(parties, /FramedSection title="العملاء والموردون"/);
+  assert.match(parties, /partyType.*customer.*supplier/);
   assert.doesNotMatch(parties, /زبون ومورد/);
   const banks = between("function Banks", "function PaymentAccountDialog");
   assert.match(banks, /aria-label="وسائل الدفع"/);
@@ -60,7 +60,7 @@ test("POS checkout, records, scoped stock, and document print retain explicit st
   const pos = between("function Pos", "function Purchase");
   assert.match(pos, /checkout-layout.*checkout-body.*checkout-footer/s);
   assert.doesNotMatch(pos, /product-count/);
-  assert.match(pos, /floating options=.*data\.parties/s);
+  assert.match(pos, /floating allowEmpty options=.*partyType === "customer"/s);
   const records = between("function Records", "const reportNames");
   assert.match(records, /records-workspace/);
   assert.match(records, /FramedSection title="بحث السجلات"/);

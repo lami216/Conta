@@ -35,3 +35,10 @@ test("quantity has no unit suffix and warehouse stock never falls back globally"
   assert.equal(stockInWarehouse(product, "warehouseA"), 10);
   assert.equal(totalProductStock(product), 10);
 });
+
+test("commercial documents display their numeric sequence while technical references remain hidden", async () => {
+  const { displayDocumentNumber } = await import("../app/domain.ts");
+  assert.equal(displayDocumentNumber({ kind: "sale", number: "SAL-internal", sequence: 515 }), "515");
+  assert.equal(displayDocumentNumber({ kind: "purchase", number: "PUR-internal", sequence: 12 }), "12");
+  assert.equal(displayDocumentNumber({ kind: "transfer", number: "TRF-visible" }), "TRF-visible");
+});

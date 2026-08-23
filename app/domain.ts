@@ -9,10 +9,12 @@ export type DocumentKind =
   | "payment"
   | "offset"
   | "settlement";
+export type PartyType = "customer" | "supplier";
 export interface Party {
   id: string;
   name: string;
   phone: string;
+  partyType: PartyType;
   receivable: number;
   payable: number;
   net: number;
@@ -59,6 +61,8 @@ export interface DocumentLine {
 export interface DocumentRecord {
   id: string;
   number: string;
+  sequence?: number;
+  legacyBillCode?: string;
   kind: DocumentKind;
   partyId: string | null;
   partyName: string | null;
@@ -183,6 +187,9 @@ export function formatQuantity(value: number) {
 }
 export function formatMoney(value: number) {
   return `${formatNumber(value)} MRU`;
+}
+export function displayDocumentNumber(document: Pick<DocumentRecord, "number" | "sequence" | "kind">) {
+  return ["sale", "purchase", "expense"].includes(document.kind) && Number.isSafeInteger(Number(document.sequence)) && Number(document.sequence) > 0 ? String(document.sequence) : document.number;
 }
 /** Presentation-only inventory valuation; it does not change accounting cost policy. */
 export function inventoryUnitCost(product: Pick<Product, "lastPurchaseCost" | "pieceCost">) {
