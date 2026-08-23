@@ -7,7 +7,7 @@ test("product and report tables use uncapped shared scroll viewports", async () 
   const source = await readFile(new URL("../app/conta-app.tsx", import.meta.url), "utf8");
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.doesNotMatch(source, /slice\(0,\s*20\)/);
-  assert.match(source, /panel scroll-panel product-management[\s\S]{0,120}erp-table-wrap product-table-viewport/);
+  assert.match(source, /FramedSection title="قائمة المنتجات" className="scroll-panel product-management"[\s\S]{0,160}erp-table-wrap product-table-viewport/);
   assert.match(css, /product-table-viewport\{height:100%;overflow:auto;contain:paint;background:#fff\}/);
   assert.match(css, /erp-table thead th\{background:var\(--section-color\);background-clip:padding-box\}/);
 });
