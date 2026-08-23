@@ -32,7 +32,7 @@ export function initializeMongo(): Promise<Db> {
 
 /** Idempotent indexes/default invariants shared by startup, restore and import. */
 export async function ensureDatabaseSchema(database: Db) {
-      await database.collection("parties").updateMany({ partyType: { $exists: false } }, { $set: { partyType: "supplier" } });
+      await ensurePartyTypes(database);
       await backfillDocumentSequences(database);
       await Promise.all([
         database.collection("parties").createIndex({ name: 1 }),
@@ -94,6 +94,14 @@ export async function ensureDatabaseSchema(database: Db) {
         { code, balanceInitialized: { $ne: true } },
         { $set: { balance: Number(legacyBalances.find(row => row._id === code || row._id === `account-${code}`)?.balance ?? 0), balanceInitialized: true } },
       )));
+}
+
+/** Safe to run at startup, after restore/import, and immediately before bootstrap. */
+export async function ensurePartyTypes(database: Db) {
+  await database.collection("parties").updateMany(
+    { $or: [{ partyType: { $exists: false } }, { partyType: null }, { partyType: "" }] },
+    { $set: { partyType: "supplier" } },
+  );
 }
 
 export async function getMongo() { return database ?? initializeMongo(); }

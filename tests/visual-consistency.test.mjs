@@ -60,7 +60,7 @@ test("POS checkout, records, scoped stock, and document print retain explicit st
   const pos = between("function Pos", "function Purchase");
   assert.match(pos, /checkout-layout.*checkout-body.*checkout-footer/s);
   assert.doesNotMatch(pos, /product-count/);
-  assert.match(pos, /floating allowEmpty options=.*partyType === "customer"/s);
+  assert.match(pos, /floating allowEmpty=\{payment !== "note"\} variant="compact".*resolvePartyType\(p\) === "customer"/s);
   const records = between("function Records", "const reportNames");
   assert.match(records, /records-workspace/);
   assert.match(records, /FramedSection title="بحث السجلات"/);

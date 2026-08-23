@@ -19,6 +19,10 @@ export interface Party {
   payable: number;
   net: number;
 }
+/** Single compatibility authority: pre-role parties were suppliers in Conta. */
+export function resolvePartyType(party: unknown): PartyType {
+  return (party as { partyType?: unknown } | null)?.partyType === "customer" ? "customer" : "supplier";
+}
 export interface Warehouse {
   id: string;
   name: string;
