@@ -208,7 +208,16 @@ export function formatDateTime(value: Date | string | number) {
 export const money = formatMoney;
 export const number = formatNumber;
 export function quantity(value: number) {
-  return `${formatQuantity(value)} فرد`;
+  return formatQuantity(value);
+}
+/** Total availability, only for views that intentionally span every warehouse. */
+export function totalProductStock(product: Pick<Product, "stocks">) {
+  return Object.values(product.stocks ?? {}).reduce((sum, value) => sum + Number(value ?? 0), 0);
+}
+/** Exact availability in one warehouse; a missing stock entry is zero, never the global total. */
+export function stockInWarehouse(product: Pick<Product, "stocks">, warehouseId?: string) {
+  if (!warehouseId) return 0;
+  return Number(product.stocks?.[warehouseId] ?? 0);
 }
 export function saleLineTotal(qty: number, piecePrice: number) {
   if (!Number.isFinite(qty) || qty <= 0) return 0;
