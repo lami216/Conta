@@ -28,6 +28,7 @@ import {
   isProductExpired,
   formatDateTime,
   kindLabels,
+  inventoryUnitCost,
   money,
   number,
   quantity,
@@ -343,8 +344,8 @@ function SettingsPage({reload}:{data:BootstrapData;reload:()=>Promise<void>}) {
   </section>;
 }
 
-function FramedSection({ title, className = "", children }: { title: string; className?: string; children: ReactNode }) {
-  return <fieldset className={`erp-fieldset ${className}`.trim()}><legend>{title}</legend>{children}</fieldset>;
+function FramedSection({ title, className = "", allowOverflow = false, children }: { title: string; className?: string; allowOverflow?: boolean; children: ReactNode }) {
+  return <fieldset className={`erp-fieldset ${allowOverflow ? "popover-host " : ""}${className}`.trim()}><legend>{title}</legend>{children}</fieldset>;
 }
 
 function Num(props: {
@@ -404,9 +405,9 @@ function SearchableSelect({ value, onChange, options, placeholder, searchPlaceho
     </div>}
   </div>;
 }
-function ProductSearchPicker({ data, query, setQuery, onPick, mode = "sale", warehouseId, priceMode = "retail" }: {
+function ProductSearchPicker({ data, query, setQuery, onPick, mode = "sale", warehouseId, priceMode = "retail", collapseResultsWhenIdle = false }: {
   data: BootstrapData; query: string; setQuery: (value: string) => void; onPick: (product: Product) => void;
-  mode?: "sale" | "purchase" | "transfer" | "adjustment" | "inventory"; warehouseId?: string; priceMode?: PriceMode;
+  mode?: "sale" | "purchase" | "transfer" | "adjustment" | "inventory"; warehouseId?: string; priceMode?: PriceMode; collapseResultsWhenIdle?: boolean;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const term = query.trim().toLocaleLowerCase("ar");
@@ -422,10 +423,9 @@ function ProductSearchPicker({ data, query, setQuery, onPick, mode = "sale", war
   };
   return <div className="product-picker product-search-grid">
     <label className="search"><Search /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label>
-    <div className="erp-table-wrap picker-results"><table className="erp-table" aria-label="نتائج بحث المنتجات"><colgroup><col style={{width:"16%"}}/><col style={{width:"36%"}}/><col style={{width:"18%"}}/><col style={{width:"16%"}}/><col style={{width:"14%"}}/></colgroup><thead><tr><th>م</th><th>المنتج</th><th>{mode === "purchase" ? "آخر شراء" : "السعر"}</th><th>المتوفر</th><th>إضافة</th></tr></thead><tbody>
+    {(!collapseResultsWhenIdle || term) && (results.length ? <div className="erp-table-wrap picker-results"><table className="erp-table" aria-label="نتائج بحث المنتجات"><colgroup><col style={{width:"16%"}}/><col style={{width:"36%"}}/><col style={{width:"18%"}}/><col style={{width:"16%"}}/><col style={{width:"14%"}}/></colgroup><thead><tr><th>م</th><th>المنتج</th><th>{mode === "purchase" ? "آخر شراء" : "السعر"}</th><th>المتوفر</th><th>إضافة</th></tr></thead><tbody>
       {results.map((product, index) => { const stock = Number(product.stocks?.[warehouseId ?? ""] ?? Object.values(product.stocks).reduce((a, b) => a + b, 0)), expired = isProductExpired(product), disabled = mode === "sale" && (stock <= 0 || expired); return <tr key={product.id} className={selected === product.id ? "selected" : ""} onClick={() => setSelected(product.id)} onDoubleClick={() => add(product)}><td className="num-cell">{number(index + 1)}</td><td className="name-cell">{product.name}{expired && <small className="expired-badge">منتهي الصلاحية</small>}</td><td className="num-cell">{number(mode === "purchase" ? product.lastPurchaseCost ?? product.pieceCost ?? 0 : sellingPrice(product, priceMode))}</td><td className="num-cell">{number(stock)}</td><td className="action-cell"><button type="button" className="soft" disabled={disabled} onClick={event => { event.stopPropagation(); add(product); }}>إضافة</button></td></tr>; })}
-      {term && !results.length && <tr><td colSpan={5}>لا توجد نتائج</td></tr>}
-    </tbody></table></div>
+    </tbody></table></div> : <div className="picker-no-results">لا توجد نتائج</div>)}
   </div>;
 }
 const SearchProducts = ProductSearchPicker;
@@ -455,92 +455,6 @@ function BarcodeScanner({ products, onScan, enabled, onEnabledChange, onError }:
   }, [active, onError, onScan, products]);
   const toggle = () => { const value = !active; onEnabledChange?.(value); if (enabled === undefined) setLocalEnabled(value); };
   return <button type="button" className="scanner-switch" aria-pressed={active} onClick={toggle}><span className="scanner-indicator" aria-hidden="true">{active && <span className="scanner-indicator-dot" />}</span><span>قارئ الباركود</span></button>;
-}
-
-function LineEditor({
-  line,
-  product,
-  onChange,
-  onRemove,
-  mode,
-  availableStock,
-}: {
-  line: DraftLine;
-  product: Product;
-  onChange: (x: DraftLine) => void;
-  onRemove: () => void;
-  mode: "sale" | "purchase" | "transfer" | "adjust";
-  availableStock?: number;
-}) {
-  const qty = val(line.quantity);
-  return (
-    <div className="line">
-      <div className="line-title">
-        <span>
-          <strong>{product.name}</strong>
-          <small>
-            {mode === "purchase" && qty
-              ? `يعادل ${quantity(qty)}`
-              : `المتاح: ${number(mode === "sale" || mode === "adjust" ? (availableStock ?? 0) : Object.values(product.stocks).reduce((a, b) => a + b, 0))} فرد`}
-          </small>
-        </span>
-        <button className="icon danger" onClick={onRemove}>
-          <X />
-        </button>
-      </div>
-      <div className="line-fields">
-        {mode === "adjust" ? (
-          <label>
-            الكمية الفعلية
-            <Num
-              value={line.actualQuantity}
-              onChange={(v) => onChange({ ...line, actualQuantity: v })}
-            />
-          </label>
-        ) : (
-          <label>
-            الكمية بالأفراد
-            <Num
-              value={line.quantity}
-              onChange={(v) => onChange({ ...line, quantity: v })}
-            />
-          </label>
-        )}
-        {mode === "sale" && (
-          <label>
-            سعر الفرد
-            <Num
-              value={line.piecePrice}
-              onChange={(v) => onChange({ ...line, piecePrice: v })}
-            />
-          </label>
-        )}
-        {mode === "purchase" && (
-          <label>
-            سعر الشراء للفرد
-            <Num
-              value={line.unitPrice}
-              onChange={(v) => onChange({ ...line, unitPrice: v })}
-            />
-          </label>
-        )}
-        {mode === "adjust" && val(line.actualQuantity) > (availableStock ?? 0) && product.lastPurchaseCost == null && (
-          <label>
-            تكلفة الشراء للفرد
-            <Num value={line.unitPrice} onChange={(v) => onChange({ ...line, unitPrice: v })} />
-          </label>
-        )}
-      </div>
-      {mode === "sale" && (
-        <b className="line-total">
-          إجمالي المنتج: {" "}
-          {money(
-            saleLineTotal(qty, val(line.piecePrice)),
-          )}
-        </b>
-      )}
-    </div>
-  );
 }
 
 function Pos({
@@ -961,30 +875,26 @@ function Warehouses({ data, run, openDoc }: { data: BootstrapData; run: RunComma
   const qty = (product: Product) => Number(product.stocks[wh] ?? 0);
   const inventoryProducts = data.products.filter(p => qty(p) > 0);
   const products = inventoryProducts.filter(p => !normalized || `${p.name} ${p.sku} ${p.barcode}`.toLocaleLowerCase("ar").includes(normalized));
-  const knownValue = inventoryProducts.reduce((sum, product) => product.lastPurchaseCost == null ? sum : sum + qty(product) * product.lastPurchaseCost, 0);
-  const missingCost = inventoryProducts.filter(product => product.lastPurchaseCost == null).length;
+  const inventoryValue = inventoryProducts.reduce((sum, product) => sum + qty(product) * inventoryUnitCost(product), 0);
   const totalPieces = inventoryProducts.reduce((sum, product) => sum + qty(product), 0);
   const chooseWarehouse = (value: string) => { setWh(value); setQ(""); setRename(""); setDetailProduct(null); };
   return <section className="warehouse-workspace">
-    <FramedSection title="المخزن" className="warehouse-head"><label>المخزن النشط<SearchableSelect value={wh} onChange={chooseWarehouse} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><div className="warehouse-actions">{active?.isSalesDefault && <span className="status">مخزن البيع الافتراضي</span>}<button className="soft" disabled={active?.isSalesDefault} onClick={() => void run({ type: "warehouse.default", warehouseId: wh }, "تم تحديد مخزن البيع الافتراضي")}>جعله مخزن البيع الافتراضي</button><button className="primary" onClick={() => setManagementOpen(true)}>إدارة المخزن</button></div></FramedSection>
+    <FramedSection title="المخزن" className="warehouse-head" allowOverflow><label>المخزن النشط<SearchableSelect value={wh} onChange={chooseWarehouse} placeholder="اختر المخزن" searchPlaceholder="ابحث عن مخزن" options={data.warehouses.map(w => ({ value: w.id, label: w.name }))} /></label><div className="warehouse-actions">{active?.isSalesDefault && <span className="status">مخزن البيع الافتراضي</span>}<button className="soft" disabled={active?.isSalesDefault} onClick={() => void run({ type: "warehouse.default", warehouseId: wh }, "تم تحديد مخزن البيع الافتراضي")}>جعله مخزن البيع الافتراضي</button><button className="primary" onClick={() => setManagementOpen(true)}>إدارة المخزن</button></div></FramedSection>
     {managementOpen && <div className="modal-overlay" role="dialog" aria-modal="true"><div className="modal-card warehouse-management"><div className="product-form-head"><div><h2>إدارة {active?.name ?? "المخزن"}</h2></div><button className="icon" aria-label="إغلاق" onClick={() => setManagementOpen(false)}><X /></button></div><div className="mini-form"><input value={newName} onChange={e => setNewName(e.target.value)} placeholder="اسم مخزن جديد"/><button className="soft" onClick={async () => { await run({ type: "warehouse.create", name: newName }, "تمت إضافة المخزن"); setNewName(""); }}><Plus /> إضافة مخزن</button><input value={rename} onChange={e => setRename(e.target.value)} placeholder={`تعديل اسم ${active?.name ?? "المخزن"}`}/><button className="soft" disabled={!active || !rename.trim()} onClick={async () => { await run({ type: "warehouse.update", id: wh, name: rename }, "تم تعديل اسم المخزن"); setRename(""); }}>حفظ اسم المخزن</button></div></div></div>}
     <FramedSection title="جرد المخزن" className={`inventory-panel${browserOpen ? " browser-open" : ""}`}>
-      <div className="inventory-toolbar"><div><button className="soft" onClick={() => window.print()}><Printer /> طباعة الجرد</button><button className={browserOpen ? "primary active" : "primary"} aria-expanded={browserOpen} onClick={() => { setBrowserOpen(x => !x); if (browserOpen) setDetailProduct(null); }}>{browserOpen ? "إخفاء الجرد" : "عرض الكل"}</button></div></div>
-      <div className="inventory-stats"><span><small>عدد المنتجات</small><b>{number(inventoryProducts.length)}</b></span><span><small>إجمالي الأفراد</small><b>{number(totalPieces)}</b></span><span><small>القيمة المعروفة</small><b>{money(knownValue)}</b></span><span><small>بدون تكلفة فعلية</small><b>{number(missingCost)}</b></span></div>
-      {browserOpen && <div className="inventory-browser"><div className="inventory-list-panel"><label className="search"><Search /><input value={q} onChange={e => setQ(e.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label><div className="erp-table-wrap warehouse-scroll inventory-body"><table className="erp-table inventory-grid" aria-label="جرد المخزن"><colgroup><col style={{width:"30%"}}/><col style={{width:"16%"}}/><col style={{width:"19%"}}/><col style={{width:"17%"}}/><col style={{width:"18%"}}/></colgroup><thead><tr><th>م</th><th>اسم المنتج</th><th>سعر الشراء</th><th>الكمية الحالية</th><th>قيمة المخزون</th></tr></thead><tbody>{products.map((product, index) => <tr className={detailProduct?.id === product.id ? "selected" : ""} key={product.id} onClick={() => { setDetailProduct(product); setMovementFilter("all"); }}><td className="num-cell">{number(index + 1)}</td><td className="name-cell">{product.name}{isProductExpired(product)&&<small className="expired-badge">منتهي — غير قابل للبيع</small>}</td><td className="num-cell">{product.lastPurchaseCost == null ? "غير معروفة" : money(product.lastPurchaseCost)}</td><td className="num-cell">{number(qty(product))} فرد</td><td className="num-cell">{product.lastPurchaseCost == null ? "غير معروفة" : money(qty(product) * product.lastPurchaseCost)}</td></tr>)}{!products.length && <tr><td colSpan={5}>لا توجد منتجات مطابقة للبحث</td></tr>}</tbody></table></div><div className="inventory-footer"><span>{missingCost ? "القيمة المعروفة" : "قيمة المخزون"}</span><strong>{money(knownValue)}</strong></div></div>{detailProduct ? <ProductMovementPanel product={detailProduct} selectedWarehouseId={wh} data={data} filter={movementFilter} setFilter={setMovementFilter} close={() => setDetailProduct(null)} openDoc={openDoc} /> : <div className="inventory-selection-empty">اختر منتجًا لعرض حركته</div>}</div>}
+      <div className="inventory-overview"><div className="inventory-toolbar"><button className="soft" onClick={() => window.print()}><Printer /> طباعة الجرد</button><button className={browserOpen ? "primary active" : "primary"} aria-expanded={browserOpen} onClick={() => { setBrowserOpen(x => !x); if (browserOpen) setDetailProduct(null); }}>{browserOpen ? "إخفاء الجرد" : "عرض الكل"}</button></div><div className="inventory-overview-metrics"><span><small>عدد المنتجات</small><b>{number(inventoryProducts.length)}</b></span><span><small>إجمالي الأفراد</small><b>{number(totalPieces)}</b></span><span><small>قيمة المخزون</small><b>{money(inventoryValue)}</b></span></div></div>
+      {browserOpen && <div className="inventory-browser"><div className="inventory-list-panel"><label className="search"><Search /><input value={q} onChange={e => setQ(e.target.value)} placeholder="ابحث بالاسم أو الكود أو الباركود" /></label><div className="erp-table-wrap warehouse-scroll inventory-body"><table className="erp-table inventory-grid" aria-label="جرد المخزن"><colgroup><col style={{width:"30%"}}/><col style={{width:"16%"}}/><col style={{width:"19%"}}/><col style={{width:"17%"}}/><col style={{width:"18%"}}/></colgroup><thead><tr><th>م</th><th>اسم المنتج</th><th>سعر الشراء</th><th>الكمية الحالية</th><th>قيمة المخزون</th></tr></thead><tbody>{products.map((product, index) => <tr className={detailProduct?.id === product.id ? "selected" : ""} key={product.id} onClick={() => { setDetailProduct(product); setMovementFilter("all"); }}><td className="num-cell">{number(index + 1)}</td><td className="name-cell">{product.name}{isProductExpired(product)&&<small className="expired-badge">منتهي — غير قابل للبيع</small>}</td><td className="num-cell">{money(inventoryUnitCost(product))}</td><td className="num-cell">{number(qty(product))} فرد</td><td className="num-cell">{money(qty(product) * inventoryUnitCost(product))}</td></tr>)}{!products.length && <tr><td colSpan={5}>لا توجد منتجات مطابقة للبحث</td></tr>}</tbody></table></div></div>{detailProduct ? <ProductMovementPanel product={detailProduct} selectedWarehouseId={wh} data={data} filter={movementFilter} setFilter={setMovementFilter} close={() => setDetailProduct(null)} openDoc={openDoc} /> : <div className="inventory-selection-empty">اختر منتجًا لعرض حركته</div>}</div>}
     </FramedSection>
   </section>;
 }
 
 function ProductMovementPanel({ product, selectedWarehouseId, data, filter, setFilter, close, openDoc }: { product: Product; selectedWarehouseId: string; data: BootstrapData; filter: string; setFilter: (value: string) => void; close: () => void; openDoc: (id: string) => void }) {
   const docs = data.documents.filter(document => document.status === "posted" && document.lines.some(line => line.productId === product.id));
-  const amount = (kind: string) => docs.filter(document => document.kind === kind).reduce((sum, document) => sum + document.lines.filter(line => line.productId === product.id).reduce((lineSum, line) => lineSum + Number(line.quantity), 0), 0);
-  const purchases = amount("purchase"), sales = amount("sale"), adjustments = amount("adjustment"), transfers = amount("transfer");
   const current = Object.values(product.stocks).reduce((sum, value) => sum + Number(value), 0), selectedQty = Number(product.stocks[selectedWarehouseId] ?? 0);
   const movementDocs = docs.filter(document => filter === "all" || document.kind === filter).sort((a,b) => +new Date(b.occurredAt) - +new Date(a.occurredAt));
   const labels: Record<string, string> = { purchase: "شراء", sale: "بيع", transfer: "تحويل", adjustment: "تصحيح", return: "إرجاع", opening: "رصيد افتتاحي" };
   const party = (document: DocumentRecord) => document.partyName || data.parties.find(p => p.id === document.partyId)?.name || (document.kind === "sale" ? "بيع مباشر" : "غير محدد");
-  return <div className="product-movement-panel" aria-label={`حركة ${product.name}`}><div className="product-form-head"><div><small>تفاصيل المنتج وحركته</small><h2>{product.name}</h2></div><button className="icon" aria-label="إغلاق التفاصيل" onClick={close}><X /></button></div><div className="movement-summary"><span><small>في هذا المخزن</small><b>{number(selectedQty)} فرد</b></span><span><small>جميع المخازن</small><b>{number(current)} فرد</b></span><span><small>آخر سعر شراء فعلي</small><b>{product.lastPurchaseCost == null ? "تكلفة غير معروفة" : money(product.lastPurchaseCost)}</b></span><span><small>قيمة المنتج هنا</small><b>{product.lastPurchaseCost == null ? "تكلفة غير معروفة" : money(selectedQty * product.lastPurchaseCost)}</b></span><span><small>شراء / بيع</small><b>{number(purchases)} / {number(sales)}</b></span><span><small>تحويل / تصحيح</small><b>{number(transfers)} / {number(adjustments)}</b></span></div><div className="movement-filters">{[["all","الكل"],["purchase","شراء"],["sale","بيع"],["transfer","تحويل"],["adjustment","تصحيح"]].map(([id,label]) => <button key={id} className="choice selection-option" aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}</button>)}</div><div className="erp-table-wrap movement-timeline"><table className="erp-table" aria-label="سجل حركة المنتج"><colgroup><col style={{width:"17%"}}/><col style={{width:"13%"}}/><col style={{width:"27%"}}/><col style={{width:"13%"}}/><col style={{width:"14%"}}/><col style={{width:"16%"}}/></colgroup><thead><tr><th>التاريخ</th><th>العملية</th><th>الطرف / المخزن</th><th>الكمية</th><th>السعر</th><th>المستند</th></tr></thead><tbody>{movementDocs.map(document => { const line = document.lines.find(item => item.productId === product.id)!; const movement = data.movements.find(move => move.documentId === document.id && move.productId === product.id && move.warehouseId === (document.warehouseId ?? selectedWarehouseId)); const details = document.kind === "purchase" ? party(document) : document.kind === "sale" ? party(document) : document.kind === "transfer" ? `${document.warehouseName ?? "—"} ← ${document.destinationWarehouseName ?? "—"}` : `${document.warehouseName ?? movement?.warehouseName ?? "—"} · ${number(movement?.balanceBefore ?? 0)} ← ${number(movement?.balanceAfter ?? 0)} · ${document.title ?? "بدون سبب"}`; return <tr key={document.id} onClick={() => openDoc(document.id)}><td>{formatDate(document.occurredAt)}</td><td>{labels[document.kind] ?? document.kind}</td><td title={details}>{details}</td><td className="num-cell">{number(movement?.quantityDelta ?? line.quantity)}</td><td className="num-cell">{document.kind === "purchase" || document.kind === "sale" ? money(line.unitPrice) : "—"}</td><td dir="ltr">{document.number}</td></tr>})}{!movementDocs.length && <tr><td colSpan={6}>لا توجد حركات فعلية ضمن هذا الفلتر</td></tr>}</tbody></table></div></div>;
+  return <FramedSection title="تفاصيل المنتج وحركته" className="product-movement-panel"><div className="movement-product-head"><strong>{product.name}</strong><button className="icon" aria-label="إغلاق التفاصيل" onClick={close}><X /></button></div><div className="movement-summary"><span><small>مخزون هذا المخزن</small><b>{number(selectedQty)} فرد</b></span><span><small>إجمالي المخزون</small><b>{number(current)} فرد</b></span><span><small>تكلفة الوحدة</small><b>{money(inventoryUnitCost(product))}</b></span><span><small>قيمة المخزون هنا</small><b>{money(selectedQty * inventoryUnitCost(product))}</b></span></div><div className="movement-filters">{[["all","الكل"],["purchase","شراء"],["sale","بيع"],["transfer","تحويل"],["adjustment","تصحيح"]].map(([id,label]) => <button key={id} className="choice selection-option" aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}</button>)}</div><div className="erp-table-wrap movement-timeline"><table className="erp-table" aria-label="سجل حركة المنتج"><colgroup><col style={{width:"17%"}}/><col style={{width:"13%"}}/><col style={{width:"27%"}}/><col style={{width:"13%"}}/><col style={{width:"14%"}}/><col style={{width:"16%"}}/></colgroup><thead><tr><th>التاريخ</th><th>العملية</th><th>الطرف / المخزن</th><th>الكمية</th><th>السعر</th><th>المستند</th></tr></thead><tbody>{movementDocs.map(document => { const line = document.lines.find(item => item.productId === product.id)!; const movement = data.movements.find(move => move.documentId === document.id && move.productId === product.id && move.warehouseId === (document.warehouseId ?? selectedWarehouseId)); const details = document.kind === "purchase" ? party(document) : document.kind === "sale" ? party(document) : document.kind === "transfer" ? `${document.warehouseName ?? "—"} ← ${document.destinationWarehouseName ?? "—"}` : `${document.warehouseName ?? movement?.warehouseName ?? "—"} · ${number(movement?.balanceBefore ?? 0)} ← ${number(movement?.balanceAfter ?? 0)} · ${document.title ?? "بدون سبب"}`; return <tr key={document.id} onClick={() => openDoc(document.id)}><td>{formatDate(document.occurredAt)}</td><td>{labels[document.kind] ?? document.kind}</td><td title={details}>{details}</td><td className="num-cell">{number(movement?.quantityDelta ?? line.quantity)}</td><td className="num-cell">{document.kind === "purchase" || document.kind === "sale" ? money(line.unitPrice) : "—"}</td><td dir="ltr">{document.number}</td></tr>})}{!movementDocs.length && <tr><td colSpan={6}>لا توجد حركات فعلية ضمن هذا الفلتر</td></tr>}</tbody></table></div></FramedSection>;
 }
 
 function Products({ data, run }: { data: BootstrapData; run: RunCommand }) {
@@ -1050,6 +960,11 @@ function ProductForm({ run, close, product, warehouses }: { run: RunCommand; clo
       </FramedSection>
     </div><div className="product-form-actions"><button type="button" className="soft" onClick={close}>إلغاء</button><button className="primary">{product ? "حفظ التعديلات" : "حفظ المنتج"}</button></div>
   </form>;
+}
+
+function StockDraftTable({ mode, lines, products, warehouseId, onChange, onRemove }: { mode: "transfer" | "adjust"; lines: DraftLine[]; products: Product[]; warehouseId: string; onChange: (line: DraftLine) => void; onRemove: (id: string) => void }) {
+  const adjustment = mode === "adjust";
+  return <div className="erp-table-wrap stock-draft"><table className="erp-table" aria-label="المنتجات الجاري تنفيذ العملية عليها"><colgroup><col style={{width:"7%"}}/><col style={{width:adjustment?"27%":"37%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/>{adjustment&&<col style={{width:"20%"}}/>}<col style={{width:"8%"}}/></colgroup><thead><tr><th>م</th><th>المنتج</th><th>{adjustment ? "المخزون الحالي" : "المتوفر"}</th><th>{adjustment ? "الكمية الفعلية" : "الكمية للتحويل"}</th>{adjustment&&<th>تكلفة الوحدة</th>}<th>حذف</th></tr></thead><tbody>{lines.map((line,index)=>{const product=products.find(item=>item.id===line.productId)!;const available=Number(product?.stocks[warehouseId]??0);const increasing=adjustment&&line.actualQuantity!==""&&val(line.actualQuantity)>available;return <tr key={line.productId}><td className="num-cell">{number(index+1)}</td><td>{product.name}</td><td className="num-cell">{number(available)}</td><td><Num value={adjustment?line.actualQuantity:line.quantity} onChange={value=>onChange(adjustment?{...line,actualQuantity:value}:{...line,quantity:value})}/></td>{adjustment&&<td>{increasing&&product.lastPurchaseCost==null?<Num value={line.unitPrice} onChange={value=>onChange({...line,unitPrice:value})} placeholder="مطلوب"/>:<span className="draft-cost">{money(inventoryUnitCost(product))}</span>}</td>}<td className="action-cell"><button type="button" className="icon danger" aria-label={`حذف ${product.name}`} onClick={()=>onRemove(line.productId)}><X/></button></td></tr>})}{!lines.length&&<tr><td colSpan={adjustment?6:5} className="draft-empty">أضف منتجًا لبدء العملية</td></tr>}</tbody></table></div>;
 }
 
 function MultiStockForm({
@@ -1137,6 +1052,9 @@ function MultiStockForm({
         data={data}
         query={q}
         setQuery={setQ}
+        mode={mode === "adjust" ? "adjustment" : "transfer"}
+        warehouseId={from}
+        collapseResultsWhenIdle
         onPick={(p) => {
           setLines((x) =>
             x.some((l) => l.productId === p.id) ? x : [...x, mode === "adjust" ? { ...lineFor(p), unitPrice: "" } : lineFor(p)],
@@ -1144,21 +1062,7 @@ function MultiStockForm({
           setQ("");
         }}
       />
-      <div className="stock-draft" aria-label="المنتجات الجاري تنفيذ العملية عليها">{lines.map((l) => (
-        <LineEditor
-          key={l.productId}
-          line={l}
-          product={data.products.find((p) => p.id === l.productId)!}
-          mode={mode}
-          availableStock={mode === "adjust" ? Number(data.products.find((p) => p.id === l.productId)?.stocks[from] ?? 0) : undefined}
-          onChange={(x) =>
-            setLines((s) => s.map((a) => (a.productId === x.productId ? x : a)))
-          }
-          onRemove={() =>
-            setLines((s) => s.filter((a) => a.productId !== l.productId))
-          }
-        />
-      ))}{!lines.length && <Empty text={mode === "transfer" ? "أضف المنتجات إلى مسودة التحويل" : "اختر منتجًا لتسجيل رصيده الفعلي"} />}</div>
+      <StockDraftTable mode={mode} lines={lines} products={data.products} warehouseId={from} onChange={(line) => setLines(current => current.map(item => item.productId === line.productId ? line : item))} onRemove={(productId) => setLines(current => current.filter(item => item.productId !== productId))} />
       {mode === "adjust" && (
         <label>سبب التصحيح<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="مثال: نتيجة الجرد الفعلي" /></label>
       )}
@@ -1180,7 +1084,7 @@ function Transfer(p: {
   const transfers = p.data.documents.filter((document) => document.kind === "transfer");
   return (
     <section className="stock-workspace">
-      <FramedSection title="تحويل بين المخازن" className="stock-workspace-main"><MultiStockForm {...p} mode="transfer" /></FramedSection>
+      <FramedSection title="تحويل بين المخازن" className="stock-workspace-main" allowOverflow><MultiStockForm {...p} mode="transfer" /></FramedSection>
       <FramedSection title="سجل التحويلات" className="records transfer-history"><div className="erp-table-wrap transfer-list"><table className="erp-table" aria-label="سجل التحويلات"><colgroup><col style={{width:"20%"}}/><col style={{width:"24%"}}/><col style={{width:"20%"}}/><col style={{width:"20%"}}/><col style={{width:"16%"}}/></colgroup><thead><tr><th>التاريخ</th><th>المستند</th><th>من</th><th>إلى</th><th>الكمية</th></tr></thead><tbody>{transfers.map(document => <tr key={document.id} onClick={() => p.openDoc(document.id)}><td>{formatDate(document.occurredAt)}</td><td dir="ltr">{document.number}</td><td>{document.warehouseName ?? "—"}</td><td>{document.destinationWarehouseName ?? "—"}</td><td className="num-cell">{number(document.lines.reduce((sum, line) => sum + Number(line.quantity), 0))}</td></tr>)}{!transfers.length && <tr><td colSpan={5}>لا توجد تحويلات مسجلة</td></tr>}</tbody></table></div></FramedSection>
     </section>
   );
@@ -1194,7 +1098,7 @@ function Adjustment(p: {
 }) {
   return (
     <section className="stock-workspace adjustment-workspace">
-      <FramedSection title="تصحيح المخزون" className="stock-workspace-main"><MultiStockForm {...p} mode="adjust" /></FramedSection>
+      <FramedSection title="تصحيح المخزون" className="stock-workspace-main" allowOverflow><MultiStockForm {...p} mode="adjust" /></FramedSection>
       <Recent
         title="سجل التصحيحات"
         docs={p.data.documents.filter((d) => d.kind === "adjustment")}

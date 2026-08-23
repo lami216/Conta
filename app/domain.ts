@@ -184,6 +184,10 @@ export function formatQuantity(value: number) {
 export function formatMoney(value: number) {
   return `${formatNumber(value)} MRU`;
 }
+/** Presentation-only inventory valuation; it does not change accounting cost policy. */
+export function inventoryUnitCost(product: Pick<Product, "lastPurchaseCost" | "pieceCost">) {
+  return product.lastPurchaseCost ?? product.pieceCost ?? 0;
+}
 export function formatDate(
   value: Date | string | number,
   options: Intl.DateTimeFormatOptions = { day: "2-digit", month: "2-digit", year: "numeric" },

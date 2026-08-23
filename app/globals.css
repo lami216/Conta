@@ -1883,3 +1883,39 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 @media(max-width:1050px){.parties-controls{grid-template-columns:1fr}.expense-form-body{grid-template-columns:1fr}.warehouse-head{align-items:stretch}.warehouse-actions{flex-wrap:wrap}}
 .expense-fields input,.expense-fields select,.expense-form-body button,.expense-history-filters input{height:36px;min-height:36px}
 .stock-workspace-main,.transfer-history{min-height:0;overflow:hidden}.stock-workspace-main{display:grid;grid-template-rows:minmax(0,1fr)}.transfer-history{display:grid;grid-template-rows:minmax(0,1fr)}
+
+/* Focused inventory and stock-operation layout authority. */
+.popover-host { overflow: visible; position: relative; z-index: 20; }
+.warehouse-head { position: relative; z-index: 20; }
+.inventory-panel { position: relative; z-index: 1; display: grid; grid-template-rows: max-content; align-content: start; min-height: 0; overflow: hidden; }
+.inventory-panel.browser-open { grid-template-rows: max-content minmax(0, 1fr); align-content: stretch; }
+.inventory-overview { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; }
+.inventory-toolbar, .inventory-overview-metrics { display: flex; align-items: center; gap: 7px; }
+.inventory-overview-metrics > span { display: grid; grid-template-columns: auto auto; align-items: baseline; gap: 5px; min-height: 36px; padding: 4px 10px; border-inline-start: 1px solid var(--border); }
+.inventory-overview-metrics small { color: var(--text-muted); font-size: 9px; font-weight: 800; }
+.inventory-overview-metrics b { color: var(--text); font-size: 15px; font-weight: 900; }
+.inventory-browser { padding-top: 6px; }
+.inventory-list-panel { grid-template-rows: auto minmax(0, 1fr); }
+.product-movement-panel { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); gap: 5px; padding: 7px 8px 8px; border-color: var(--color-warehouses); border-radius: 8px; }
+.movement-product-head { display: flex; align-items: center; justify-content: space-between; min-height: 30px; }
+.movement-product-head strong { font-size: 14px; }
+.movement-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 0; margin: 0; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+.movement-summary > span { display: flex; align-items: baseline; justify-content: center; gap: 5px; min-height: 36px; padding: 4px 6px; border: 0; border-inline-start: 1px solid var(--border); border-radius: 0; background: #fff; }
+.movement-summary small { font-size: 9px; }
+.movement-summary b { font-size: 12px; }
+.movement-filters { display: flex; gap: 5px; }
+.movement-filters .choice { min-height: 30px; height: 30px; padding-block: 2px; }
+.stock-operation-panel { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; min-height: 0; overflow: visible; }
+.stock-operation-panel .picker-results { max-height: calc(var(--erp-row-height) * 5 + var(--erp-head-height)); overflow-y: auto; }
+.picker-no-results { padding: 6px 9px; color: var(--text-muted); font-size: 11px; font-weight: 700; }
+.stock-draft { min-height: 0; overflow: auto; }
+.stock-draft input { width: 100%; height: 27px; min-height: 27px; }
+.stock-draft .icon { width: 26px; height: 26px; min-height: 26px; padding: 3px; }
+.stock-draft .draft-empty { height: 34px; color: var(--text-muted); text-align: center; }
+.draft-cost { display: block; text-align: center; font-weight: 800; }
+@media (max-width: 1050px) {
+  .inventory-overview { align-items: stretch; flex-direction: column; }
+  .inventory-overview-metrics { overflow-x: auto; }
+  .inventory-overview-metrics > span { flex: 1; min-width: 125px; }
+  .movement-summary { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
