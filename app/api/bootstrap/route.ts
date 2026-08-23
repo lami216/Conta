@@ -1,4 +1,5 @@
-import { getMongo } from "../../../lib/mongodb";
+import { ensurePartyTypes, getMongo } from "../../../lib/mongodb";
+import { resolvePartyType } from "../../domain";
 import { log } from "../../../lib/log";
 import { sessionFromRequest } from "../../../lib/auth";
 
@@ -6,6 +7,7 @@ export async function GET(request: Request) {
   if (!sessionFromRequest(request)) return Response.json({ error: "غير مصرح" }, { status: 401 });
   try {
     const db = await getMongo();
+    await ensurePartyTypes(db);
     await db.collection("documents").createIndex(
       { kind: 1, businessDate: 1, dailySequence: 1 },
       { unique: true, partialFilterExpression: { kind: "sale", businessDate: { $type: "string" }, dailySequence: { $type: "number" } } },
@@ -48,6 +50,7 @@ export async function GET(request: Request) {
       return /^\d{1,6}$/.test(code) ? Math.max(highest, Number(code)) : highest;
     }, 0);
     const nextProductCode = Math.max(highestLegacyCode, Number(productCounter?.value ?? 0)) + 1;
-    return Response.json({ parties: clean(parties), warehouses: clean(warehouses), products: cleanProducts, documents: clean(documents), movements: clean(movements), recurringExpenses: clean(recurringRows), financialMovements: clean(financialMovements), paymentAccounts: clean(accountRows), accountTransfers: clean(accountTransfers), nextProductCode });
+    const cleanParties = clean(parties).map(party => ({ ...party, partyType: resolvePartyType(party) }));
+    return Response.json({ parties: cleanParties, warehouses: clean(warehouses), products: cleanProducts, documents: clean(documents), movements: clean(movements), recurringExpenses: clean(recurringRows), financialMovements: clean(financialMovements), paymentAccounts: clean(accountRows), accountTransfers: clean(accountTransfers), nextProductCode });
   } catch (error) { log("error", "api.bootstrap.failed", { error }); return Response.json({ error: "تعذر تحميل البيانات" }, { status: 500 }); }
 }
