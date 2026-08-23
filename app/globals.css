@@ -1975,9 +1975,11 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .overview-statement > div { min-height: 30px; display: grid; grid-template-columns: 1fr 140px; border-block-end: 1px solid #333; align-items: center; }
 .overview-statement > div b { padding: 4px 8px; border-inline-start: 1px solid #333; text-align: end; }
 .overview-statement .negative { color: #a11b1b; } .overview-statement .positive { color: #087443; }
-.pos-payment-row { display: grid; grid-template-columns: 184px minmax(0, 1fr); align-items: center; gap: 6px; min-width: 0; }
-.pos-payment-row .compact-payment { display: grid; grid-template-columns: 74px 104px; gap: 6px; }
-.pos-payment-row .compact-payment button, .pos-payment-row .compact-payment select { width: 100%; height: 36px; min-height: 36px; padding: 4px 7px; border-radius: 6px; }
+.pos-payment-row { display: grid; grid-template-columns: 60px 86px minmax(135px, 1fr); align-items: center; gap: 5px; min-width: 0; }
+.pos-payment-row .compact-payment { display: contents; }
+.pos-payment-row .compact-payment button, .pos-payment-row .compact-payment select { width: 100%; height: 35px; min-height: 35px; padding: 3px 6px; border-radius: 5px; }
+.pos-payment-row .bank-option { min-width: 0; overflow: hidden; }
+.pos-payment-row .bank-option select { text-overflow: ellipsis; }
 .pos-customer-compact { min-width: 0; }
 .combobox-compact .combobox-trigger { height: 36px; min-height: 36px; padding: 4px 9px; border-radius: 6px; background: #fff; }
 .combobox-compact .combobox-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2015,3 +2017,42 @@ input, select, .combobox-trigger { border-color: #9faab8; }
   @page { size: A4 landscape; margin: 9mm; }
   body:has(.invoice-print-sheet) { width: 210mm; }
 }
+
+/* Focused density: POS payment allocation and party account workspace. */
+.combobox-popover-compact { padding: 3px; border: 1px solid #4b5563; border-radius: 4px; box-shadow: 0 5px 14px rgba(0,0,0,.12); }
+.combobox-popover-compact .combobox-results { margin-top: 3px; max-height: 192px; }
+.combobox-popover-compact .combobox-results button { border-radius: 2px; }
+
+.party-detail { grid-template-rows: auto auto minmax(0,1fr); }
+.party-detail-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: 7px; min-height: 0; }
+.party-detail-top > .panel { margin: 0; min-height: 125px; padding: 7px 10px; }
+.party-account-summary { display: grid; grid-template-rows: 1fr auto; gap: 5px; }
+.party-identity { display: grid; grid-template-columns: 1fr minmax(120px,.7fr); gap: 12px; }
+.party-identity span { display: grid; gap: 2px; }
+.party-identity small { color: var(--text-muted); font-weight: 700; }
+.party-identity strong { font-size: 16px; }
+.party-balance { display: flex; align-items: center; justify-content: space-between; min-height: 32px; padding: 3px 8px; border: 1px solid var(--border); background: #f8faf9; }
+.party-balance strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.party-balance.receivable strong { color: #087443; }
+.party-balance.payable strong { color: #a11b1b; }
+.party-payment-panel { display: grid; align-content: center; }
+.party-payment-row { display: grid; grid-template-columns: minmax(160px,.8fr) minmax(150px,1fr) 125px; align-items: end; gap: 6px; }
+.party-payment-row label { min-width: 0; }
+.party-payment-row select, .party-payment-row input, .party-payment-row button { height: 35px; min-height: 35px; }
+.party-history { grid-template-rows: auto minmax(0,1fr); }
+.party-history-toolbar { display: flex; align-items: end; gap: 6px; }
+.party-history-toolbar label { display: grid; gap: 2px; font-size: 9px; font-weight: 800; }
+.party-history-toolbar input { width: 138px; height: 34px; min-height: 34px; padding: 3px 6px; }
+.party-history > .erp-table-wrap { min-height: 0; height: 100%; overflow: auto; }
+
+.comprehensive-report .overview-toolbar { padding-block: 7px; gap: 5px; }
+.comprehensive-report .overview-toolbar label { min-width: 135px; }
+.comprehensive-report .overview-grid { grid-template-rows: minmax(300px,1fr) auto; gap: 6px; }
+.comprehensive-report .overview-grid > .panel { padding: 6px 8px; }
+.comprehensive-report .overview-invoice-table { min-width: 680px; }
+.comprehensive-report .overview-invoice-table th:nth-child(1) { width: 6%; }
+.comprehensive-report .overview-invoice-table th:nth-child(2) { width: 16%; }
+.comprehensive-report .overview-invoice-table th:nth-child(3) { width: 13%; }
+.comprehensive-report .overview-invoice-table th:nth-child(4) { width: 15%; }
+.comprehensive-report .overview-invoice-table th:nth-child(n+5) { width: 16.66%; }
+@media (max-width:1099px) { .party-detail { overflow:auto; grid-template-rows:auto auto auto; } .party-detail-top { grid-template-columns:1fr; } }
