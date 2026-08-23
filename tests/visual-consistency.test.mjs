@@ -29,3 +29,28 @@ test("settings uses full framed workspace with an explicit accent", () => {
   assert.match(css, /\.section-settings\s*\{[^}]*--section-color:\s*var\(--color-settings\)/);
   assert.doesNotMatch(css, /\.account-card/);
 });
+test("warehouse summary uses stable metrics and controlled popover overflow", () => {
+  const warehouses = between("function Warehouses", "function ProductMovementPanel");
+  for (const label of ["عدد المنتجات", "إجمالي الأفراد", "قيمة المخزون"]) assert.match(warehouses, new RegExp(label));
+  for (const anomaly of ["القيمة المعروفة", "بدون تكلفة فعلية", "تكلفة غير معروفة"]) assert.doesNotMatch(warehouses, new RegExp(anomaly));
+  assert.match(warehouses, /className="warehouse-head" allowOverflow/);
+  assert.match(css, /\.popover-host\s*\{[^}]*overflow:\s*visible/);
+  assert.match(css, /\.inventory-panel\s*\{[^}]*align-content:\s*start/);
+  assert.match(css, /\.inventory-panel\.browser-open\s*\{[^}]*minmax\(0, 1fr\)/);
+});
+test("product movement details prioritize the table", () => {
+  const panel = between("function ProductMovementPanel", "function Products");
+  assert.match(panel, /FramedSection title="تفاصيل المنتج وحركته"/);
+  for (const metric of ["مخزون هذا المخزن", "إجمالي المخزون", "تكلفة الوحدة", "قيمة المخزون هنا"]) assert.match(panel, new RegExp(metric));
+  assert.doesNotMatch(panel, /شراء \/ بيع|تحويل \/ تصحيح|تكلفة غير معروفة/);
+  assert.match(panel, /aria-label="سجل حركة المنتج"/);
+});
+test("stock operations collapse idle search and edit a serial ERP draft", () => {
+  const form = between("function MultiStockForm", "function Transfer");
+  assert.match(form, /collapseResultsWhenIdle/);
+  assert.match(form, /<StockDraftTable/);
+  const table = between("function StockDraftTable", "function MultiStockForm");
+  for (const heading of ["الكمية للتحويل", "الكمية الفعلية", "تكلفة الوحدة"]) assert.match(table, new RegExp(heading));
+  assert.match(table, /number\(index\+1\)/);
+  assert.match(table, /أضف منتجًا لبدء العملية/);
+});
