@@ -1,5 +1,6 @@
 import { BSON, type ClientSession, type Db, type Document } from "mongodb";
 import { ensureDatabaseSchema } from "./mongodb.ts";
+import { rebuildDocumentSequenceCounters } from "./document-sequences.ts";
 
 export const BACKUP_SCHEMA_VERSION = 1;
 export const BACKUP_COLLECTIONS = ["parties", "warehouses", "products", "documents", "stockMovements", "financialMovements", "paymentAccounts", "recurringExpenses", "accountTransfers", "counters", "auditEvents", "appSettings"] as const;
@@ -42,5 +43,5 @@ export async function restoreNativeBackup(db: Db, backup: ContaBackup, session: 
   for (const name of BACKUP_COLLECTIONS) { const collection = db.collection(name); await collection.deleteMany({}, { session }); if (backup.collections[name].length) await collection.insertMany(backup.collections[name], { session, ordered: true }); }
   await rebuildCounters(db, session);
 }
-export async function rebuildCounters(db: Db, session?: ClientSession) { const products = await db.collection("products").find({}, { session, projection: { sku: 1 } }).toArray(); const max = products.reduce((n,p) => /^\d{1,9}$/.test(String(p.sku)) ? Math.max(n, Number(p.sku)) : n, 0); await db.collection<{_id:string;value:number;updatedAt?:Date}>("counters").updateOne({ _id: "productSequence" }, { $max: { value: max }, $set: { updatedAt: new Date() } }, { upsert: true, session }); }
+export async function rebuildCounters(db: Db, session?: ClientSession) { const products = await db.collection("products").find({}, { session, projection: { sku: 1 } }).toArray(); const max = products.reduce((n,p) => /^\d{1,9}$/.test(String(p.sku)) ? Math.max(n, Number(p.sku)) : n, 0); await db.collection<{_id:string;value:number;updatedAt?:Date}>("counters").updateOne({ _id: "productSequence" }, { $max: { value: max }, $set: { updatedAt: new Date() } }, { upsert: true, session }); if (!session) await rebuildDocumentSequenceCounters(db); }
 export async function finishRestore(db: Db) { await ensureDatabaseSchema(db); }

@@ -1958,3 +1958,30 @@ input, select, .combobox-trigger { border-color: #9faab8; }
   .invoice-print-totals span { display: flex; justify-content: space-between; gap: 18mm; padding-bottom: 2mm; border-bottom: 1px solid #888; }
   .invoice-print-sheet footer { margin-top: 15mm; padding-top: 3mm; border-top: 1px solid #aaa; color: #555; font-size: 8pt; text-align: center; }
 }
+
+/* Role-safe party workspaces and comprehensive accounting report. */
+.party-nav-group { display: contents; }
+.party-nav-popover { background: #fff; opacity: 1; }
+.validation-hint { color: #a11b1b; font-weight: 700; }
+.customer-workspace, .supplier-workspace, .party-detail { min-height: 0; }
+.overview-workspace { height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0,1fr); gap: 8px; }
+.overview-print-title { display: none; }
+.overview-grid { min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: minmax(260px,1fr) auto; gap: 8px; }
+.overview-grid > .panel { min-height: 0; margin: 0; }
+.overview-accounts .erp-table-wrap, .overview-invoices .erp-table-wrap { height: 100%; overflow: auto; }
+.overview-invoices { display: grid; grid-template-rows: auto minmax(0,1fr) auto; }
+.overview-business-strip { display: grid; grid-template-columns: repeat(4,1fr); border: 1px solid #252525; border-block-start: 0; }
+.overview-business-strip span { padding: 5px 8px; border-inline-start: 1px solid #252525; display: flex; justify-content: space-between; gap: 8px; }
+.overview-statement > div { min-height: 30px; display: grid; grid-template-columns: 1fr 140px; border-block-end: 1px solid #333; align-items: center; }
+.overview-statement > div b { padding: 4px 8px; border-inline-start: 1px solid #333; text-align: end; }
+.overview-statement .negative { color: #a11b1b; } .overview-statement .positive { color: #087443; }
+@media (max-width: 900px) { .overview-grid { grid-template-columns: 1fr; grid-template-rows: repeat(4,auto); overflow: auto; } }
+@media print {
+  .overview-workspace { display: block !important; height: auto; }
+  .overview-workspace .overview-print-title { display: flex; justify-content: space-between; align-items: baseline; margin-block-end: 8mm; }
+  .overview-workspace .overview-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; }
+  .overview-workspace .erp-table-wrap { overflow: visible; height: auto; }
+  body:has(.overview-workspace) { width: 297mm; }
+  @page { size: A4 landscape; margin: 9mm; }
+  body:has(.invoice-print-sheet) { width: 210mm; }
+}

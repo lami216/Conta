@@ -1,5 +1,6 @@
 import { MongoClient, type Db } from "mongodb";
 import { log } from "./log.ts";
+import { backfillDocumentSequences } from "./document-sequences.ts";
 
 let client: MongoClient | undefined;
 let database: Db | undefined;
@@ -31,10 +32,13 @@ export function initializeMongo(): Promise<Db> {
 
 /** Idempotent indexes/default invariants shared by startup, restore and import. */
 export async function ensureDatabaseSchema(database: Db) {
+      await database.collection("parties").updateMany({ partyType: { $exists: false } }, { $set: { partyType: "supplier" } });
+      await backfillDocumentSequences(database);
       await Promise.all([
         database.collection("parties").createIndex({ name: 1 }),
         database.collection("parties").createIndex({ id: 1 }, { unique: true }),
         database.collection("parties").createIndex({ phone: 1 }),
+        database.collection("parties").createIndex({ partyType: 1, phone: 1 }),
         database.collection("products").createIndex({ id: 1 }, { unique: true }),
         database.collection("products").createIndex({ sku: 1 }, { unique: true }),
         database.collection("products").createIndex({ barcode: 1 }, { unique: true, partialFilterExpression: { barcode: { $type: "string", $gt: "" } }, name: "barcode_unique_nonempty" }),
@@ -42,6 +46,7 @@ export async function ensureDatabaseSchema(database: Db) {
         database.collection("documents").createIndex({ number: 1 }, { unique: true }),
         database.collection("documents").createIndex({ partyId: 1, occurredAt: -1 }),
         database.collection("documents").createIndex({ kind: 1, occurredAt: -1 }),
+        database.collection("documents").createIndex({ kind: 1, sequence: 1 }, { unique: true, partialFilterExpression: { sequence: { $type: "number" } }, name: "document_kind_sequence_unique" }),
         database.collection("documents").createIndex({ "lines.productId": 1, occurredAt: -1 }),
         database.collection("stockMovements").createIndex({ warehouseId: 1, productId: 1, occurredAt: -1 }),
         database.collection("stockMovements").createIndex({ occurredAt: -1 }),
