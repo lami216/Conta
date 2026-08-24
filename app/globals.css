@@ -1613,18 +1613,22 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .modal-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:7px;border-bottom:1px solid var(--border)}
 .modal-heading h3{margin:0;color:var(--ink);font-size:14px;font-weight:900}
 .payment-dialog,.account-dialog{width:min(500px,calc(100% - 32px));display:grid;gap:10px}
-.banks-workspace{display:grid;grid-template-rows:auto minmax(0,1fr)!important;gap:8px}
-.bank-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0}
+.banks-workspace{--bank-visible-rows:11;--bank-list-viewport-height:calc(var(--erp-head-height) + var(--bank-visible-rows) * var(--erp-row-height));--bank-tab-stage-height:calc(55px + 6px + var(--bank-list-viewport-height));display:grid;grid-template-rows:auto auto!important;align-content:start;gap:8px}
+.bank-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;align-self:start;height:auto;min-height:0}
 .bank-summary>div{display:grid;gap:1px;min-height:42px;padding:3px 10px;border-inline-start:1px solid var(--grid-line)}
 .bank-summary>div:last-child{border-inline-start:0}.bank-summary small{color:var(--text-muted);font-size:10px;font-weight:900}.bank-summary b{font-size:16px;font-weight:900}.bank-summary>div:nth-child(3) b{color:#14713b}.bank-summary>div:nth-child(4) b{color:#b62d3e}
-.bank-panel{display:grid;grid-template-rows:auto minmax(0,1fr);gap:6px;min-height:0;overflow:hidden}
+.bank-panel{display:grid;grid-template-rows:auto var(--bank-tab-stage-height);gap:6px;min-height:0;overflow:hidden}
 .bank-tabs{display:flex;gap:5px}.bank-tabs button{min-height:32px;height:32px;padding:3px 12px}
-.section-toolbar{margin:0 0 5px}.account-list,.ledger-list,.transfer-list{height:100%;min-height:0;overflow:auto}.erp-table tr.inactive{opacity:.58}
+.bank-tab-stage{block-size:var(--bank-tab-stage-height);min-block-size:var(--bank-tab-stage-height);max-block-size:var(--bank-tab-stage-height);min-width:0;overflow:hidden}
+.bank-tab-content{display:grid;grid-template-rows:55px var(--bank-list-viewport-height);gap:6px;height:100%;min-height:0;overflow:hidden}
+.bank-tab-adjustment{display:block}
+.bank-tab-content .section-toolbar{align-self:start;margin:0}.banks-workspace :is(.account-list,.ledger-list,.transfer-list){box-sizing:border-box;block-size:var(--bank-list-viewport-height);min-block-size:var(--bank-list-viewport-height);max-block-size:var(--bank-list-viewport-height);overflow:auto}.erp-table tr.inactive{opacity:.58}
 .bank-filters{display:grid;grid-template-columns:minmax(170px,240px) minmax(170px,240px);gap:6px;align-items:center}.bank-filters select{height:34px;min-height:34px}
-.transfer-layout{display:grid;grid-template-rows:auto minmax(0,1fr);gap:6px;min-height:0}.transfer-form{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr)) auto;align-items:end;gap:6px;padding:0;border:0}.transfer-form input,.transfer-form select,.transfer-form button{height:36px;min-height:36px}
+.transfer-layout{min-height:0}.transfer-form{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr)) auto;align-items:end;gap:6px;padding:0;border:0}.transfer-form input,.transfer-form select,.transfer-form button{height:36px;min-height:36px}
 .active-toggle{display:flex;align-items:center;gap:8px}.active-toggle input{width:18px;min-height:18px}
 @media(max-width:900px){.bank-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.transfer-form{grid-template-columns:1fr 1fr}}
 @media(max-width:620px){.bank-summary,.transfer-form{grid-template-columns:1fr}}
+@media(max-width:1050px){.banks-workspace{grid-template-rows:auto auto!important;overflow:visible}.bank-panel{grid-template-rows:auto auto;overflow:visible}.bank-tab-stage{block-size:auto;min-block-size:0;max-block-size:none;overflow:visible}.bank-tab-content{grid-template-rows:auto auto;height:auto;overflow:visible}.banks-workspace :is(.account-list,.ledger-list,.transfer-list){block-size:auto;min-block-size:240px;max-block-size:60vh}.bank-tab-adjustment{min-block-size:240px}}
 @media (min-width: 1051px) and (max-width: 1450px) {
   .sidebar { padding-inline: 10px; gap: 6px; }
   .sidebar nav { gap: 2px; }
@@ -1824,7 +1828,7 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .parties-create { display:grid;grid-template-columns:minmax(150px,1fr) minmax(140px,.8fr) auto;gap:6px;padding:0 }
 .parties-create input, .parties-create button { min-height: 36px; height: 36px; }
 .parties-list{display:grid;grid-template-rows:minmax(0,1fr);min-height:0}.party-grid{height:100%;border:0;border-radius:0}.party-detail{display:grid;grid-template-rows:auto auto auto minmax(0,1fr);gap:7px;height:100%;min-height:0;overflow:hidden}.party-operation .form-row{margin:0}.party-history{display:grid;grid-template-rows:auto minmax(0,1fr);gap:5px;min-height:0}.party-history>.erp-table-wrap{height:100%}
-.bank-panel { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 6px; min-height: 0; overflow: hidden; }
+.banks-workspace .bank-panel { grid-template-rows: auto var(--bank-tab-stage-height); height:auto; }
 .bank-filters { display: grid; grid-template-columns: minmax(170px,240px) minmax(170px,240px); gap: 6px; align-items: center; }
 .bank-filters select { height: 36px; min-height: 36px; align-self: center; }
 .ledger-list, .quick-invoice-list, .records .erp-table-wrap { min-height: 0; overflow: auto; }
