@@ -3,6 +3,7 @@ import test, { after, before, beforeEach } from "node:test";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { MongoClient } from "mongodb";
 import { execute } from "../app/api/command/route.ts";
+import { peekNextDocumentSequence } from "../lib/document-sequences.ts";
 
 let replica, client, db, unavailable;
 before(async () => {
@@ -26,6 +27,16 @@ async function command(body) {
   await client.withSession(s => s.withTransaction(async () => { result = await execute(db, s, body); }));
   return result;
 }
+
+test("document sequence previews are kind-specific and never reserve numbers", async t => {
+  if (unavailable) return t.skip(unavailable);
+  await db.collection("counters").insertMany([{ _id: "documentSequence:sale", value: 550 }, { _id: "documentSequence:purchase", value: 117 }]);
+  for (let attempt = 0; attempt < 20; attempt += 1) assert.equal(await peekNextDocumentSequence(db, "sale"), 551);
+  assert.equal(await peekNextDocumentSequence(db, "purchase"), 118);
+  assert.deepEqual((await db.collection("counters").find().sort({ _id: 1 }).toArray()).map(({ _id, value }) => ({ _id, value })), [
+    { _id: "documentSequence:purchase", value: 117 }, { _id: "documentSequence:sale", value: 550 },
+  ]);
+});
 
 test("first purchase initializes missing stock, movement, and supplier payable atomically", async t => {
   if (unavailable) return t.skip(unavailable);
