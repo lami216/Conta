@@ -280,7 +280,7 @@ export default function ContaApp() {
         </nav>
         <div className="side-foot">
           <span className="owner-mark">م</span><strong>{data.principal.name}</strong>
-          <form action="/api/auth/logout" method="post"><button type="submit">تسجيل الخروج</button></form>
+          <form action="/api/auth/logout" method="post"><button type="submit" aria-label="تسجيل الخروج" title="تسجيل الخروج">خروج</button></form>
         </div>
       </aside>
       <main>
