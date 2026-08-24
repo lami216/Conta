@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowLeftRight,
@@ -398,16 +398,18 @@ function SearchableSelect({ value, onChange, options, placeholder, searchPlaceho
     const rect = root.current.getBoundingClientRect(), margin = 8, posCustomer = variant === "pos-customer", desiredHeight = Math.min(variant === "normal" ? 330 : 235, window.innerHeight - margin * 2);
     const below = window.innerHeight - rect.bottom - margin, above = rect.top - margin, opensUp = below < 220 && above > below;
     const width = posCustomer
-      ? Math.min(Math.max(rect.width, 200), 240, window.innerWidth - margin * 2)
+      ? Math.min(rect.width, window.innerWidth - margin * 2)
       : Math.min(Math.max(rect.width, variant === "compact" ? 220 : 280), variant === "compact" ? 300 : window.innerWidth - margin * 2, window.innerWidth - margin * 2);
     const left = Math.min(Math.max(margin, rect.right - width), window.innerWidth - width - margin);
     setFloatingStyle({ position: "fixed", zIndex: 1000, width, maxWidth: width, left, right: "auto", top: opensUp ? Math.max(margin, rect.top - Math.min(desiredHeight, above) - 5) : rect.bottom + 5, maxHeight: opensUp ? above : below });
   }, [floating, variant]);
+  const closeSelect = useCallback(() => { setOpen(false); setQuery(""); setActive(0); setFloatingStyle({}); }, []);
+  const openSelect = () => { position(); setOpen(true); };
   useEffect(() => {
-    const close = (event: PointerEvent) => { const node = event.target as Node; if (!root.current?.contains(node) && !popover.current?.contains(node)) setOpen(false); };
+    const close = (event: PointerEvent) => { const node = event.target as Node; if (!root.current?.contains(node) && !popover.current?.contains(node)) closeSelect(); };
     document.addEventListener("pointerdown", close); return () => document.removeEventListener("pointerdown", close);
-  }, []);
-  useEffect(() => {
+  }, [closeSelect]);
+  useLayoutEffect(() => {
     if (!open || !floating) return;
     position();
     const update = () => position();
@@ -415,10 +417,10 @@ function SearchableSelect({ value, onChange, options, placeholder, searchPlaceho
     window.addEventListener("scroll", update, true);
     return () => { window.removeEventListener("resize", update); window.removeEventListener("scroll", update, true); };
   }, [open, floating, position]);
-  const choose = (next: string) => { onChange(next); setOpen(false); setQuery(""); setActive(0); };
+  const choose = (next: string) => { onChange(next); closeSelect(); };
   const list = <div ref={popover} className={`combobox-popover${floating ? " combobox-popover-floating" : ""}${variant === "compact" ? " combobox-popover-compact" : ""}${variant === "pos-customer" ? " combobox-popover-pos-customer" : ""}`} style={floating ? floatingStyle : undefined}>
     <label className="search"><Search /><input autoFocus value={query} placeholder={searchPlaceholder} onChange={e => { setQuery(e.target.value); setActive(0); }} onKeyDown={e => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") closeSelect();
       if (e.key === "ArrowDown") { e.preventDefault(); setActive(x => Math.min(x + 1, matches.length - 1)); }
       if (e.key === "ArrowUp") { e.preventDefault(); setActive(x => Math.max(x - 1, 0)); }
       if (e.key === "Enter" && matches[active]) { e.preventDefault(); choose(matches[active].value); }
@@ -430,7 +432,7 @@ function SearchableSelect({ value, onChange, options, placeholder, searchPlaceho
     </div>
   </div>;
   return <div className={`combobox${variant === "compact" ? " combobox-compact" : ""}${variant === "pos-customer" ? " combobox-pos-customer" : ""}`} ref={root}>
-    <button type="button" className="combobox-trigger" disabled={disabled} aria-label={ariaLabel} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(x => !x)}>
+    <button type="button" className="combobox-trigger" disabled={disabled} aria-label={ariaLabel} aria-haspopup="listbox" aria-expanded={open} onClick={() => open ? closeSelect() : openSelect()}>
       <span>{options.find(x => x.value === value)?.label ?? placeholder}</span><ChevronDown />
     </button>
     {open && (floating ? createPortal(list, document.body) : list)}
