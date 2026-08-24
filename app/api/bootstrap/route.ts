@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     ]);
     const clean = (rows: Array<Record<string, unknown>>) => rows.map(({ _id, ...row }) => ({ id: row.id ?? String(_id), ...row }));
     const cleanProducts = clean(products).map(product => ({ ...product, wholesalePrice: (product as Record<string, unknown>).wholesalePrice ?? null, expiryDate: (product as Record<string, unknown>).expiryDate ?? null, note: (product as Record<string, unknown>).note ?? null }));
-    const totals = await db.collection("financialMovements").aggregate([{ $group: { _id: "$paymentMethod", income: { $sum: { $cond: [{ $eq: ["$direction", "in"] }, "$amount", 0] } }, expenses: { $sum: { $cond: [{ $eq: ["$direction", "out"] }, "$amount", 0] } }, purchaseTotal: { $sum: { $cond: [{ $eq: ["$type", "purchase"] }, "$amount", 0] } } } }]).toArray();
+    const totals = await db.collection("financialMovements").aggregate([{ $group: { _id: "$paymentMethod", income: { $sum: { $cond: [{ $and: [{ $eq: ["$direction", "in"] }, { $ne: ["$type", "opening-balance"] }] }, "$amount", 0] } }, expenses: { $sum: { $cond: [{ $eq: ["$direction", "out"] }, "$amount", 0] } }, purchaseTotal: { $sum: { $cond: [{ $eq: ["$type", "purchase"] }, "$amount", 0] } } } }]).toArray();
     const totalMap = new Map(totals.map(row => [String(row._id), row]));
     const accountRows = paymentAccounts.map(account => {
       const aggregate = totalMap.get(String(account.id)) ?? totalMap.get(String(account.code));

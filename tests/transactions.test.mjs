@@ -7,7 +7,7 @@ import { execute } from "../app/api/command/route.ts";
 let replica, client, db, unavailable;
 before(async () => {
   try {
-    replica = await MongoMemoryReplSet.create({ binary: { version: "7.0.14" }, replSet: { count: 1, storageEngine: "wiredTiger" } });
+    replica = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: "wiredTiger" } });
     client = new MongoClient(replica.getUri()); await client.connect(); db = client.db("conta_integration_test");
     assert.match(db.databaseName, /test/, "integration tests must never target production");
   } catch (error) { unavailable = `MongoDB test binary unavailable: ${error.message}`; }
@@ -46,7 +46,7 @@ test("sale decreases stock and insufficient sale rolls every write back", async 
   await assert.rejects(command({ type: "sale.post", warehouseId: "wh-main", partyId: "party", paymentMethod: "note", paidAmount: 0, lines: [{ productId: "p1", quantity: 74, piecePrice: 100 }] }), /المخزون غير كاف/);
   assert.equal((await db.collection("products").findOne({ id: "p1" })).stocks["wh-main"], 73);
   assert.deepEqual([await db.collection("documents").countDocuments(), await db.collection("stockMovements").countDocuments()], beforeCounts);
-  assert.equal((await db.collection("parties").findOne({ id: "party" })).receivable, 2000);
+  assert.equal((await db.collection("parties").findOne({ id: "party" })).receivable, 2700);
 });
 
 test("direct sale command rejects a price below authoritative purchase cost", async t => {
@@ -62,7 +62,7 @@ test("transfer and adjustment initialize missing destination fields", async t =>
   await db.collection("products").updateOne({ id: "p1" }, { $set: { "stocks.wh-main": 30 } });
   await command({ type: "transfer.post", fromWarehouseId: "wh-main", toWarehouseId: "wh-b", lines: [{ productId: "p1", quantity: 10 }] });
   let product = await db.collection("products").findOne({ id: "p1" }); assert.deepEqual(product.stocks, { "wh-main": 20, "wh-b": 10 });
-  await db.collection("products").updateOne({ id: "p1" }, { $unset: { "stocks.wh-b": "" } });
+  await db.collection("products").updateOne({ id: "p1" }, { $unset: { "stocks.wh-b": "" }, $set: { lastPurchaseCost: 50 } });
   await command({ type: "adjustment.post", warehouseId: "wh-b", reason: "count", lines: [{ productId: "p1", actualQuantity: 17 }] });
   product = await db.collection("products").findOne({ id: "p1" }); assert.equal(product.stocks["wh-b"], 17);
   assert.deepEqual(await db.collection("stockMovements").findOne({ type: "adjustment" }, { projection: { _id: 0, balanceBefore: 1, balanceAfter: 1, quantityDelta: 1 } }), { quantityDelta: 17, balanceBefore: 0, balanceAfter: 17 });
@@ -199,4 +199,108 @@ test("sale permits expiry day, rejects expired stock atomically, and creates no 
   await assert.rejects(command({ type: "sale.post", warehouseId: "wh-main", paymentMethod: "cash", lines: [{ productId: "p1", quantity: 1, piecePrice: 100 }] }), /انتهت صلاحية/);
   assert.deepEqual([await db.collection("documents").countDocuments(), await db.collection("stockMovements").countDocuments(), await db.collection("financialMovements").countDocuments()], before);
   assert.equal((await db.collection("products").findOne({ id: "p1" })).stocks["wh-main"], 1);
+});
+
+test("payment accounts use auditable opening balances and manual adjustments", async t => {
+  if (unavailable) return t.skip(unavailable);
+  const zeroId = await command({ type: "payment-account.create", name: "Zero bank", openingBalance: 0 });
+  assert.equal((await db.collection("paymentAccounts").findOne({ id: zeroId })).balance, 0);
+  assert.equal(await db.collection("financialMovements").countDocuments({ paymentMethod: zeroId }), 0);
+
+  const openedId = await command({ type: "payment-account.create", name: "Opened bank", openingBalance: 500 });
+  assert.equal((await db.collection("paymentAccounts").findOne({ id: openedId })).balance, 500);
+  assert.deepEqual(await db.collection("financialMovements").findOne({ paymentMethod: openedId }, { projection: { _id: 0, type: 1, direction: 1, amount: 1 } }), { type: "opening-balance", direction: "in", amount: 500 });
+
+  await command({ type: "account-adjustment.post", accountId: openedId, direction: "deposit", amount: 200, note: "cash desk" });
+  assert.equal((await db.collection("paymentAccounts").findOne({ id: openedId })).balance, 700);
+  assert.deepEqual(await db.collection("financialMovements").findOne({ paymentMethod: openedId, type: "manual-deposit" }, { projection: { _id: 0, direction: 1, amount: 1, note: 1 } }), { direction: "in", amount: 200, note: "cash desk" });
+
+  await command({ type: "account-adjustment.post", accountId: openedId, direction: "withdrawal", amount: 300 });
+  assert.equal((await db.collection("paymentAccounts").findOne({ id: openedId })).balance, 400);
+  assert.ok(await db.collection("financialMovements").findOne({ paymentMethod: openedId, type: "manual-withdrawal", direction: "out" }));
+  await assert.rejects(command({ type: "account-adjustment.post", accountId: openedId, direction: "withdrawal", amount: 401 }), /الرصيد غير كاف/);
+  assert.equal((await db.collection("paymentAccounts").findOne({ id: openedId })).balance, 400);
+});
+
+test("sale update preserves identity and historical cost while revising stock, bank and debt", async t => {
+  if (unavailable) return t.skip(unavailable);
+  await db.collection("products").updateOne({ id: "p1" }, { $set: { "stocks.wh-main": 20, lastPurchaseCost: 50 } });
+  await db.collection("paymentAccounts").insertOne({ id: "bank-b", code: "bank-b", name: "Bank B", isActive: true, balance: 0 });
+  const saleId = await command({ type: "sale.post", warehouseId: "wh-main", partyId: "party", paymentMethod: "cash-id", lines: [{ productId: "p1", quantity: 1, piecePrice: 100 }] });
+  const original = await db.collection("documents").findOne({ id: saleId });
+  await db.collection("products").updateOne({ id: "p1" }, { $set: { lastPurchaseCost: 80 } });
+  await command({ type: "sale.update", documentId: saleId, partyId: "party", paymentMethod: "bank-b", lines: [{ productId: "p1", quantity: 3, piecePrice: 120 }] });
+  const edited = await db.collection("documents").findOne({ id: saleId });
+  assert.deepEqual([edited.id, edited.number, edited.sequence], [original.id, original.number, original.sequence]);
+  assert.deepEqual([edited.total, edited.lines[0].costAtSale, edited.lines[0].grossProfit], [360, 50, 210]);
+  assert.equal((await db.collection("products").findOne({ id: "p1" })).stocks["wh-main"], 17, "only two additional units are removed");
+  assert.equal((await db.collection("paymentAccounts").findOne({ id: "cash-id" })).balance, 10000);
+  assert.equal((await db.collection("paymentAccounts").findOne({ id: "bank-b" })).balance, 360);
+  assert.equal(await db.collection("financialMovements").countDocuments({ documentId: saleId, type: "sale" }), 1);
+
+  await command({ type: "sale.update", documentId: saleId, partyId: "party", paymentMethod: "note", lines: [{ productId: "p1", quantity: 2, piecePrice: 120 }] });
+  assert.equal((await db.collection("products").findOne({ id: "p1" })).stocks["wh-main"], 18);
+  assert.equal((await db.collection("paymentAccounts").findOne({ id: "bank-b" })).balance, 0);
+  assert.equal((await db.collection("parties").findOne({ id: "party" })).receivable, 240);
+  assert.equal((await db.collection("documents").findOne({ id: saleId })).dueTotal, 240);
+});
+
+test("sale update changes indebted customer, blocks settled debt and protects linked returns", async t => {
+  if (unavailable) return t.skip(unavailable);
+  await db.collection("products").updateOne({ id: "p1" }, { $set: { "stocks.wh-main": 10, lastPurchaseCost: 10 } });
+  await db.collection("parties").insertOne({ id: "customer-b", name: "B", phone: "", partyType: "customer", receivable: 0, payable: 0, net: 0 });
+  const saleId = await command({ type: "sale.post", warehouseId: "wh-main", partyId: "party", paymentMethod: "note", lines: [{ productId: "p1", quantity: 2, piecePrice: 100 }] });
+  await command({ type: "sale.update", documentId: saleId, partyId: "customer-b", paymentMethod: "note", lines: [{ productId: "p1", quantity: 2, piecePrice: 150 }] });
+  assert.equal((await db.collection("parties").findOne({ id: "party" })).receivable, 0);
+  assert.equal((await db.collection("parties").findOne({ id: "customer-b" })).receivable, 300);
+  await command({ type: "payment.post", partyId: "customer-b", side: "receivable", amount: 100, paymentMethod: "cash-id" });
+  await assert.rejects(command({ type: "sale.update", documentId: saleId, partyId: "customer-b", paymentMethod: "note", lines: [{ productId: "p1", quantity: 1, piecePrice: 100 }] }), /تمت تسويته/);
+  assert.equal((await db.collection("documents").findOne({ id: saleId })).total, 300);
+  await db.collection("documents").insertOne({ id: "ret", number: "RET-1", kind: "return", status: "posted", parentDocumentId: saleId, lines: [] });
+  await assert.rejects(command({ type: "sale.void", documentId: saleId }), /مرتجع مرتبط/);
+});
+
+test("sale void reverses effects, preserves number and does not rewind sequence", async t => {
+  if (unavailable) return t.skip(unavailable);
+  await db.collection("products").updateOne({ id: "p1" }, { $set: { "stocks.wh-main": 5, lastPurchaseCost: 10 } });
+  const saleId = await command({ type: "sale.post", warehouseId: "wh-main", paymentMethod: "cash-id", lines: [{ productId: "p1", quantity: 2, piecePrice: 100 }] });
+  const number = (await db.collection("documents").findOne({ id: saleId })).sequence;
+  await command({ type: "sale.void", documentId: saleId });
+  assert.equal((await db.collection("documents").findOne({ id: saleId })).status, "voided");
+  assert.equal((await db.collection("products").findOne({ id: "p1" })).stocks["wh-main"], 5);
+  assert.equal((await db.collection("paymentAccounts").findOne({ id: "cash-id" })).balance, 10000);
+  const next = await command({ type: "sale.post", warehouseId: "wh-main", paymentMethod: "cash-id", lines: [{ productId: "p1", quantity: 1, piecePrice: 100 }] });
+  assert.equal((await db.collection("documents").findOne({ id: next })).sequence, number + 1);
+});
+
+test("purchase update and void revise warehouse, payment, supplier and latest cost safely", async t => {
+  if (unavailable) return t.skip(unavailable);
+  await db.collection("paymentAccounts").insertOne({ id: "bank-b", code: "bank-b", name: "Bank B", isActive: true, balance: 10000 });
+  const purchaseId = await command({ type: "purchase.post", warehouseId: "wh-main", partyId: "supplier", paymentMethod: "cash-id", lines: [{ productId: "p1", quantity: 10, unitPrice: 100 }] });
+  const original = await db.collection("documents").findOne({ id: purchaseId });
+  await command({ type: "purchase.update", documentId: purchaseId, warehouseId: "wh-b", partyId: "supplier", paymentMethod: "bank-b", lines: [{ productId: "p1", quantity: 7, unitPrice: 120 }] });
+  const edited = await db.collection("documents").findOne({ id: purchaseId });
+  assert.deepEqual([edited.number, edited.sequence, edited.total], [original.number, original.sequence, 840]);
+  assert.deepEqual((await db.collection("products").findOne({ id: "p1" })).stocks, { "wh-main": 0, "wh-b": 7 });
+  assert.equal((await db.collection("paymentAccounts").findOne({ id: "cash-id" })).balance, 10000);
+  assert.equal((await db.collection("paymentAccounts").findOne({ id: "bank-b" })).balance, 9160);
+  assert.equal((await db.collection("products").findOne({ id: "p1" })).lastPurchaseCost, 120);
+  await command({ type: "purchase.update", documentId: purchaseId, warehouseId: "wh-b", partyId: "supplier", paymentMethod: "note", lines: [{ productId: "p1", quantity: 8, unitPrice: 125 }] });
+  assert.equal((await db.collection("parties").findOne({ id: "supplier" })).payable, 1000);
+  await command({ type: "purchase.void", documentId: purchaseId });
+  const product = await db.collection("products").findOne({ id: "p1" });
+  assert.deepEqual([product.stocks["wh-b"], product.lastPurchaseCost], [0, null]);
+  assert.equal((await db.collection("parties").findOne({ id: "supplier" })).payable, 0);
+  assert.equal((await db.collection("documents").findOne({ id: purchaseId })).status, "voided");
+});
+
+test("purchase revision blocks reversal after purchased inventory was consumed and legacy invoices are read-only", async t => {
+  if (unavailable) return t.skip(unavailable);
+  const purchaseId = await command({ type: "purchase.post", warehouseId: "wh-main", partyId: "supplier", paymentMethod: "note", lines: [{ productId: "p1", quantity: 10, unitPrice: 100 }] });
+  await db.collection("products").updateOne({ id: "p1" }, { $set: { "stocks.wh-main": 2 } });
+  await assert.rejects(command({ type: "purchase.update", documentId: purchaseId, warehouseId: "wh-b", partyId: "supplier", paymentMethod: "note", lines: [{ productId: "p1", quantity: 7, unitPrice: 100 }] }), /تم التصرف فيه/);
+  assert.equal((await db.collection("documents").findOne({ id: purchaseId })).warehouseId, "wh-main");
+  await db.collection("documents").updateOne({ id: purchaseId }, { $set: { legacyKey: "legacy:purchase:1" } });
+  await assert.rejects(command({ type: "purchase.void", documentId: purchaseId }), /متاحة للعرض فقط/);
+  assert.equal((await db.collection("products").findOne({ id: "p1" })).stocks["wh-main"], 2);
 });
