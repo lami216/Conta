@@ -109,6 +109,8 @@ export interface Movement {
 export interface BootstrapData {
   /** Informational only; product.create allocates the authoritative value atomically. */
   nextProductCode: number;
+  /** Informational previews; posting remains authoritative and allocates atomically. */
+  nextDocumentSequences: { sale: number; purchase: number; expense: number };
   parties: Party[];
   warehouses: Warehouse[];
   products: Product[];

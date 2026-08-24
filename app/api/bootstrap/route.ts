@@ -2,6 +2,7 @@ import { ensurePartyTypes, getMongo } from "../../../lib/mongodb";
 import { resolvePartyType } from "../../domain";
 import { log } from "../../../lib/log";
 import { sessionFromRequest } from "../../../lib/auth";
+import { peekNextDocumentSequence } from "../../../lib/document-sequences";
 
 export async function GET(request: Request) {
   if (!sessionFromRequest(request)) return Response.json({ error: "غير مصرح" }, { status: 401 });
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
     if (legacyCosts.length) await db.collection("products").bulkWrite(legacyCosts.map(cost => ({
       updateOne: { filter: { id: cost._id, lastPurchaseCost: { $exists: false } }, update: { $set: { lastPurchaseCost: cost.cost, lastPurchaseAt: cost.at } } },
     })));
-    const [parties, warehouses, products, documents, movements, recurringExpenses, financialMovements, paymentAccounts, accountTransfers, productCounter] = await Promise.all([
+    const [parties, warehouses, products, documents, movements, recurringExpenses, financialMovements, paymentAccounts, accountTransfers, productCounter, nextSale, nextPurchase, nextExpense] = await Promise.all([
       db.collection("parties").find().sort({ name: 1 }).toArray(), db.collection("warehouses").find().sort({ isSalesDefault: -1, name: 1 }).toArray(),
       db.collection("products").find().sort({ name: 1 }).toArray(), db.collection("documents").find().sort({ occurredAt: -1 }).limit(500).toArray(),
       db.collection("stockMovements").find().sort({ occurredAt: -1 }).limit(1000).toArray(), db.collection("recurringExpenses").find().sort({ createdAt: -1 }).toArray(),
@@ -34,6 +35,7 @@ export async function GET(request: Request) {
       db.collection("paymentAccounts").find().sort({ createdAt: 1 }).toArray(),
       db.collection("accountTransfers").find().sort({ occurredAt: -1 }).limit(500).toArray(),
       db.collection<{ _id: string; value: number }>("counters").findOne({ _id: "productSequence" }),
+      peekNextDocumentSequence(db, "sale"), peekNextDocumentSequence(db, "purchase"), peekNextDocumentSequence(db, "expense"),
     ]);
     const clean = (rows: Array<Record<string, unknown>>) => rows.map(({ _id, ...row }) => ({ id: row.id ?? String(_id), ...row }));
     const cleanProducts = clean(products).map(product => ({ ...product, wholesalePrice: (product as Record<string, unknown>).wholesalePrice ?? null, expiryDate: (product as Record<string, unknown>).expiryDate ?? null, note: (product as Record<string, unknown>).note ?? null }));
@@ -51,6 +53,6 @@ export async function GET(request: Request) {
     }, 0);
     const nextProductCode = Math.max(highestLegacyCode, Number(productCounter?.value ?? 0)) + 1;
     const cleanParties = clean(parties).map(party => ({ ...party, partyType: resolvePartyType(party) }));
-    return Response.json({ parties: cleanParties, warehouses: clean(warehouses), products: cleanProducts, documents: clean(documents), movements: clean(movements), recurringExpenses: clean(recurringRows), financialMovements: clean(financialMovements), paymentAccounts: clean(accountRows), accountTransfers: clean(accountTransfers), nextProductCode });
+    return Response.json({ parties: cleanParties, warehouses: clean(warehouses), products: cleanProducts, documents: clean(documents), movements: clean(movements), recurringExpenses: clean(recurringRows), financialMovements: clean(financialMovements), paymentAccounts: clean(accountRows), accountTransfers: clean(accountTransfers), nextProductCode, nextDocumentSequences: { sale: nextSale, purchase: nextPurchase, expense: nextExpense } });
   } catch (error) { log("error", "api.bootstrap.failed", { error }); return Response.json({ error: "تعذر تحميل البيانات" }, { status: 500 }); }
 }

@@ -2072,9 +2072,10 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 @media (max-width:1099px) { .party-detail { overflow:auto; grid-template-rows:auto auto auto; } .party-detail-top { grid-template-columns:1fr; } }
 
 /* Focused invoice editor, quick-customer and banking controls. */
-.invoice-lifecycle { display:flex; align-items:center; gap:6px; min-width:0; padding-bottom:6px; border-bottom:1px solid var(--border); font-size:10px; }
-.invoice-lifecycle .soft { min-height:30px; height:30px; padding:3px 8px; }
-.invoice-lifecycle > span { min-width:0; flex:1; white-space:nowrap; }
+.invoice-lifecycle { display:flex; align-items:center; gap:5px; min-width:0; min-height:34px; padding-bottom:4px; border-bottom:1px solid var(--border); font-size:10px; }
+.invoice-new-button, .invoice-lifecycle > .selection-option, .invoice-lifecycle > .scanner-switch { min-height:30px; height:30px; padding:3px 8px; border:1px solid var(--border-strong); border-radius:5px; font-size:10px; font-weight:800; white-space:nowrap; }
+.invoice-new-button { color:var(--text); background:#fff; }
+.invoice-lifecycle > .invoice-number { flex:0 0 auto; min-width:58px; padding:5px 7px; border:1px solid var(--border); border-radius:5px; background:#f8faf9; white-space:nowrap; }
 .print-toggle { display:inline-flex; align-items:center; gap:5px; min-height:30px; padding:3px 7px; border:0; background:transparent; font-size:10px; font-weight:800; }
 .print-toggle > span { display:grid; place-items:center; width:14px; height:14px; border:1.5px solid var(--section-color); border-radius:50%; }
 .print-toggle i { width:6px; height:6px; border-radius:50%; background:var(--section-color); }
@@ -2095,6 +2096,14 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .purchase-workspace .payment-section .compact-payment { grid-template-columns:70px minmax(0,1fr); }
 .purchase-workspace .purchase-add-warehouse { justify-self:end; }
 @media(max-width:620px){.banks-workspace .bank-adjustment-form{grid-template-columns:1fr}}
-.invoice-lifecycle .invoice-void { min-height:30px; height:30px; padding:3px 7px; border:1px solid #b62d3e; border-radius:5px; color:#a11b1b; background:#fff; font-size:10px; font-weight:800; }
+.checkout-invoice-actions { display:flex; align-items:center; gap:5px; min-height:32px; }
+.checkout-invoice-actions .print-toggle, .checkout-invoice-actions .invoice-void { min-height:30px; height:30px; padding:3px 8px; border:1px solid var(--border); border-radius:5px; background:#fff; }
+.checkout-invoice-actions .invoice-void { border-color:#b62d3e; color:#a11b1b; font-size:10px; font-weight:800; }
+.checkout-invoice-actions .invoice-void:disabled { opacity:.45; }
+.purchase-payment-row { display:grid; grid-template-columns:50px 72px minmax(0,1fr) 33px; align-items:center; gap:4px; min-width:0; }
+.purchase-payment-row.note { grid-template-columns:minmax(0,1fr) 33px; }
+.purchase-payment-row .compact-payment { display:contents; }
+.purchase-payment-row > *, .purchase-payment-row .bank-option, .purchase-payment-row select, .purchase-supplier, .purchase-supplier .combobox, .purchase-supplier .combobox-trigger { min-width:0; }
+.purchase-payment-row .compact-payment > button, .purchase-payment-row .bank-option select, .purchase-supplier .combobox-trigger { width:100%; height:33px; min-height:33px; padding:2px 6px; border-radius:4px; font-size:11px; }
 .auto-print-host { display:none; }
 @media print { html.print-document-mode .auto-print-host { display:block; } }

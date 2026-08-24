@@ -7,6 +7,11 @@ export async function nextDocumentSequence(db: Db, kind: SequencedDocumentKind, 
   if (!counter) throw new Error("تعذر توليد رقم المستند");
   return counter.value;
 }
+/** Read the next informational number without reserving or mutating it. */
+export async function peekNextDocumentSequence(db: Db, kind: SequencedDocumentKind) {
+  const counter = await db.collection<{ _id: string; value: number }>("counters").findOne({ _id: counterId(kind) });
+  return Number(counter?.value ?? 0) + 1;
+}
 const preferred = (value: unknown) => { const raw=String(value??"").trim(); if(!/^\d+$/.test(raw))return null;const n=Number(raw);return Number.isSafeInteger(n)&&n>0?n:null; };
 /** Additive/idempotent compatibility migration used by startup, restore and import. */
 export async function backfillDocumentSequences(db: Db) {
