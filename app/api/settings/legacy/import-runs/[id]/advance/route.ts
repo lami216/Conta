@@ -3,7 +3,7 @@ import { getMongo } from "../../../../../../../lib/mongodb.ts";
 import { advanceLegacyImportRun } from "../../../../../../../legacy/import-run.ts";
 
 export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){
- const denied=requireCapability(request,"settings.legacy.import");if(denied)return denied;
+ const denied=await requireCapability(request,"settings.legacy.import");if(denied)return denied;
  if(!validSameOrigin(request)){
   const url=new URL(request.url);
   console.warn(JSON.stringify({event:"legacy_import_origin_rejected",method:request.method,originPresent:request.headers.has("origin"),host:request.headers.get("host"),forwardedHost:request.headers.get("x-forwarded-host"),forwardedProto:request.headers.get("x-forwarded-proto"),pathname:url.pathname}));

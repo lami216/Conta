@@ -58,6 +58,8 @@ export async function ensureDatabaseSchema(database: Db) {
         database.collection("financialMovements").createIndex({ type: 1, occurredAt: -1 }),
         database.collection("paymentAccounts").createIndex({ id: 1 }, { unique: true }),
         database.collection("paymentAccounts").createIndex({ code: 1 }, { unique: true }),
+        database.collection("users").createIndex({ id: 1 }, { unique: true }),
+        database.collection("users").createIndex({ usernameNormalized: 1 }, { unique: true }),
         database.collection("warehouses").createIndex({ legacyKey: 1 }, { unique: true, sparse: true }),
         database.collection("parties").createIndex({ legacyKey: 1 }, { unique: true, sparse: true }),
         database.collection("products").createIndex({ legacyKey: 1 }, { unique: true, sparse: true }),
