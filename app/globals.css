@@ -2072,15 +2072,19 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 @media (max-width:1099px) { .party-detail { overflow:auto; grid-template-rows:auto auto auto; } .party-detail-top { grid-template-columns:1fr; } }
 
 /* Focused invoice editor, quick-customer and banking controls. */
-.invoice-lifecycle { display:flex; align-items:center; gap:5px; min-width:0; min-height:34px; padding-bottom:4px; border-bottom:1px solid var(--border); font-size:10px; }
-.invoice-new-button, .invoice-lifecycle > .selection-option, .invoice-lifecycle > .scanner-switch { min-height:30px; height:30px; padding:3px 8px; border:1px solid var(--border-strong); border-radius:5px; font-size:10px; font-weight:800; white-space:nowrap; }
-.invoice-new-button { color:var(--text); background:#fff; }
-.invoice-lifecycle > .invoice-number { flex:0 0 auto; min-width:58px; padding:5px 7px; border:1px solid var(--border); border-radius:5px; background:#f8faf9; white-space:nowrap; }
+.invoice-editor-toolbar { display:flex; align-items:center; min-width:0; min-height:34px; padding-bottom:4px; border-bottom:1px solid var(--border); font-size:10px; }
+.invoice-toolbar-main, .invoice-toolbar-modes { display:flex; align-items:center; gap:5px; }
+.invoice-toolbar-modes { margin-inline-start:14px; }
+.invoice-toolbar-scanner { display:flex; align-items:center; margin-inline-start:18px; }
+.invoice-new-button, .invoice-toolbar-modes > .selection-option, .invoice-toolbar-scanner > .scanner-switch { min-height:30px; height:30px; padding:3px 8px; border:1px solid var(--border-strong); border-radius:5px; font-size:10px; font-weight:800; white-space:nowrap; }
+.invoice-new-button { color:var(--text); background:#fff; border-color:#66766f; border-width:1.5px; border-radius:4px; }
+.invoice-number-status { flex:0 0 auto; min-width:58px; padding:5px 7px; border:1px solid #8eb8a5; border-radius:5px; color:#153b2d; background:#dfeee7; font-weight:700; white-space:nowrap; }
 .print-toggle { display:inline-flex; align-items:center; gap:5px; min-height:30px; padding:3px 7px; border:0; background:transparent; font-size:10px; font-weight:800; }
 .print-toggle > span { display:grid; place-items:center; width:14px; height:14px; border:1.5px solid var(--section-color); border-radius:50%; }
 .print-toggle i { width:6px; height:6px; border-radius:50%; background:var(--section-color); }
 .invoice-empty-row td { height:54px; color:var(--text-muted); text-align:center; }
 .pos-payment-row { grid-template-columns:50px 72px minmax(0,1fr) 33px; }
+.pos-payment-row.note { grid-template-columns:minmax(0,1fr) 33px; }
 .pos-quick-customer-button { display:grid; place-items:center; width:33px; height:33px; min-height:33px; padding:0; border:1px solid var(--brand); border-radius:4px; color:var(--brand); background:#fff; }
 .pos-quick-customer-button svg { width:15px; }
 .pos-quick-customer-popover { display:grid; gap:7px; padding:10px; border:1px solid #687585; border-radius:7px; background:#fff; box-shadow:0 10px 28px rgba(0,0,0,.16); direction:rtl; }
