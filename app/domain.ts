@@ -85,6 +85,11 @@ export interface DocumentRecord {
   businessDate?: string;
   dailySequence?: number;
   recurringId?: string;
+  legacyKey?: string;
+  pricingMode?: "retail" | "wholesale";
+  revision?: number;
+  updatedAt?: string;
+  voidedAt?: string;
   lines: DocumentLine[];
 }
 export interface Movement {

@@ -2070,3 +2070,31 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .comprehensive-report .overview-invoice-table th:nth-child(5) { width: 17%; }
 .comprehensive-report .overview-invoice-table th:nth-child(6) { width: 17%; }
 @media (max-width:1099px) { .party-detail { overflow:auto; grid-template-rows:auto auto auto; } .party-detail-top { grid-template-columns:1fr; } }
+
+/* Focused invoice editor, quick-customer and banking controls. */
+.invoice-lifecycle { display:flex; align-items:center; gap:6px; min-width:0; padding-bottom:6px; border-bottom:1px solid var(--border); font-size:10px; }
+.invoice-lifecycle .soft { min-height:30px; height:30px; padding:3px 8px; }
+.invoice-lifecycle > span { min-width:0; flex:1; white-space:nowrap; }
+.print-toggle { display:inline-flex; align-items:center; gap:5px; min-height:30px; padding:3px 7px; border:0; background:transparent; font-size:10px; font-weight:800; }
+.print-toggle > span { display:grid; place-items:center; width:14px; height:14px; border:1.5px solid var(--section-color); border-radius:50%; }
+.print-toggle i { width:6px; height:6px; border-radius:50%; background:var(--section-color); }
+.invoice-empty-row td { height:54px; color:var(--text-muted); text-align:center; }
+.pos-payment-row { grid-template-columns:50px 72px minmax(0,1fr) 33px; }
+.pos-quick-customer-button { display:grid; place-items:center; width:33px; height:33px; min-height:33px; padding:0; border:1px solid var(--brand); border-radius:4px; color:var(--brand); background:#fff; }
+.pos-quick-customer-button svg { width:15px; }
+.pos-quick-customer-popover { display:grid; gap:7px; padding:10px; border:1px solid #687585; border-radius:7px; background:#fff; box-shadow:0 10px 28px rgba(0,0,0,.16); direction:rtl; }
+.pos-quick-customer-popover label { display:grid; gap:3px; font-size:10px; font-weight:800; }
+.pos-quick-customer-popover input { min-height:34px; height:34px; border-radius:4px; }
+.pos-quick-customer-popover > div { display:flex; gap:6px; }
+.pos-quick-customer-popover > div button { min-height:32px; height:32px; flex:1; }
+.banks-workspace .bank-adjustment-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; max-width:650px; padding-top:8px; }
+.banks-workspace .bank-adjustment-form label { display:grid; gap:4px; font-size:10px; font-weight:800; }
+.banks-workspace .bank-adjustment-direction { display:flex; gap:5px; grid-column:1/-1; }
+.banks-workspace .bank-adjustment-direction button { min-width:90px; min-height:34px; }
+.banks-workspace .bank-adjustment-form > .primary { align-self:end; min-height:43px; }
+.purchase-workspace .payment-section .compact-payment { grid-template-columns:70px minmax(0,1fr); }
+.purchase-workspace .purchase-add-warehouse { justify-self:end; }
+@media(max-width:620px){.banks-workspace .bank-adjustment-form{grid-template-columns:1fr}}
+.invoice-lifecycle .invoice-void { min-height:30px; height:30px; padding:3px 7px; border:1px solid #b62d3e; border-radius:5px; color:#a11b1b; background:#fff; font-size:10px; font-weight:800; }
+.auto-print-host { display:none; }
+@media print { html.print-document-mode .auto-print-host { display:block; } }

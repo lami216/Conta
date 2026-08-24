@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 const app = readFileSync(new URL("../app/conta-app.tsx", import.meta.url), "utf8");
 const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+const bootstrap = readFileSync(new URL("../app/api/bootstrap/route.ts", import.meta.url), "utf8");
 const between = (start, end) => app.slice(app.indexOf(start), app.indexOf(end, app.indexOf(start)));
 test("remaining ERP pages use framed regions without legacy title bands", () => {
   const expenses = between("function Expenses", "function Banks");
@@ -69,4 +70,39 @@ test("POS checkout, records, scoped stock, and document print retain explicit st
   assert.match(app, /function PrintableDocument/);
   assert.match(css, /@page invoice \{ size: A4 portrait/);
   assert.match(css, /@page report \{ size: A4 landscape/);
+});
+
+test("focused banking and transaction editor regressions stay explicit", () => {
+  const banks = between("function Banks", "function PaymentAccountDialog");
+  assert.ok(banks.indexOf('title="البنوك والحسابات"') < banks.indexOf('title="ملخص الحسابات"'));
+  for (const label of ["السحب والإيداع", "manual-deposit", "opening-balance"]) assert.match(banks, new RegExp(label));
+  assert.match(app, /m\.type !== "opening-balance"/);
+  assert.match(bootstrap, /\$ne: \["\$type", "opening-balance"\]/);
+  const purchase = between("function Purchases", "function Expenses");
+  assert.doesNotMatch(purchase, /purchase-locked|تأكيد المورد|تعديل المورد|disabled=\{!locked/);
+  assert.match(purchase, /disabled=\{!partyId \|\| !warehouseId \|\| !lines\.length\}/);
+  const pos = between("function Pos", "function CompactPaymentSelector");
+  assert.match(pos, /pos-quick-customer-button/);
+  assert.doesNotMatch(pos, /pos-add-customer|إضافة عميل<\/button>/);
+  assert.match(app, /onDone=\{id => \{ setPartyId\(id\); setQuick\(false\); \}\}/);
+});
+
+test("invoice editors expose explicit new, edit, void, history routing and authoritative print lifecycle", () => {
+  const pos = between("function Pos", "function CompactPaymentSelector");
+  const purchase = between("function Purchases", "function Expenses");
+  for (const editor of [pos, purchase]) {
+    assert.match(editor, /editingDocumentId \?/);
+    assert.match(editor, /displayDocumentNumber\(editingDocument\)/);
+    assert.match(editor, /"حفظ التعديلات"/);
+    assert.match(editor, /\.status === "posted"/);
+    assert.match(editor, /document\.legacyKey \|\| document\.status !== "posted"/);
+    assert.match(editor, /تغييرات غير محفوظة/);
+  }
+  assert.match(pos, /type: wasEditing \? "sale\.update" : "sale\.post"/);
+  assert.match(pos, /type: "sale\.void"/);
+  assert.match(purchase, /type: wasEditing \? "purchase\.update" : "purchase\.post"/);
+  assert.match(purchase, /type: "purchase\.void"/);
+  assert.match(app, /setSaleEditRequest\(id\); setView\("pos"\)/);
+  assert.match(app, /setPurchaseEditRequest\(id\); setView\("purchases"\)/);
+  assert.match(app, /root\.classList\.add\("print-document-mode"\); window\.print\(\)/);
 });
