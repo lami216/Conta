@@ -1613,7 +1613,7 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .modal-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:7px;border-bottom:1px solid var(--border)}
 .modal-heading h3{margin:0;color:var(--ink);font-size:14px;font-weight:900}
 .payment-dialog,.account-dialog{width:min(500px,calc(100% - 32px));display:grid;gap:10px}
-.banks-workspace{--bank-visible-rows:11;--bank-list-viewport-height:calc(var(--erp-head-height) + var(--bank-visible-rows) * var(--erp-row-height));--bank-tab-stage-height:calc(55px + 6px + var(--bank-list-viewport-height));display:grid;grid-template-rows:auto auto!important;align-content:start;gap:8px}
+.banks-workspace{--bank-visible-rows:11;--bank-list-viewport-height:calc(var(--erp-head-height) + var(--bank-visible-rows) * var(--erp-row-height) + var(--erp-grid-width));--bank-tab-stage-height:calc(55px + 6px + var(--bank-list-viewport-height));display:grid;grid-template-rows:auto auto!important;align-content:start;gap:8px}
 .bank-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;align-self:start;height:auto;min-height:0}
 .bank-summary>div{display:grid;gap:1px;min-height:42px;padding:3px 10px;border-inline-start:1px solid var(--grid-line)}
 .bank-summary>div:last-child{border-inline-start:0}.bank-summary small{color:var(--text-muted);font-size:10px;font-weight:900}.bank-summary b{font-size:16px;font-weight:900}.bank-summary>div:nth-child(3) b{color:#14713b}.bank-summary>div:nth-child(4) b{color:#b62d3e}
@@ -1817,6 +1817,9 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .erp-table .name-cell { font-weight: 700; }
 .erp-table .action-cell { text-align: center; }
 .erp-table .action-cell button { min-height: 24px; height: 24px; padding: 2px 7px; }
+.banks-workspace .erp-table tbody tr { height: var(--erp-row-height); }
+.banks-workspace .erp-table tbody td { height: calc(var(--erp-row-height) - var(--erp-grid-width) / 2); }
+.banks-workspace .account-list .action-cell .soft { min-height: 24px; height: 24px; padding: 2px 7px; line-height: 1; }
 .erp-table .num { width: 100%; height: 25px; min-height: 25px; padding: 2px 4px; border: 0; border-radius: 0; background: transparent; text-align: center; }
 .erp-table .num:focus { outline: 2px solid var(--section-color); outline-offset: -2px; background: #fff; }
 .product-search-grid { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 6px; min-height: 0; overflow: hidden; }
