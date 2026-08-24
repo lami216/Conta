@@ -107,6 +107,7 @@ export interface Movement {
   occurredAt: string;
 }
 export interface BootstrapData {
+  principal: { principalType: "owner" | "user"; name: string; permissions: string[] };
   /** Informational only; product.create allocates the authoritative value atomically. */
   nextProductCode: number;
   /** Informational previews; posting remains authoritative and allocates atomically. */
@@ -142,6 +143,7 @@ export interface PaymentAccount {
   income: number;
   expenses: number;
   purchaseTotal: number;
+  isArchived?: boolean;
 }
 export interface FinancialMovement {
   id: string;
@@ -156,6 +158,10 @@ export interface FinancialMovement {
   occurredAt: string;
   transferId?: string | null;
   note?: string | null;
+  delta?: number;
+  balanceBefore?: number;
+  balanceAfter?: number;
+  reason?: string;
 }
 export const paymentMethods: Array<{
   id: Exclude<PaymentMethod, "note">;

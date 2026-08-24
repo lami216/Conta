@@ -3,7 +3,7 @@ import { ensureDatabaseSchema } from "./mongodb.ts";
 import { rebuildDocumentSequenceCounters } from "./document-sequences.ts";
 
 export const BACKUP_SCHEMA_VERSION = 1;
-export const BACKUP_COLLECTIONS = ["parties", "warehouses", "products", "documents", "stockMovements", "financialMovements", "paymentAccounts", "recurringExpenses", "accountTransfers", "counters", "auditEvents", "appSettings"] as const;
+export const BACKUP_COLLECTIONS = ["parties", "warehouses", "products", "documents", "stockMovements", "financialMovements", "paymentAccounts", "recurringExpenses", "accountTransfers", "counters", "auditEvents", "appSettings", "users"] as const;
 export const MAX_BACKUP_ITEMS = 500_000;
 export const MAX_BACKUP_BYTES = 50 * 1024 * 1024;
 type BackupCollection = typeof BACKUP_COLLECTIONS[number];

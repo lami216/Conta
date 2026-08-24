@@ -1,11 +1,11 @@
 import { ensurePartyTypes, getMongo } from "../../../lib/mongodb";
 import { resolvePartyType } from "../../domain";
 import { log } from "../../../lib/log";
-import { sessionFromRequest } from "../../../lib/auth";
+import { getPrincipalFromRequest, hasCapability } from "../../../lib/auth";
 import { peekNextDocumentSequence } from "../../../lib/document-sequences";
 
 export async function GET(request: Request) {
-  if (!sessionFromRequest(request)) return Response.json({ error: "غير مصرح" }, { status: 401 });
+  const principal=await getPrincipalFromRequest(request);if(!principal)return Response.json({error:"غير مصرح"},{status:401});
   try {
     const db = await getMongo();
     await ensurePartyTypes(db);
@@ -53,6 +53,11 @@ export async function GET(request: Request) {
     }, 0);
     const nextProductCode = Math.max(highestLegacyCode, Number(productCounter?.value ?? 0)) + 1;
     const cleanParties = clean(parties).map(party => ({ ...party, partyType: resolvePartyType(party) }));
-    return Response.json({ parties: cleanParties, warehouses: clean(warehouses), products: cleanProducts, documents: clean(documents), movements: clean(movements), recurringExpenses: clean(recurringRows), financialMovements: clean(financialMovements), paymentAccounts: clean(accountRows), accountTransfers: clean(accountTransfers), nextProductCode, nextDocumentSequences: { sale: nextSale, purchase: nextPurchase, expense: nextExpense } });
+    const bankAccess=hasCapability(principal,"banks.view")||hasCapability(principal,"banks.movements.view"),partyAdmin=hasCapability(principal,"customers.view")||hasCapability(principal,"suppliers.view"),productAdmin=hasCapability(principal,"products.view");
+    const selectorAccounts=(clean(accountRows) as Array<Record<string,unknown>>).filter(account=>account.isActive!==false).map(account=>bankAccess?account:{id:account.id,code:account.code,name:account.name,isActive:account.isActive});
+    const allowedDocuments=(clean(documents) as Array<Record<string,unknown>>).filter(document=>hasCapability(principal,"records.view")||(hasCapability(principal,"pos.view")&&["sale","return"].includes(String(document.kind)))||(hasCapability(principal,"purchases.view")&&document.kind==="purchase")||(hasCapability(principal,"expenses.view")&&document.kind==="expense"));
+    const exposedParties=partyAdmin?cleanParties:(cleanParties as Array<Record<string,unknown>>).map(({id,name,phone,partyType})=>({id,name,phone,partyType,receivable:0,payable:0,net:0}));
+    const exposedProducts=productAdmin?cleanProducts:(cleanProducts as Array<Record<string,unknown>>).map(({id,name,sku,barcode,piecePrice,wholesalePrice,expiryDate,stocks,isArchived})=>({id,name,sku,barcode,piecePrice,wholesalePrice,expiryDate,stocks,isArchived,pieceCost:null,lastPurchaseCost:null}));
+    return Response.json({ principal:{principalType:principal.principalType,name:principal.name,permissions:principal.permissions}, parties:exposedParties, warehouses:clean(warehouses), products:exposedProducts, documents:allowedDocuments, movements:hasCapability(principal,"warehouses.inventory.view")?clean(movements):[], recurringExpenses:hasCapability(principal,"expenses.view")?clean(recurringRows):[], financialMovements:bankAccess?clean(financialMovements):[], paymentAccounts:selectorAccounts, accountTransfers:hasCapability(principal,"banks.transfer")?clean(accountTransfers):[], nextProductCode, nextDocumentSequences:{sale:nextSale,purchase:nextPurchase,expense:nextExpense} });
   } catch (error) { log("error", "api.bootstrap.failed", { error }); return Response.json({ error: "تعذر تحميل البيانات" }, { status: 500 }); }
 }
