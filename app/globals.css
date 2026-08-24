@@ -1876,10 +1876,6 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .scanner-switch{display:flex;align-items:center;gap:7px;height:30px;min-height:30px;padding:3px 9px;border:1px solid var(--line);border-radius:6px;color:var(--text);background:#fff}
 .scanner-indicator{display:grid;place-items:center;width:18px;height:18px;border:2px solid var(--brand);border-radius:50%}
 .scanner-indicator-dot{width:7px;height:7px;border-radius:50%;background:var(--brand)}
-.bank-option.selected-bank select{border:2px solid var(--brand);background:#edf7f3;color:var(--text)}
-.bank-option.selected-bank select option{color:initial;background:#fff}
-.bank-option.selected-bank .combobox-trigger{border:2px solid var(--brand);background:#edf7f3;color:var(--text)}
-
 .product-form-halves{display:grid;grid-template-columns:1fr 1fr;gap:8px;min-height:0}.product-form-group{display:grid;align-content:start;gap:6px}.product-form-group label{display:grid;gap:3px}.product-form-group textarea{resize:vertical;min-height:48px;max-height:80px}.expired-badge{display:block;color:#b42318;font-size:9px;font-weight:900}.product-form{display:grid;gap:8px;max-height:min(88vh,650px);overflow:auto}@media(max-width:760px){.product-form-halves{grid-template-columns:1fr}}
 
 @media(max-width:1050px){.parties-controls{grid-template-columns:1fr}.expense-form-body{grid-template-columns:1fr}.warehouse-head{align-items:stretch}.warehouse-actions{flex-wrap:wrap}}
@@ -1976,34 +1972,39 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .overview-statement > div { min-height: 30px; display: grid; grid-template-columns: 1fr 140px; border-block-end: 1px solid #333; align-items: center; }
 .overview-statement > div b { padding: 4px 8px; border-inline-start: 1px solid #333; text-align: end; }
 .overview-statement .negative { color: #a11b1b; } .overview-statement .positive { color: #087443; }
-.pos-payment-row { direction: rtl; display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; }
+.pos-payment-row { direction: rtl; display: grid; grid-template-columns: 50px 72px minmax(0, 1fr); align-items: center; gap: 4px; width: 100%; min-width: 0; }
 .pos-payment-row .compact-payment { display: contents; }
 .pos-payment-row > *, .compact-payment, .bank-option, .pos-customer-compact,
 .pos-payment-row .combobox, .pos-payment-row .combobox-trigger { min-width: 0; }
-.pos-payment-row .compact-payment > button { flex: 0 0 50px; width: 50px; }
-.pos-payment-row .bank-option { flex: 0 0 72px; width: 72px; }
-.pos-customer-compact { flex: 1 1 auto; width: auto; min-width: 0; }
-.pos-payment-row .compact-payment > button, .combobox-pos-native .combobox-trigger { height: 33px; min-height: 33px; padding: 2px 6px; border-radius: 4px; background: #fff; font-size: 11px; }
-.combobox-pos-native, .combobox-pos-native .combobox-trigger { width: 100%; min-width: 0; }
-.combobox-pos-native .combobox-trigger { gap: 3px; border: 1px solid #9faab8; }
-.combobox-pos-native .combobox-trigger span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.combobox-pos-native .combobox-trigger svg { flex: 0 0 12px; width: 12px; }
-.combobox-popover-pos-native { padding: 0; border: 1px solid #4b5563; border-radius: 3px; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,.1); }
-.combobox-popover-pos-native .search { height: 30px; min-height: 30px; border: 0; border-bottom: 1px solid #c7cdd4; border-radius: 0; background: #fff; }
-.combobox-popover-pos-native .search svg { width: 13px; }
-.combobox-popover-pos-native .search input { height: 29px; min-height: 29px; padding: 2px 5px; border: 0; font-size: 11px; }
-.combobox-popover-pos-native .combobox-results { max-height: 192px; margin: 0; }
-.combobox-popover-pos-native .combobox-results button { height: 31px; min-height: 31px; padding: 3px 6px; border: 0; border-radius: 0; color: #111; background: #fff; font-size: 11px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.combobox-popover-pos-native .combobox-results button:hover,
-.combobox-popover-pos-native .combobox-results button.active { color: #111; background: #e5e7eb; }
+.pos-payment-row .compact-payment > button,
+.pos-payment-row .bank-option select,
+.combobox-pos-customer .combobox-trigger { width: 100%; height: 33px; min-height: 33px; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+.bank-option { min-width: 0; }
+.bank-option select { width: 100%; background: #fff; border: 1px solid #9faab8; }
+.bank-option.selected-bank select { border-color: var(--brand); background: #fff; color: var(--text); }
+.pos-customer-compact, .combobox-pos-customer { width: 100%; min-width: 0; }
+.combobox-pos-customer .combobox-trigger { gap: 3px; background: #fff; border: 1px solid #9faab8; }
+.combobox-pos-customer .combobox-trigger span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combobox-pos-customer .combobox-trigger svg { flex: 0 0 12px; width: 12px; }
+.combobox-popover-pos-customer { direction: rtl; padding: 0; border: 1px solid #4b5563; border-radius: 3px; background: #fff; box-shadow: none; }
+.combobox-popover-pos-customer .search { height: 30px; min-height: 30px; border: 0; border-bottom: 1px solid #c7cdd4; border-radius: 0; background: #fff; }
+.combobox-popover-pos-customer .search svg { width: 13px; }
+.combobox-popover-pos-customer .search input { height: 29px; min-height: 29px; padding: 2px 7px; border: 0; font-size: 11px; text-align: right; }
+.combobox-popover-pos-customer .combobox-results { max-height: 192px; margin: 0; }
+.combobox-popover-pos-customer .combobox-results button { display: block; width: 100%; height: 31px; min-height: 31px; padding: 3px 8px; border: 0; border-radius: 0; color: #111; background: #fff; font-size: 11px; font-weight: 600; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combobox-popover-pos-customer .combobox-results button:hover,
+.combobox-popover-pos-customer .combobox-results button.active { color: #111; background: #e5e7eb; }
+.payment-section .compact-payment { display: grid; grid-template-columns: 66px minmax(150px, 1fr); gap: 6px; width: 100%; min-width: 0; }
+.payment-section .compact-payment > button,
+.payment-section .bank-option select { width: 100%; height: 35px; min-height: 35px; }
 .workspace-checkout .checkout-body { min-width: 0; max-width: 100%; overflow-x: hidden; }
 @media (min-width: 1051px) {
-  .pos-workspace { grid-template-columns: minmax(0, 23fr) minmax(0, 42fr) minmax(0, 35fr); }
+  .pos-workspace { grid-template-columns: minmax(0, 24fr) minmax(0, 41fr) minmax(0, 35fr); }
 }
 .pos-add-customer { justify-self: end; min-height: 27px; height: 27px; padding: 2px 5px; }
 .pos-note-customer-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; }
 .pos-note-customer-row .link { height: 36px; min-height: 36px; white-space: nowrap; }
-.overview-invoice-table { min-width: 760px; }
+.overview-invoice-table { width: 100%; min-width: 0; table-layout: fixed; }
 .overview-invoice-table .invoice-group-row th { position: static; height: 27px; padding: 3px 8px; color: var(--color-reports); background: var(--section-soft); text-align: right; }
 .overview-invoice-table td.positive, .overview-business-strip .positive { color: #087443; }
 .overview-invoice-table td.negative, .overview-business-strip .negative, .bank-detail .negative { color: #a11b1b; }
@@ -2058,10 +2059,14 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .comprehensive-report .overview-toolbar label { min-width: 135px; }
 .comprehensive-report .overview-grid { grid-template-rows: minmax(300px,1fr) auto; gap: 6px; }
 .comprehensive-report .overview-grid > .panel { padding: 6px 8px; }
-.comprehensive-report .overview-invoice-table { min-width: 680px; }
-.comprehensive-report .overview-invoice-table th:nth-child(1) { width: 6%; }
-.comprehensive-report .overview-invoice-table th:nth-child(2) { width: 16%; }
-.comprehensive-report .overview-invoice-table th:nth-child(3) { width: 13%; }
-.comprehensive-report .overview-invoice-table th:nth-child(4) { width: 15%; }
-.comprehensive-report .overview-invoice-table th:nth-child(n+5) { width: 16.66%; }
+.comprehensive-report .overview-invoice-table { width: 100%; min-width: 0; table-layout: fixed; font-size: 10.5px; }
+.comprehensive-report .overview-invoice-table th,
+.comprehensive-report .overview-invoice-table td { padding: 4px 5px; }
+.comprehensive-report .overview-invoice-table th { font-size: 10.5px; font-weight: 800; }
+.comprehensive-report .overview-invoice-table th:nth-child(1) { width: 8%; }
+.comprehensive-report .overview-invoice-table th:nth-child(2) { width: 21%; }
+.comprehensive-report .overview-invoice-table th:nth-child(3) { width: 19%; }
+.comprehensive-report .overview-invoice-table th:nth-child(4) { width: 18%; }
+.comprehensive-report .overview-invoice-table th:nth-child(5) { width: 17%; }
+.comprehensive-report .overview-invoice-table th:nth-child(6) { width: 17%; }
 @media (max-width:1099px) { .party-detail { overflow:auto; grid-template-rows:auto auto auto; } .party-detail-top { grid-template-columns:1fr; } }
