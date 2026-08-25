@@ -24,7 +24,9 @@ test("parties and banks use framed ERP tables", () => {
 });
 test("settings uses full framed workspace with an explicit accent", () => {
   const settings = between("function SettingsPage", "function FramedSection");
-  for (const title of ["النسخ الاحتياطي", "الاستعادة والاستيراد", "سجل عمليات الاستيراد"]) assert.match(settings, new RegExp(`FramedSection title="${title}"`));
+  for (const title of ["النسخ الاحتياطي", "الاستعادة والاستيراد"]) assert.match(settings, new RegExp(`FramedSection title="${title}"`));
+  assert.doesNotMatch(settings, /سجل عمليات الاستيراد|\/api\/settings\/import-runs/);
+  assert.match(settings, /className="settings-utility-row"/);
   assert.doesNotMatch(settings, /compact-counts|settings-title/);
   assert.doesNotMatch(css, /max-width:\s*1120px/);
   assert.match(css, /\.section-settings\s*\{[^}]*--section-color:\s*var\(--color-settings\)/);
