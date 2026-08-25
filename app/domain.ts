@@ -81,6 +81,12 @@ export interface DocumentRecord {
   total: number;
   dueTotal: number;
   paidTotal: number;
+  /** Actual cash moved; legacy documents fall back to paidTotal. */
+  cashAmount?: number;
+  partyCashDirection?: "receive" | "pay";
+  partyBalanceBefore?: number;
+  partyBalanceDelta?: number;
+  partyBalanceAfter?: number;
   occurredAt: string;
   businessDate?: string;
   dailySequence?: number;

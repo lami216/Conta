@@ -3,6 +3,7 @@ import { getMongo, getMongoClient } from "../../../lib/mongodb.ts";
 import { log } from "../../../lib/log.ts";
 import { requireCapability, validSameOrigin, type Capability } from "../../../lib/auth.ts";
 import { isProductExpired } from "../../domain.ts";
+import { normalizePartyNet, partyCashDelta, partyNet } from "../../party-balance.ts";
 import { nextDocumentSequence, type SequencedDocumentKind } from "../../../lib/document-sequences.ts";
 
 type Input = Record<string, unknown>;
@@ -95,15 +96,18 @@ async function historicalCost(db: Db, session: ClientSession, productId: string,
 }
 async function changePartyDebt(db: Db, session: ClientSession, partyId: unknown, kind: "sale" | "purchase", delta: number, reversing = false) {
   if (!delta) return;
-  const key = kind === "sale" ? "receivable" : "payable", netDelta = kind === "sale" ? delta : -delta;
-  const result = await db.collection("parties").updateOne(
-    { id: String(partyId), ...(reversing ? { [key]: { $gte: Math.abs(delta) } } : {}) },
-    { $inc: { [key]: delta, net: netDelta } }, { session },
-  );
-  if (!result.matchedCount) throw new CommandError("لا يمكن تعديل هذه الفاتورة لأن رصيدها تمت تسويته بحركة لاحقة.", 409);
+  await applyPartyNetDelta(db, session, partyId, kind === "sale" ? delta : -delta, reversing);
+}
+async function applyPartyNetDelta(db: Db, session: ClientSession, partyId: unknown, delta: number, reversing = false) {
+  if (!delta) return null;
+  const party = await db.collection("parties").findOne({ id: String(partyId) }, { session });
+  if (!party) { if (reversing) throw new CommandError("لا يمكن تعديل رصيد الطرف", 409); return null; }
+  const before = partyNet(party as {receivable?:unknown;payable?:unknown}), after = before + delta;
+  await db.collection("parties").updateOne({ _id: party._id }, { $set: { ...normalizePartyNet(after), lastMovementAt: new Date() } }, { session });
+  return { before, delta, after };
 }
 async function reverseInvoicePayment(db: Db, session: ClientSession, document: Record<string, unknown>, kind: "sale" | "purchase") {
-  const amount = Number(document.paidTotal ?? 0);
+  const amount = Number(document.cashAmount ?? document.paidTotal ?? 0);
   if (!amount) return;
   const movement = await db.collection("financialMovements").findOne({ documentId: document.id, type: kind }, { session });
   if (!movement) throw new CommandError("تعذر العثور على حركة الدفع الأصلية للفاتورة", 409);
@@ -278,17 +282,17 @@ export async function execute(db: Db, session: ClientSession, body: Input) {
     if (paymentMethod !== "note") await paymentAccount(db, session, paymentMethod);
     const costs = isSale ? new Map(await Promise.all(input.map(async line => [line.productId, await authoritativeCost(db, session, map.get(line.productId)!)] as const))) : new Map<string, number | null>();
     const calculated = input.map(line => { const p = map.get(line.productId)!; let unitPrice: number, total: number; if (isSale) { const price = positive(line.piecePrice, "سعر الفرد"); const cost = costs.get(line.productId); if (cost != null && price < cost) throw new CommandError(`لا يمكن البيع تحت سعر الشراء. سعر الشراء الحالي: ${cost} MRU`); total = Math.round(line.quantity * price); unitPrice = price; } else { unitPrice = positive(line.unitPrice, "سعر الشراء"); total = Math.round(unitPrice * line.quantity); } return { id: id("line"), productId: line.productId, description: p.name, quantity: line.quantity, unitPrice, lineTotal: total, ...(isSale ? { costAtSale: costs.get(line.productId) ?? null, grossProfit: costs.get(line.productId) == null ? null : total - line.quantity * Number(costs.get(line.productId)) } : {}) }; });
-    const total = calculated.reduce((s, l) => s + l.lineTotal, 0), requestedPaid = paymentMethod === "note" ? 0 : total; const due = total - requestedPaid;
-    if (due > 0 && !party) throw new CommandError("يجب اختيار طرف عند وجود مبلغ مستحق");
+    const total = calculated.reduce((s, l) => s + l.lineTotal, 0), cashAmount = paymentMethod === "note" ? 0 : positive(body.cashAmount ?? body.paidAmount ?? total, isSale ? "المبلغ المستلم" : "المبلغ المدفوع", true), requestedPaid = Math.min(total, cashAmount), due = Math.max(total - cashAmount, 0), partyDelta = isSale ? total - cashAmount : -total + cashAmount;
+    if (partyDelta && !party) throw new CommandError("اختر عميلاً عند اختلاف المبلغ المستلم عن إجمالي الفاتورة");
     const businessDate = new Date().toISOString().slice(0, 10);
     const dailySequence = isSale ? (Number((await db.collection("documents").find({ kind: "sale", businessDate }, { session }).sort({ dailySequence: -1 }).limit(1).next())?.dailySequence ?? 0) + 1) : undefined;
     const pricingMode = body.pricingMode === "wholesale" ? "wholesale" : "retail";
-    const doc = { ...await numberedDocument(db, session, isSale ? "sale" : "purchase", isSale ? "SAL" : "PUR"), businessDate, ...(isSale ? { dailySequence, pricingMode } : {}), partyId: partyId || null, partyName: party?.name ?? null, warehouseId, warehouseName: warehouse.name, destinationWarehouseId: null, destinationWarehouseName: null, parentDocumentId: null, paymentMethod, title: null, total, dueTotal: due, paidTotal: requestedPaid, lines: calculated };
+    const snapshot = partyDelta ? await applyPartyNetDelta(db, session, partyId, partyDelta) : null;
+    const doc = { ...await numberedDocument(db, session, isSale ? "sale" : "purchase", isSale ? "SAL" : "PUR"), businessDate, ...(isSale ? { dailySequence, pricingMode } : {}), partyId: partyId || null, partyName: party?.name ?? null, warehouseId, warehouseName: warehouse.name, destinationWarehouseId: null, destinationWarehouseName: null, parentDocumentId: null, paymentMethod, title: null, total, dueTotal: due, paidTotal: requestedPaid, cashAmount, ...(snapshot ? { partyBalanceBefore:snapshot.before, partyBalanceDelta:snapshot.delta, partyBalanceAfter:snapshot.after } : {}), lines: calculated };
     for (const line of input) await changeStock(db, session, map.get(line.productId)!, warehouse, isSale ? -line.quantity : line.quantity, doc, isSale ? "sale" : "purchase");
     await db.collection("documents").insertOne(doc, { session });
     if (!isSale) for (const line of calculated) await db.collection("products").updateOne({ id: line.productId }, { $set: { lastPurchaseCost: line.unitPrice, lastPurchaseAt: doc.occurredAt } }, { session });
-    if (due) await db.collection("parties").updateOne({ id: partyId }, { $inc: isSale ? { receivable: due, net: due } : { payable: due, net: -due } }, { session });
-    if (requestedPaid) await financialMovement(db, session, doc, isSale ? "in" : "out", requestedPaid, isSale ? "sale" : "purchase", { allowNegative: !isSale });
+    if (cashAmount) await financialMovement(db, session, doc, isSale ? "in" : "out", cashAmount, isSale ? "sale" : "purchase", { allowNegative: !isSale });
     return doc.id;
   }
   if (type === "transfer.post") {
@@ -310,6 +314,13 @@ export async function execute(db: Db, session: ClientSession, body: Input) {
     const calculated = input.map(l => { const original = saleLines.get(l.productId); if (!original || l.quantity + (returned.get(l.productId) ?? 0) > original.quantity) throw new CommandError("كمية الإرجاع تتجاوز الكمية القابلة للإرجاع"); const lineTotal = Math.round(l.quantity * Number(original.unitPrice)), cost = original.costAtSale ?? null; return { id: id("line"), productId: l.productId, description: original.description, quantity: l.quantity, unitPrice: original.unitPrice, lineTotal, costAtSale: cost, grossProfit: cost == null ? null : lineTotal - l.quantity * cost }; }); const total = calculated.reduce((s, l) => s + l.lineTotal, 0), priorDueCredits = prior.reduce((sum, d) => sum + Math.max(0, Number(d.total) - Number(d.paidTotal)), 0), priorRefunds = prior.reduce((sum, d) => sum + Number(d.paidTotal), 0), dueCredit = Math.min(total, Math.max(0, Number(sale.dueTotal) - priorDueCredits)), refund = Math.min(total - dueCredit, Math.max(0, Number(sale.paidTotal) - priorRefunds)), doc = { ...baseDocument("return", "RET"), partyId: sale.partyId, partyName: sale.partyName, warehouseId: sale.warehouseId, warehouseName: sale.warehouseName, destinationWarehouseId: null, destinationWarehouseName: null, parentDocumentId: saleId, paymentMethod: sale.paymentMethod, title: null, total, dueTotal: total - dueCredit - refund, paidTotal: refund, lines: calculated };
     for (const line of input) await changeStock(db, session, map.get(line.productId)!, warehouse, line.quantity, doc, "sale-return"); await db.collection("documents").insertOne(doc, { session }); if (dueCredit && sale.partyId) await db.collection("parties").updateOne({ id: sale.partyId }, { $inc: { receivable: -dueCredit, net: -dueCredit } }, { session }); return doc.id;
   }
+  if (type === "party-cash.post") {
+    const partyId=text(body.partyId), party=await db.collection("parties").findOne({id:partyId},{session}); if(!party) throw new CommandError("الطرف غير موجود",404);
+    const amount=positive(body.amount,"المبلغ"), direction=text(body.direction); if(direction!=="receive"&&direction!=="pay") throw new CommandError("اتجاه الحركة غير صالح");
+    const method=text(body.paymentMethod); await paymentAccount(db,session,method); const snapshot=await applyPartyNetDelta(db,session,partyId,partyCashDelta(direction,amount));
+    const doc={...baseDocument("payment","PAY"),partyId,partyName:party.name,warehouseId:null,warehouseName:null,destinationWarehouseId:null,destinationWarehouseName:null,parentDocumentId:null,paymentMethod:method,title:direction==="receive"?"استلام من الطرف":"دفع للطرف",note:text(body.note)||null,total:amount,dueTotal:0,paidTotal:amount,cashAmount:amount,partyCashDirection:direction,partyBalanceBefore:snapshot!.before,partyBalanceDelta:snapshot!.delta,partyBalanceAfter:snapshot!.after,lines:[]};
+    await db.collection("documents").insertOne(doc,{session}); await financialMovement(db,session,doc,direction==="receive"?"in":"out",amount,direction==="receive"?"party-receipt":"party-payment"); return doc.id;
+  }
   if (["payment.post", "settlement.post", "offset.post"].includes(type)) {
     const partyId = text(body.partyId), party = await db.collection("parties").findOne({ id: partyId }, { session }); if (!party) throw new CommandError("الطرف غير موجود", 404); const requested = positive(body.amount, "المبلغ"); let receivable = Number(party.receivable), payable = Number(party.payable); const side = text(body.side); if (type === "offset.post") { const amount = Math.min(requested, receivable, payable); if (amount <= 0 || requested > amount) throw new CommandError("المقاصة تتجاوز الرصيد المشترك"); receivable -= amount; payable -= amount; } else if (side === "receivable") { if (requested > receivable) throw new CommandError("المبلغ يتجاوز المستحق"); receivable -= requested; } else { if (requested > payable) throw new CommandError("المبلغ يتجاوز المستحق"); payable -= requested; }
     const kind = type.split(".")[0], method = type === "offset.post" || type === "settlement.post" ? null : text(body.paymentMethod); if (type === "payment.post") await paymentAccount(db, session, method); const doc = { ...baseDocument(kind, kind === "offset" ? "OFF" : kind === "payment" ? "PAY" : "SET"), partyId, partyName: party.name, warehouseId: null, warehouseName: null, destinationWarehouseId: null, destinationWarehouseName: null, parentDocumentId: null, paymentMethod: method, title: side === "receivable" ? "الطرف دفع لنا" : "نحن دفعنا للطرف", total: requested, dueTotal: 0, paidTotal: requested, lines: [] }; await db.collection("parties").updateOne({ id: partyId }, { $set: { receivable, payable, net: receivable - payable } }, { session }); await db.collection("documents").insertOne(doc, { session }); if (type === "payment.post") await financialMovement(db, session, doc, side === "receivable" ? "in" : "out", requested, side === "receivable" ? "party-receipt" : "party-payment"); return doc.id;
@@ -329,7 +340,7 @@ export async function POST(request: Request) {
   let type = "unknown";
   try {
     const body = await request.json() as Input; type = text(body.type);
-    const map:Record<string,Capability>={"product.delete":"products.delete","product.create":"products.create","product.update":"products.edit","warehouse.create":"warehouses.create","warehouse.update":"warehouses.edit","warehouse.default":"warehouses.edit","sale.post":"pos.create","sale.update":"pos.edit","sale.void":"pos.delete","sale.return":"returns.sale","purchase.post":"purchases.create","purchase.update":"purchases.edit","purchase.void":"purchases.delete","transfer.post":"warehouses.transfer","adjustment.post":"warehouses.adjust","payment.post":text(body.side)==="receivable"?"customers.collect":"suppliers.pay","settlement.post":"customers.edit","offset.post":"customers.edit","expense.post":"expenses.create","expense.materialize":"expenses.create","payment-account.create":"banks.create","payment-account.update":"banks.edit","payment-account.delete":"banks.delete","account-adjustment.post":"banks.deposit_withdraw","account-transfer.post":"banks.transfer","account-balance-correction.post":"banks.balance_correct","party.create":body.partyType==="customer"?"customers.create":"suppliers.create"};
+    const map:Record<string,Capability>={"product.delete":"products.delete","product.create":"products.create","product.update":"products.edit","warehouse.create":"warehouses.create","warehouse.update":"warehouses.edit","warehouse.default":"warehouses.edit","sale.post":"pos.create","sale.update":"pos.edit","sale.void":"pos.delete","sale.return":"returns.sale","purchase.post":"purchases.create","purchase.update":"purchases.edit","purchase.void":"purchases.delete","transfer.post":"warehouses.transfer","adjustment.post":"warehouses.adjust","payment.post":text(body.side)==="receivable"?"customers.collect":"suppliers.pay","party-cash.post":text(body.partyType)==="supplier"?"suppliers.pay":"customers.collect","settlement.post":"customers.edit","offset.post":"customers.edit","expense.post":"expenses.create","expense.materialize":"expenses.create","payment-account.create":"banks.create","payment-account.update":"banks.edit","payment-account.delete":"banks.delete","account-adjustment.post":"banks.deposit_withdraw","account-transfer.post":"banks.transfer","account-balance-correction.post":"banks.balance_correct","party.create":body.partyType==="customer"?"customers.create":"suppliers.create"};
     const capability=map[type];if(!capability)return Response.json({error:"العملية غير مدعومة"},{status:400});const denied=await requireCapability(request,capability);if(denied)return denied;if(!validSameOrigin(request))return Response.json({error:"طلب غير صالح"},{status:403});
     const db = await getMongo(), client = getMongoClient(); let result = "";
     await client.withSession(session => session.withTransaction(async () => { await db.collection("auditEvents").insertOne({ id: id("audit"), action: type, status: "started", createdAt: new Date() }, { session }); result = await execute(db, session, body); await db.collection("auditEvents").insertOne({ id: id("audit"), action: type, entityId: result, status: "committed", createdAt: new Date() }, { session }); }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" } }));
