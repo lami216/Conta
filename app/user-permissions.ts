@@ -1,5 +1,4 @@
 export type PermissionAction = "view" | "create" | "edit" | "delete";
-export type AccountPreset = "manager" | "accountant" | "sales" | "custom";
 
 export const permissionRows: Array<{
   name: string;
@@ -32,8 +31,8 @@ export const permissionRows: Array<{
   { name: "المستخدمون والصلاحيات", actions: { create: "settings.users.manage" } },
 ];
 
-const allPermissions = [...new Set(permissionRows.flatMap(row => Object.values(row.actions)))];
-export const permissionPresets: Record<Exclude<AccountPreset, "custom">, string[]> = {
+export const allPermissions = [...new Set(permissionRows.flatMap(row => Object.values(row.actions)))];
+export const permissionPresets = {
   manager: allPermissions,
   accountant: [
     "purchases.view", "purchases.create", "purchases.edit", "records.view", "returns.purchase",
@@ -44,13 +43,9 @@ export const permissionPresets: Record<Exclude<AccountPreset, "custom">, string[
   sales: ["pos.view", "pos.create", "customers.create"],
 };
 
-export const presetLabels: Record<AccountPreset, string> = {
-  manager: "مدير", accountant: "محاسب", sales: "بائع", custom: "مخصص",
-};
-
+export type AccountPreset = keyof typeof permissionPresets | "custom";
 const samePermissions = (left: string[], right: string[]) =>
   left.length === right.length && left.every(permission => right.includes(permission));
-
 export function detectPermissionPreset(permissions: string[]): AccountPreset {
   for (const preset of ["manager", "accountant", "sales"] as const) {
     if (samePermissions(permissionPresets[preset], [...new Set(permissions)])) return preset;

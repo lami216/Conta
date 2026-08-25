@@ -40,3 +40,6 @@ next-env.d.ts
 /.next-candidate/
 /.next-previous/
 /.sites-runtime/
+
+# local browser QA output
+/artifacts/

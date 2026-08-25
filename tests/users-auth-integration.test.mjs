@@ -32,7 +32,7 @@ test("Owner -> Manager -> Sales authentication and user administration", { timeo
     assert.equal((await login("owner", "incorrect-password")).headers.get("location"), `${origin}/login?error=1`);
     const ownerCookie = cookieFrom(ownerEnglish);
 
-    const managerResponse = await usersRoute.POST(request("/api/settings/users", ownerCookie, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "المدير", username: "manager", password: "ManagerPass123!", isActive: true, permissions: presets.permissionPresets.manager }) }));
+    const managerResponse = await usersRoute.POST(request("/api/settings/users", ownerCookie, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: "manager", password: "ManagerPass123!", permissions: presets.permissionPresets.manager }) }));
     assert.equal(managerResponse.status, 201);
     const manager = (await managerResponse.json()).user;
     assert.ok(manager.id);
@@ -40,10 +40,19 @@ test("Owner -> Manager -> Sales authentication and user administration", { timeo
     assert.equal("password" in manager, false);
     const managerRecord = await (await getMongo()).collection("users").findOne({ id: manager.id });
     assert.equal(managerRecord.usernameNormalized, "manager");
+    assert.equal(managerRecord.name, "manager");
+    assert.equal(managerRecord.isActive, true);
     assert.equal(managerRecord.password, undefined);
     assert.notEqual(managerRecord.passwordHash, "ManagerPass123!");
     assert.equal(auth.verifyPasswordHash("ManagerPass123!", managerRecord.passwordHash), true);
 
+
+    const seller2Response = await usersRoute.POST(request("/api/settings/users", ownerCookie, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: "seller2", password: "SellerPass123!", permissions: ["pos.view", "pos.create"] }) }));
+    assert.equal(seller2Response.status, 201);
+    const seller2Record = await (await getMongo()).collection("users").findOne({ id: (await seller2Response.json()).user.id });
+    assert.equal(seller2Record.name, "seller2");
+    assert.equal(seller2Record.isActive, true);
+    assert.equal((await login("seller2", "SellerPass123!")).status, 303);
     const duplicate = await usersRoute.POST(request("/api/settings/users", ownerCookie, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "Duplicate", username: "MANAGER", password: "Duplicate123!", permissions: [] }) }));
     assert.equal(duplicate.status, 409);
     const managerLogin = await login("manager", "ManagerPass123!");
@@ -63,7 +72,7 @@ test("Owner -> Manager -> Sales authentication and user administration", { timeo
     const usersList = await usersRoute.GET(request("/api/settings/users", managerCookie));
     const usersBody = await usersList.json();
     assert.equal(JSON.stringify(usersBody).includes("passwordHash"), false);
-    assert.equal(usersBody.users.length, 2);
+    assert.equal(usersBody.users.length, 3);
 
     const blankPasswordUpdate = await userRoute.PUT(request(`/api/settings/users/${sales.id}`, managerCookie, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...sales, password: "", isActive: true }) }), { params: Promise.resolve({ id: sales.id }) });
     assert.equal(blankPasswordUpdate.status, 200);
