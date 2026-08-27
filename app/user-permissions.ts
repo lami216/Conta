@@ -14,7 +14,7 @@ export const permissionRows: Array<{
   { name: "الموردون", actions: { view: "suppliers.view", create: "suppliers.create", edit: "suppliers.edit" } },
   { name: "حساب العميل / التحصيل", actions: { view: "customers.view", create: "customers.collect" } },
   { name: "حساب المورد / الدفع", actions: { view: "suppliers.view", create: "suppliers.pay" } },
-  { name: "المخازن", actions: { view: "warehouses.view", create: "warehouses.create", edit: "warehouses.edit" } },
+  { name: "المخازن", actions: { view: "warehouses.view", create: "warehouses.create", edit: "warehouses.edit", delete: "warehouses.delete" } },
   { name: "جرد المخزن", actions: { view: "warehouses.inventory.view" } },
   { name: "التحويل بين المخازن", actions: { create: "warehouses.transfer" } },
   { name: "تصحيح المخزون", actions: { create: "warehouses.adjust" } },

@@ -6,7 +6,7 @@ const MAX_AGE = 60 * 60 * 12;
 export const CAPABILITIES = [
   "pos.view","pos.create","pos.edit","pos.delete","purchases.view","purchases.create","purchases.edit","purchases.delete","records.view","returns.sale","returns.purchase",
   "products.view","products.create","products.edit","products.delete","customers.view","customers.create","customers.edit","customers.collect","suppliers.view","suppliers.create","suppliers.edit","suppliers.pay",
-  "warehouses.view","warehouses.create","warehouses.edit","warehouses.inventory.view","warehouses.transfer","warehouses.adjust","banks.view","banks.create","banks.edit","banks.delete","banks.movements.view","banks.transfer","banks.deposit_withdraw","banks.balance_correct",
+  "warehouses.view","warehouses.create","warehouses.edit","warehouses.delete","warehouses.inventory.view","warehouses.transfer","warehouses.adjust","banks.view","banks.create","banks.edit","banks.delete","banks.movements.view","banks.transfer","banks.deposit_withdraw","banks.balance_correct",
   "expenses.view","expenses.create","expenses.edit","expenses.delete","reports.view","settings.view","settings.backup.manage","settings.legacy.import","settings.users.manage",
 ] as const;
 export type Capability = typeof CAPABILITIES[number];
