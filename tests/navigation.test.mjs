@@ -11,3 +11,12 @@ test("product and report tables use uncapped shared scroll viewports", async () 
   assert.match(css, /product-table-viewport\{height:100%;overflow:auto;contain:paint;background:#fff\}/);
   assert.match(css, /erp-table thead th\{background:var\(--section-color\);background-clip:padding-box\}/);
 });
+
+test("party ledger filters real compatible roles and transient documents overlay mounted content", async () => {
+  const source = await readFile(new URL("../app/conta-app.tsx", import.meta.url), "utf8");
+  assert.match(source, /filter\(p=>resolvePartyType\(p\)===partyTypeFilter\)/);
+  assert.match(source, /search:`\$\{p\.name\} \$\{p\.phone\?\?""\}`/);
+  assert.match(source, /setPartyTypeFilter\("supplier"\);setPartyId\(""\);setResult\(null\)/);
+  assert.doesNotMatch(source, /\) : doc \? \(/);
+  assert.match(source, /\{doc && <div className="modal-overlay"/);
+});

@@ -18,7 +18,7 @@ test("summary includes known and unknown cost sales without null financial value
 test("product filters use only selected lines in sales, purchases, returns, and profit",async()=>{await db.dropDatabase();await db.collection("documents").insertMany([doc("s","sale","2026-08-10",[line("a","a",10,100,70),line("b","b",1,5000,100)]),doc("p","purchase","2026-08-10",[line("pa","a",3,50),line("pb","b",1,900)]),doc("r","return","2026-08-11",[line("ra","a",2,100,70),line("rb","b",1,5000,100)],{parentDocumentId:"s"})]);const sales=await buildReport(db,filters("sales",{productId:"a"})),purchases=await buildReport(db,filters("purchases",{productId:"a"})),returns=await buildReport(db,filters("returns",{productId:"a"})),profit=await buildReport(db,filters("profit",{productId:"a"}));assert.equal(sales.summary.netSales,800);assert.equal(sales.summary.profit,240);assert.equal(purchases.summary.total,150);assert.equal(returns.summary.total,200);assert.equal(profit.summary.revenue,800);assert.equal(profit.rows.some(row=>row.productId==="b"),false);});
 test("product profit invoiceCount is unique per document",async()=>{await db.dropDatabase();await db.collection("documents").insertMany([doc("s1","sale","2026-08-10",[line("1","a",1,100,70),line("2","a",2,100,70)]),doc("s2","sale","2026-08-11",[line("3","a",1,100,70)])]);const report=await buildReport(db,filters("profit",{groupBy:"product"}));assert.equal(report.rows[0].invoiceCount,2);});
 test("financial transfers are excluded from operating totals",async()=>{await db.dropDatabase();await db.collection("financialMovements").insertMany([{id:"1",occurredAt:"2026-08-10T12:00:00Z",type:"sale",direction:"in",amount:100},{id:"2",occurredAt:"2026-08-10T12:00:00Z",type:"transfer-in",direction:"in",amount:500},{id:"3",occurredAt:"2026-08-10T12:00:00Z",type:"transfer-out",direction:"out",amount:500}]);const report=await buildReport(db,filters("financial"));assert.equal(report.summary.incoming,600);assert.equal(report.summary.operatingIncoming,100);assert.equal(report.summary.operatingNet,100);});
-test("overview uses typed party balances and authoritative active non-cash accounts",async()=>{await db.dropDatabase();await db.collection("paymentAccounts").insertMany([{id:"cash-id",code:"cash",name:"Cash",balance:1000,isActive:true},{id:"a",code:"a",name:"Bank A",balance:500,isActive:true},{id:"b",code:"b",name:"Bank B",balance:300,isActive:true},{id:"off",code:"off",name:"Inactive",balance:900,isActive:false}]);await db.collection("parties").insertMany([{id:"legacy",name:"Legacy",receivable:0,payable:20},{id:"c",name:"C",partyType:"customer",receivable:300,payable:99},{id:"s",name:"S",partyType:"supplier",payable:300,receivable:88}]);const report=await buildReport(db,filters("overview"));assert.equal(report.summary.customerReceivables,300);assert.equal(report.summary.supplierPayables,320);assert.deepEqual([report.summary.customerCount,report.summary.supplierCount],[1,2]);assert.deepEqual(report.bankAccounts.map(a=>[a.name,a.balance]),[["Bank A",500],["Bank B",300]]);assert.equal(report.summary.bankBalance,800);assert.equal(report.summary.bankBalance,report.bankAccounts.reduce((sum,a)=>sum+a.balance,0));});
+test("overview uses typed party balances and authoritative active non-cash accounts",async()=>{await db.dropDatabase();await db.collection("paymentAccounts").insertMany([{id:"cash-id",code:"cash",name:"Cash",balance:1000,isActive:true},{id:"a",code:"a",name:"Bank A",balance:500,isActive:true},{id:"b",code:"b",name:"Bank B",balance:300,isActive:true},{id:"off",code:"off",name:"Inactive",balance:900,isActive:false}]);await db.collection("parties").insertMany([{id:"legacy",name:"Legacy",receivable:0,payable:20},{id:"c",name:"C",partyType:"customer",receivable:300,payable:99},{id:"s",name:"S",partyType:"supplier",payable:300,receivable:88}]);const report=await buildReport(db,filters("overview"));assert.equal(report.summary.customerReceivables,201);assert.equal(report.summary.supplierPayables,232);assert.deepEqual([report.summary.customerCount,report.summary.supplierCount],[1,2]);assert.deepEqual(report.bankAccounts.map(a=>[a.name,a.balance]),[["Bank A",500],["Bank B",300]]);assert.equal(report.summary.bankBalance,800);assert.equal(report.summary.bankBalance,report.bankAccounts.reduce((sum,a)=>sum+a.balance,0));});
 
 test("overview invoices expose accounting values and preserve business grouping",async()=>{await db.dropDatabase();await db.collection("documents").insertMany([doc("s2","sale","2026-08-20",[line("s2l","a",2,5000,3000)],{sequence:2}),doc("p1","purchase","2026-08-01",[line("p1l","a",3,2000)],{sequence:1}),doc("e1","expense","2026-08-02",[],{sequence:1,total:1500,title:"Rent"}),doc("s1","sale","2026-08-15",[line("s1l","a",1,1000,700)],{sequence:1}),doc("p2","purchase","2026-08-03",[line("p2l","a",1,400)],{sequence:2})]);const report=await buildReport(db,filters("overview"));assert.deepEqual(report.invoices.map(x=>`${x.kind}:${x.sequence}`),["sale:1","sale:2","purchase:1","purchase:2","expense:1"]);const sale=report.invoices.find(x=>x.id==="s2"),purchase=report.invoices.find(x=>x.id==="p1"),expense=report.invoices.find(x=>x.id==="e1");assert.deepEqual([sale.invoiceValue,sale.cost,sale.profit],[10000,6000,4000]);assert.deepEqual([purchase.invoiceValue,purchase.cost,purchase.profit],[6000,6000,null]);assert.deepEqual([expense.invoiceValue,expense.cost,expense.profit],[1500,1500,null]);assert.deepEqual([report.summary.salesCost,report.summary.salesProfit],[6700,4300]);});
 test("return report resolves original invoice number",async()=>{await db.dropDatabase();await db.collection("documents").insertMany([doc("internal-sale","sale","2026-08-10",[line("s","a",1,100,70)]),doc("return","return","2026-08-11",[line("r","a",1,100,70)],{parentDocumentId:"internal-sale"})]);const report=await buildReport(db,filters("returns"));assert.equal(report.rows[0].originalDocument,"N-internal-sale");assert.notEqual(report.rows[0].originalDocument,"internal-sale");});
@@ -36,7 +36,7 @@ test("report date and all-time requests remain distinct", () => {
 test("report summary tones follow financial meaning rather than numeric sign alone", () => {
   assert.equal(reportSummaryTone("profit", "profit", 20), "positive");
   assert.equal(reportSummaryTone("profit", "profit", -20), "negative");
-  assert.equal(reportSummaryTone("debts", "receivable", 20), "negative");
+  assert.equal(reportSummaryTone("debts", "receivable", 20), "positive");
   assert.equal(reportSummaryTone("party-ledger", "payable", 20), "negative");
   assert.equal(reportSummaryTone("financial", "net", 20), "positive");
   assert.equal(reportSummaryTone("financial", "net", -20), "negative");
@@ -64,4 +64,33 @@ test("purchase summary exposes total paid and due and expiry loss is non-cash st
   const yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10); await db.collection("products").insertOne({id:"a",name:"A",expiryDate:yesterday,lastPurchaseCost:12,pieceCost:3,stocks:{one:4,two:1}});
   const before=await db.collection("financialMovements").countDocuments(); const stock=await buildReport(db,filters("stock",{unpaged:true}));
   assert.equal(stock.summary.expiredInventoryLoss,60); assert.equal(await db.collection("financialMovements").countDocuments(),before); assert.equal((await db.collection("products").findOne({id:"a"})).stocks.one,4);
+});
+
+test("party ledger trade totals exclude cash and subtract customer returns",async()=>{
+  await db.dropDatabase();
+  await db.collection("parties").insertMany([{id:"c",name:"Customer",partyType:"customer",receivable:0,payable:100},{id:"s",name:"Supplier",partyType:"supplier",receivable:100,payable:0}]);
+  await db.collection("documents").insertMany([
+    doc("sale","sale","2026-08-10",[line("sl","a",1,1000)],{partyId:"c",dueTotal:1000}),
+    doc("return","return","2026-08-11",[line("rl","a",1,200)],{partyId:"c",parentDocumentId:"sale"}),
+    doc("customer-cash","payment","2026-08-12",[],{partyId:"c",total:500,partyCashDirection:"receive",partyBalanceDelta:-500}),
+    doc("purchase","purchase","2026-08-10",[line("pl","a",1,500)],{partyId:"s",dueTotal:500}),
+    doc("supplier-cash","payment","2026-08-12",[],{partyId:"s",total:500,partyCashDirection:"pay",partyBalanceDelta:500}),
+  ]);
+  const customer=await buildReport(db,filters("party-ledger",{partyId:"c"})),supplier=await buildReport(db,filters("party-ledger",{partyId:"s"}));
+  assert.equal(customer.summary.tradeTotal,800); assert.equal(customer.summary.net,-100);
+  assert.equal(supplier.summary.tradeTotal,500); assert.equal(supplier.summary.net,100);
+});
+
+test("party ledger gives structured deltas authority and retains legacy payment fallback",async()=>{
+  await db.dropDatabase(); await db.collection("parties").insertOne({id:"c",name:"Customer",partyType:"customer",receivable:0,payable:0});
+  await db.collection("documents").insertMany([
+    doc("receive","payment","2026-08-10",[],{partyId:"c",total:40,title:"new title ignored",partyCashDirection:"receive",partyBalanceDelta:-40}),
+    doc("pay","payment","2026-08-11",[],{partyId:"c",total:30,title:"new title ignored",partyCashDirection:"pay",partyBalanceDelta:30}),
+    doc("legacy","payment","2026-08-12",[],{partyId:"c",total:20,title:"دفع لنا"}),
+  ]);
+  const report=await buildReport(db,filters("party-ledger",{partyId:"c"})),byId=new Map(report.rows.map(row=>[row.id,row]));
+  assert.deepEqual([byId.get("receive").debit,byId.get("receive").credit],[0,40]);
+  assert.deepEqual([byId.get("pay").debit,byId.get("pay").credit],[30,0]);
+  assert.deepEqual([byId.get("legacy").debit,byId.get("legacy").credit],[0,20]);
+  assert.equal(byId.get("receive").movementType,"استلام من العميل"); assert.equal(byId.get("pay").movementType,"دفع للعميل");
 });

@@ -19,7 +19,8 @@ export function reportNumber(value: unknown) {
 export type SummaryTone = "positive" | "negative" | "neutral";
 export function reportSummaryTone(type: ReportType, key: string, value: unknown): SummaryTone {
   const amount = reportNumber(value), signed = (): SummaryTone => amount > 0 ? "positive" : amount < 0 ? "negative" : "neutral";
-  if (["receivable", "payable"].includes(key) && ["debts", "party-ledger"].includes(type)) return amount > 0 ? "negative" : "neutral";
+  if (key === "receivable" && ["debts", "party-ledger"].includes(type)) return amount > 0 ? "positive" : "neutral";
+  if (key === "payable" && ["debts", "party-ledger"].includes(type)) return amount > 0 ? "negative" : "neutral";
   if (key === "net" && ["debts", "party-ledger"].includes(type)) return amount === 0 ? "neutral" : "negative";
   if (key === "profit" || (type === "financial" && key === "net")) return signed();
   if ((type === "sales" && key === "netSales") || (type === "product-sales" && ["sales", "netSales"].includes(key)) || (type === "profit" && key === "revenue") || (type === "stock" && key === "incoming") || (type === "financial" && key === "incoming") || (type === "overview" && key === "sales")) return "positive";
