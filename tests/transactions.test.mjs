@@ -315,3 +315,23 @@ test("purchase revision blocks reversal after purchased inventory was consumed a
   await assert.rejects(command({ type: "purchase.void", documentId: purchaseId }), /متاحة للعرض فقط/);
   assert.equal((await db.collection("products").findOne({ id: "p1" })).stocks["wh-main"], 2);
 });
+
+test("warehouse safe deletion archives history and blocks stock/default", async t => {
+  if (unavailable) return t.skip(unavailable);
+  await db.collection("warehouses").insertMany([{_id:"empty",name:"Empty"},{_id:"historic",name:"Historic"},{_id:"stocked",name:"Stocked"}]);
+  await db.collection("documents").insertOne({id:"history-doc",warehouseId:"historic",kind:"adjustment",status:"posted",lines:[]});
+  await db.collection("products").updateOne({id:"p1"},{$set:{"stocks.stocked":2}});
+  await command({type:"warehouse.delete",id:"empty"}); assert.equal(await db.collection("warehouses").findOne({_id:"empty"}),null);
+  await command({type:"warehouse.delete",id:"historic"}); assert.equal((await db.collection("warehouses").findOne({_id:"historic"})).isArchived,true); assert.ok(await db.collection("documents").findOne({warehouseId:"historic"}));
+  await assert.rejects(command({type:"warehouse.delete",id:"stocked"}),/يحتوي على مخزون/);
+  await assert.rejects(command({type:"warehouse.delete",id:"wh-main"}),/افتراضي/);
+});
+
+test("editing product may add audited opening stock but zero adds nothing", async t => {
+  if (unavailable) return t.skip(unavailable);
+  await command({type:"product.update",id:"p1",name:"Tea",pieceCost:50,openingStock:4,openingWarehouseId:"wh-b"});
+  assert.equal((await db.collection("products").findOne({id:"p1"})).stocks["wh-b"],4);
+  assert.deepEqual(await db.collection("stockMovements").findOne({productId:"p1"},{projection:{_id:0,type:1,quantityDelta:1,balanceBefore:1,balanceAfter:1}}),{type:"opening",quantityDelta:4,balanceBefore:0,balanceAfter:4});
+  assert.equal((await db.collection("documents").findOne({"lines.productId":"p1"})).title,"إضافة رصيد افتتاحي");
+  const before=await db.collection("stockMovements").countDocuments(); await command({type:"product.update",id:"p1",name:"Tea",pieceCost:50,openingStock:0}); assert.equal(await db.collection("stockMovements").countDocuments(),before);
+});

@@ -27,7 +27,10 @@ export interface Warehouse {
   id: string;
   name: string;
   isSalesDefault: boolean;
+  isArchived?: boolean;
+  archivedAt?: string | null;
 }
+export function activeWarehouses<T extends Pick<Warehouse, "isArchived">>(warehouses: T[]) { return warehouses.filter(warehouse => !warehouse.isArchived); }
 export interface Product {
   id: string;
   name: string;
