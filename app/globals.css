@@ -2190,3 +2190,4 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 /* Shared intrinsic date language and responsive form release. */
 input[type="date"]{height:34px;min-height:34px;font-size:10px}.expense-form input[type="date"]{width:128px}.inventory-empty{align-self:start;padding:8px;color:var(--text-muted);font-size:10px}.product-search-grid:has(.picker-results,.picker-no-results){grid-template-rows:auto minmax(0,220px)}
 @media(max-width:1050px){.bank-filters{flex-wrap:wrap}.transfer-form,.banks-workspace .bank-adjustment-form{grid-template-columns:repeat(2,minmax(140px,1fr))}.party-payment-row{grid-template-columns:1fr 1fr}.workspace-discovery{overflow:visible}}
+.party-trade-metrics>span{flex:1 1 145px;min-width:0}.party-trade-metrics{flex-wrap:wrap}

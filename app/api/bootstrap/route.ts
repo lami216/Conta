@@ -3,6 +3,7 @@ import { resolvePartyType } from "../../domain";
 import { log } from "../../../lib/log";
 import { getPrincipalFromRequest, hasCapability } from "../../../lib/auth";
 import { peekNextDocumentSequence } from "../../../lib/document-sequences";
+import { calculatePartyFinancialSummaries } from "../../party-metrics";
 
 export async function GET(request: Request) {
   const principal=await getPrincipalFromRequest(request);if(!principal)return Response.json({error:"غير مصرح"},{status:401});
@@ -27,11 +28,13 @@ export async function GET(request: Request) {
     if (legacyCosts.length) await db.collection("products").bulkWrite(legacyCosts.map(cost => ({
       updateOne: { filter: { id: cost._id, lastPurchaseCost: { $exists: false } }, update: { $set: { lastPurchaseCost: cost.cost, lastPurchaseAt: cost.at } } },
     })));
-    const [parties, warehouses, products, documents, movements, recurringExpenses, financialMovements, paymentAccounts, accountTransfers, productCounter, nextSale, nextPurchase, nextExpense] = await Promise.all([
+    const [parties, warehouses, products, documents, movements, recurringExpenses, financialMovements, partyMetricDocuments, partyMetricMovements, paymentAccounts, accountTransfers, productCounter, nextSale, nextPurchase, nextExpense] = await Promise.all([
       db.collection("parties").find().sort({ name: 1 }).toArray(), db.collection("warehouses").find().sort({ isSalesDefault: -1, name: 1 }).toArray(),
       db.collection("products").find().sort({ name: 1 }).toArray(), db.collection("documents").find().sort({ occurredAt: -1 }).limit(500).toArray(),
       db.collection("stockMovements").find().sort({ occurredAt: -1 }).limit(1000).toArray(), db.collection("recurringExpenses").find().sort({ createdAt: -1 }).toArray(),
       db.collection("financialMovements").find().sort({ occurredAt: -1 }).limit(2000).toArray(),
+      db.collection("documents").find({ kind: { $in: ["sale", "return", "purchase"] } }, { projection: { _id: 0, kind: 1, status: 1, partyId: 1, total: 1, "lines.grossProfit": 1 } }).toArray(),
+      db.collection("financialMovements").find({ partyId: { $type: "string" } }, { projection: { _id: 0, partyId: 1, direction: 1, amount: 1 } }).toArray(),
       db.collection("paymentAccounts").find().sort({ createdAt: 1 }).toArray(),
       db.collection("accountTransfers").find().sort({ occurredAt: -1 }).limit(500).toArray(),
       db.collection<{ _id: string; value: number }>("counters").findOne({ _id: "productSequence" }),
@@ -58,6 +61,8 @@ export async function GET(request: Request) {
     const allowedDocuments=(clean(documents) as Array<Record<string,unknown>>).filter(document=>hasCapability(principal,"records.view")||(hasCapability(principal,"pos.view")&&["sale","return"].includes(String(document.kind)))||(hasCapability(principal,"purchases.view")&&document.kind==="purchase")||(hasCapability(principal,"expenses.view")&&document.kind==="expense"));
     const exposedParties=partyAdmin?cleanParties:(cleanParties as Array<Record<string,unknown>>).map(({id,name,phone,partyType})=>({id,name,phone,partyType,receivable:0,payable:0,net:0}));
     const exposedProducts=productAdmin?cleanProducts:(cleanProducts as Array<Record<string,unknown>>).map(({id,name,sku,barcode,piecePrice,wholesalePrice,expiryDate,stocks,isArchived})=>({id,name,sku,barcode,piecePrice,wholesalePrice,expiryDate,stocks,isArchived,pieceCost:null,lastPurchaseCost:null}));
-    return Response.json({ principal:{principalType:principal.principalType,name:principal.name,permissions:principal.permissions}, parties:exposedParties, warehouses:clean(warehouses), products:exposedProducts, documents:allowedDocuments, movements:hasCapability(principal,"warehouses.inventory.view")?clean(movements):[], recurringExpenses:hasCapability(principal,"expenses.view")?clean(recurringRows):[], financialMovements:bankAccess?clean(financialMovements):[], paymentAccounts:selectorAccounts, accountTransfers:hasCapability(principal,"banks.transfer")?clean(accountTransfers):[], nextProductCode, nextDocumentSequences:{sale:nextSale,purchase:nextPurchase,expense:nextExpense} });
+    const visiblePartyIds=new Set(cleanParties.filter(party=>(resolvePartyType(party)==="customer"&&hasCapability(principal,"customers.view"))||(resolvePartyType(party)==="supplier"&&hasCapability(principal,"suppliers.view"))).map(party=>String(party.id)));
+    const partyFinancialSummaries=partyAdmin?calculatePartyFinancialSummaries(partyMetricDocuments as never[],partyMetricMovements as never[]).filter(summary=>visiblePartyIds.has(summary.partyId)):[];
+    return Response.json({ principal:{principalType:principal.principalType,name:principal.name,permissions:principal.permissions}, parties:exposedParties, warehouses:clean(warehouses), products:exposedProducts, documents:allowedDocuments, movements:hasCapability(principal,"warehouses.inventory.view")?clean(movements):[], recurringExpenses:hasCapability(principal,"expenses.view")?clean(recurringRows):[], financialMovements:bankAccess?clean(financialMovements):[], partyFinancialSummaries, paymentAccounts:selectorAccounts, accountTransfers:hasCapability(principal,"banks.transfer")?clean(accountTransfers):[], nextProductCode, nextDocumentSequences:{sale:nextSale,purchase:nextPurchase,expense:nextExpense} });
   } catch (error) { log("error", "api.bootstrap.failed", { error }); return Response.json({ error: "تعذر تحميل البيانات" }, { status: 500 }); }
 }

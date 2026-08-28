@@ -127,6 +127,7 @@ export interface BootstrapData {
   documents: DocumentRecord[];
   movements: Movement[];
   financialMovements: FinancialMovement[];
+  partyFinancialSummaries: PartyFinancialSummary[];
   paymentAccounts: PaymentAccount[];
   recurringExpenses: Array<{
     id: string;
@@ -140,6 +141,15 @@ export interface BootstrapData {
     currentPaymentMethodId: string | null;
   }>;
   accountTransfers: Array<{ id: string; number: string; fromAccountId: string; toAccountId: string; amount: number; note: string; occurredAt: string }>;
+}
+export interface PartyFinancialSummary {
+  partyId: string;
+  cashIn: number;
+  cashOut: number;
+  customerTradeTotal: number;
+  customerGrossProfit: number;
+  supplierTradeTotal: number;
+  supplierInvoiceCount: number;
 }
 export interface PaymentAccount {
   id: string;
