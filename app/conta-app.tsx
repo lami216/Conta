@@ -346,7 +346,7 @@ export default function ContaApp() {
               {view === "adjustments" && (
                 <Adjustment data={data} run={run} openDoc={openDoc} prefill={adjustmentPrefill} clearPrefill={() => setAdjustmentPrefill(null)} />
               )}{" "}
-              {view === "records" && <Records data={data} openDoc={id => editInvoice(id)} />}{" "}
+              {view === "records" && <Records data={data} openDoc={openDoc} />}{" "}
               {view === "reports" && (
                 <Reports key={reportType} data={data} openDoc={openDoc} type={reportType} />
               )}{" "}
@@ -354,7 +354,7 @@ export default function ContaApp() {
               {view === "settings" && <SettingsPage data={data} reload={reload} />}{" "}
             </>
           )}
-          {doc && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={`سجل المعاملة ${doc.number}`}><div className="modal-card"><DocumentDetail document={doc} data={data} close={() => setDoc(null)} run={run} /></div></div>}
+          {doc && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={`سجل المعاملة ${doc.number}`}><div className="modal-card"><DocumentDetail document={doc} data={data} close={() => setDoc(null)} run={run} onEdit={doc.status === "posted" && !doc.legacyKey && (doc.kind === "sale" ? can("pos.edit") : doc.kind === "purchase" ? can("purchases.edit") : false) ? () => editInvoice(doc.id) : undefined} /></div></div>}
         </div>
       </main>
     </div>
@@ -1196,11 +1196,13 @@ function DocumentDetail({
   data,
   close,
   run,
+  onEdit,
 }: {
   document: DocumentRecord;
   data: BootstrapData;
   close: () => void;
   run: RunCommand;
+  onEdit?: () => void;
 }) {
   const [returning, setReturning] = useState(false),
     [returns, setReturns] = useState<Record<string, string>>({});
@@ -1238,6 +1240,11 @@ function DocumentDetail({
         <button className="back" onClick={close}>
           ← العودة
         </button>
+        {onEdit && (
+          <button className="primary" onClick={onEdit}>
+            <PencilLine /> تعديل الفاتورة
+          </button>
+        )}
         <button className="soft" onClick={printDocument}>
           <Printer /> طباعة
         </button>
