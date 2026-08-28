@@ -1568,12 +1568,14 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .expense-toolbar svg { width: 17px; }
 .expense-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto minmax(0, 1fr); gap: 8px; min-width: 0; min-height: 0; }
 .expense-form, .expense-recurring, .expense-history { min-width: 0; min-height: 0; overflow: hidden; }
-.expense-form { grid-column:2;grid-row:1; }
+.expense-form { grid-column:1;grid-row:1; }
 .expense-form-body { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px; align-items:end; }
-.expense-fields { display: grid; grid-template-columns: minmax(160px, 1.4fr) repeat(4, minmax(110px, 1fr)); gap: 6px; }
-.expense-save { min-width: 130px; }
-.expense-recurring { display:grid;grid-column:2;grid-row:2;grid-template-rows:minmax(0,1fr); }
-.expense-history { display:grid;grid-column:1;grid-row:1 / span 2;grid-template-rows:auto minmax(0,1fr);gap:6px; }
+.expense-fields { display: grid; grid-template-columns: 165px 95px 128px; gap: 6px; }
+.expense-fields label:nth-child(4) { width:100px; }
+.expense-fields label:nth-child(5) { width:135px; }
+.expense-save { width:112px; min-width:112px; }
+.expense-recurring { display:grid;grid-column:1;grid-row:2;grid-template-rows:minmax(0,1fr); }
+.expense-history { display:grid;grid-column:2;grid-row:1 / span 2;grid-template-rows:auto minmax(0,1fr);gap:6px; }
 .expense-history .search { width:min(270px,100%); }
 .expense-scroll { width: 100%; min-width: 0; min-height: 0; padding-inline: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: auto; }
 
@@ -1595,6 +1597,7 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 @media (max-width: 1050px) {
   .content { padding-inline: 12px; }
   .expense-grid, .inventory-browser { grid-template-columns: minmax(0, 1fr); }
+  .expense-form, .expense-recurring, .expense-history { grid-column: 1; grid-row: auto; }
   .expense-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .expense-history > .expense-scroll { overflow-x: auto; }
   .product-movement-panel { max-height: 620px; }
@@ -1729,15 +1732,7 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 /* Cascade-final desktop refinement. */
 @media (min-width: 1051px) {
   .content { padding-bottom: 16px; }
-  .expense-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-  .expense-form { grid-column: 1 / -1; }
-  .expense-recurring { grid-column: 1; grid-row: 2; }
-  .expense-history { grid-column: 2; grid-row: 2; }
-  .expense-fields { grid-template-columns: minmax(150px, 1.35fr) repeat(4, minmax(105px, 1fr)); }
-  .expense-save { min-height: 36px; height:36px; margin-bottom: 0; }
+  .expense-save { min-height:34px; height:34px; margin-bottom:0; }
 }
 .expense-history-filters{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .expense-history-filters .compact-date-range{flex:0 1 auto}
@@ -1825,9 +1820,10 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .compact-search,.filters .compact-search,.workspace-toolbar .compact-search{width:min(270px,100%);height:34px;min-width:0;min-height:34px;flex:0 1 270px;padding-inline:8px;border-radius:7px}
 .compact-search input{width:100%;height:32px;min-height:32px;padding-block:2px}
 .compact-date-range{display:flex;align-items:center;gap:5px;min-width:0;flex:0 0 auto;flex-wrap:nowrap}
-.compact-date-range label{display:flex;align-items:center;width:102px;height:34px;min-width:102px;margin:0;border:1px solid var(--line);border-radius:8px;background:#fff;overflow:hidden}
+.compact-date-range label{display:flex;align-items:center;width:130px;height:34px;min-width:130px;margin:0;border:1px solid var(--line);border-radius:4px;background:#fff;overflow:hidden}
 .compact-date-range label span{align-self:stretch;display:grid;place-items:center;width:24px;min-width:24px;padding-inline:0;border-inline-end:1px solid var(--line);color:#39484c;background:#f5f7f7;font-size:10px;font-weight:900;white-space:nowrap}
-.compact-date-range input{width:78px;height:32px;min-height:32px;padding:2px 3px;border:0;border-radius:0;background:#fff;font-size:10px}
+.compact-date-range input{width:106px;height:32px;min-height:32px;padding:2px;border:0;border-radius:0;background:#fff;font-size:10px}
+.compact-date-range input::-webkit-calendar-picker-indicator,.expense-form input[type="date"]::-webkit-calendar-picker-indicator{margin:0;padding:2px;border-inline-start:1px solid var(--line);background-color:#f5f7f7;cursor:pointer}
 .compact-date-range :is(.soft,.date-apply){width:auto;min-width:66px;height:34px;min-height:34px;padding:4px 8px;border-radius:7px}
 .compact-date-range .soft.active{color:#fff;border-color:var(--section-color);background:var(--section-color)}
 .combobox-results button{color:#111;background:#fff}
@@ -1893,7 +1889,7 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .product-form-halves{display:grid;grid-template-columns:1fr 1fr;gap:8px;min-height:0}.product-form-group{display:grid;align-content:start;gap:6px}.product-form-group label{display:grid;gap:3px}.product-form-group textarea{resize:vertical;min-height:48px;max-height:80px}.expired-badge{display:block;color:#b42318;font-size:9px;font-weight:900}.product-form{display:grid;gap:8px;max-height:min(88vh,650px);overflow:auto}@media(max-width:760px){.product-form-halves{grid-template-columns:1fr}}
 
 @media(max-width:1050px){.parties-controls{grid-template-columns:1fr}.expense-form-body{grid-template-columns:1fr}.warehouse-head{align-items:stretch}.warehouse-actions{flex-wrap:wrap}}
-.expense-fields input,.expense-fields select,.expense-form-body button{height:36px;min-height:36px}
+.expense-fields input,.expense-fields select,.expense-form-body button{height:34px;min-height:34px}
 .stock-workspace-main,.transfer-history{min-height:0;overflow:hidden}.stock-workspace-main{display:grid;grid-template-rows:minmax(0,1fr)}.transfer-history{display:grid;grid-template-rows:minmax(0,1fr)}
 
 /* Focused inventory and stock-operation layout authority. */
@@ -1937,7 +1933,7 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .records-filters { min-height: 0; }
 .records-filters .filters { margin: 0; }
 .records-filters .filters{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.records-filters select{width:auto;min-width:150px;height:35px;min-height:35px}
+.records-filters .records-kind-filter{width:180px;min-width:180px;height:34px;min-height:34px;flex:0 0 180px}
 .records-workspace > .records { display: grid; grid-template-rows: minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden; }
 .records-workspace > .recent-table > .erp-table-wrap { height: 100%; min-height: 0; overflow-x: auto; overflow-y: auto; overscroll-behavior: contain; }
 .combobox-popover-floating { direction: rtl; overflow: hidden; }
@@ -2190,10 +2186,10 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .bank-summary .positive{color:#15803d!important}.bank-summary .negative{color:#b91c1c!important}
 .report-toolbar{padding:5px 7px!important;gap:5px!important}.report-toolbar .compact-date-range{flex:0 1 auto}.report-toolbar :is(select,input,.combobox-trigger,button){min-height:34px;height:34px}.report-sort-header{width:100%;height:100%;min-height:0;padding:0;border:0;border-radius:0;color:inherit;background:transparent;font:inherit;cursor:pointer}.report-table-product-sales{min-width:0!important;font-size:9px}.report-table-product-sales th,.report-table-product-sales td{padding-inline:2px;font-size:9px}.report-table-product-sales .serial{width:32px}
 
-@media(min-width:1051px){.compact-date-range{flex-wrap:nowrap}.expense-history-filters{flex-wrap:nowrap}.expense-history-filters .compact-date-range{flex:0 0 auto}.expense-grid{grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr);grid-template-rows:auto minmax(0,1fr)}.warehouse-admin{width:min(1040px,100%);height:auto;max-height:100%;margin-inline:auto;align-content:start}.warehouse-admin .scroll-panel{height:auto}.inventory-overview{flex-wrap:nowrap}.inventory-toolbar>.combobox{flex:0 0 215px;min-width:215px}.inventory-apply{flex:0 0 70px;height:34px}.inventory-print{flex:0 0 100px;height:34px}.inventory-overview-metrics{margin-inline-start:auto}.party-history-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px}.parties-workspace{grid-template-rows:auto minmax(0,1fr) auto}.bank-panel,.bank-tab-stage{grid-template-rows:minmax(0,1fr);height:100%}.bank-adjustment-form label{margin:0}.report-table{width:100%;min-width:0;table-layout:fixed;font-size:10px}.report-table th,.report-table td{padding:4px 5px}}
+@media(min-width:1051px){.compact-date-range{flex-wrap:nowrap}.expense-history-filters{flex-wrap:nowrap}.expense-history-filters .compact-date-range{flex:0 0 auto}.warehouse-admin{width:min(1040px,100%);height:auto;max-height:100%;margin-inline:auto;align-content:start}.warehouse-admin .scroll-panel{height:auto}.inventory-overview{flex-wrap:nowrap}.inventory-toolbar>.combobox{flex:0 0 215px;min-width:215px}.inventory-apply{flex:0 0 70px;height:34px}.inventory-print{flex:0 0 100px;height:34px}.inventory-overview-metrics{margin-inline-start:auto}.party-history-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px}.parties-workspace{grid-template-rows:auto minmax(0,1fr) auto}.bank-panel,.bank-tab-stage{grid-template-rows:minmax(0,1fr);height:100%}.bank-adjustment-form label{margin:0}.report-table{width:100%;min-width:0;table-layout:fixed;font-size:10px}.report-table th,.report-table td{padding:4px 5px}}
 @media(max-width:1050px){.compact-date-range{flex-wrap:wrap}.inventory-overview{flex-wrap:wrap}}
 .period-error{color:#b42318;font-size:9px;font-weight:800}.inventory-panel{display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:6px;min-height:0}.inventory-grid th,.inventory-grid td,.party-grid th,.party-grid td,.bank-tab-content th,.bank-tab-content td{height:31px;padding:4px 6px;line-height:1.22}.bank-nav-popover button:hover,.bank-nav-popover button.active{color:#fff;background:#1967d2}.warehouse-admin tbody tr:hover td{background:inherit}.picker-results>button:hover,.picker-results>button[aria-selected="true"]{color:#fff;background:#1967d2;box-shadow:none}.picker-results>button:hover small,.picker-results>button[aria-selected="true"] small{color:#fff}.search-panel .product-picker{padding:5px;border:0;border-radius:0}.search-panel .picker-results{margin-top:5px}
 
 /* Shared intrinsic date language and responsive form release. */
-input[type="date"]{height:34px;min-height:34px;font-size:10px}.expense-form input[type="date"]{width:102px}.party-cash-direction{display:flex;gap:4px}.party-cash-direction button{white-space:nowrap}.inventory-empty{align-self:start;padding:8px;color:var(--text-muted);font-size:10px}.product-search-grid:has(.picker-results,.picker-no-results){grid-template-rows:auto minmax(0,220px)}
+input[type="date"]{height:34px;min-height:34px;font-size:10px}.expense-form input[type="date"]{width:128px}.party-cash-direction{display:flex;gap:4px}.party-cash-direction button{white-space:nowrap}.inventory-empty{align-self:start;padding:8px;color:var(--text-muted);font-size:10px}.product-search-grid:has(.picker-results,.picker-no-results){grid-template-rows:auto minmax(0,220px)}
 @media(max-width:1050px){.bank-filters{flex-wrap:wrap}.transfer-form,.banks-workspace .bank-adjustment-form{grid-template-columns:repeat(2,minmax(140px,1fr))}.party-payment-row{grid-template-columns:1fr 1fr}.workspace-discovery{overflow:visible}}
