@@ -158,12 +158,15 @@ export interface PaymentAccount {
   color: string;
   icon: string;
   isActive: boolean;
+  allowNegativeBalance: boolean;
   balance: number;
   income: number;
   expenses: number;
   purchaseTotal: number;
   isArchived?: boolean;
+  archivedAt?: string | null;
 }
+export function activePaymentAccounts<T extends Pick<PaymentAccount, "isActive" | "isArchived">>(accounts: T[]) { return accounts.filter(account => account.isActive !== false && account.isArchived !== true); }
 export interface FinancialMovement {
   id: string;
   paymentMethod: string;
