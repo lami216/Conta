@@ -46,7 +46,7 @@ export async function GET(request: Request) {
     const totalMap = new Map(totals.map(row => [String(row._id), row]));
     const accountRows = paymentAccounts.map(account => {
       const aggregate = totalMap.get(String(account.id)) ?? totalMap.get(String(account.code));
-      return { ...account, id: String(account.id), balance: Number(account.balance ?? 0), income: Number(aggregate?.income ?? 0), expenses: Number(aggregate?.expenses ?? 0), purchaseTotal: Number(aggregate?.purchaseTotal ?? 0) };
+      return { ...account, id: String(account.id), balance: Number(account.balance ?? 0), allowNegativeBalance: account.code !== "cash" && account.allowNegativeBalance === true, income: Number(aggregate?.income ?? 0), expenses: Number(aggregate?.expenses ?? 0), purchaseTotal: Number(aggregate?.purchaseTotal ?? 0) };
     });
     const today = new Date().toISOString().slice(0, 10);
     const recurringRows = recurringExpenses.map(recurring => { const occurrenceKey = recurring.frequency === "monthly" ? today.slice(0, 7) : today; const paid = documents.find(d => d.recurringId === recurring.id && (d.occurrenceKey === occurrenceKey || d.dueDate === today)); return { ...recurring, currentOccurrenceKey: occurrenceKey, currentDueDate: today, currentPaymentMethodId: paid?.paymentMethod ?? null }; });
@@ -57,7 +57,8 @@ export async function GET(request: Request) {
     const nextProductCode = Math.max(highestLegacyCode, Number(productCounter?.value ?? 0)) + 1;
     const cleanParties = clean(parties).map(party => ({ ...party, partyType: resolvePartyType(party) }));
     const bankAccess=hasCapability(principal,"banks.view")||hasCapability(principal,"banks.movements.view"),partyAdmin=hasCapability(principal,"customers.view")||hasCapability(principal,"suppliers.view"),productAdmin=hasCapability(principal,"products.view");
-    const selectorAccounts=(clean(accountRows) as Array<Record<string,unknown>>).filter(account=>account.isActive!==false).map(account=>bankAccess?account:{id:account.id,code:account.code,name:account.name,isActive:account.isActive});
+    // Keep archived accounts exposed for historical name resolution; selectors filter them centrally.
+    const selectorAccounts=(clean(accountRows) as Array<Record<string,unknown>>).map(account=>bankAccess?account:{id:account.id,code:account.code,name:account.name,isActive:account.isActive,isArchived:account.isArchived,allowNegativeBalance:false});
     const allowedDocuments=(clean(documents) as Array<Record<string,unknown>>).filter(document=>hasCapability(principal,"records.view")||(hasCapability(principal,"pos.view")&&["sale","return"].includes(String(document.kind)))||(hasCapability(principal,"purchases.view")&&document.kind==="purchase")||(hasCapability(principal,"expenses.view")&&document.kind==="expense"));
     const exposedParties=partyAdmin?cleanParties:(cleanParties as Array<Record<string,unknown>>).map(({id,name,phone,partyType})=>({id,name,phone,partyType,receivable:0,payable:0,net:0}));
     const exposedProducts=productAdmin?cleanProducts:(cleanProducts as Array<Record<string,unknown>>).map(({id,name,sku,barcode,piecePrice,wholesalePrice,expiryDate,stocks,isArchived})=>({id,name,sku,barcode,piecePrice,wholesalePrice,expiryDate,stocks,isArchived,pieceCost:null,lastPurchaseCost:null}));
