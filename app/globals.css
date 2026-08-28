@@ -1685,16 +1685,16 @@ input, select, .combobox-trigger { border-color: #9faab8; }
   .workspace-discovery {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: clamp(220px, 28vh, 250px) minmax(0, 1fr);
     gap: 10px;
     min-width: 0;
     min-height: 0;
     overflow: hidden;
   }
-  .workspace-discovery > .search-panel { grid-row: 1; }
+  .workspace-discovery > .search-panel { grid-row: 1; height: 100%; min-height: 0; }
   .workspace-discovery > .quick-invoices { grid-row: 2; }
   .search-panel { display: grid; grid-template-rows: auto; gap: 6px; padding: var(--panel-padding) !important; min-height: 0; overflow: hidden; }
-  .search-panel .product-picker { height: auto; min-height: 0; }
+  .search-panel .product-picker { height: 100%; min-height: 0; }
   .search-panel .picker-results { min-height: 0; height: auto; max-height: 220px; overflow-y: auto; }
   .workspace-discovery .quick-invoices { height: auto; margin: 0; min-width: 0; min-height: 0; overflow: hidden; }
   .quick-invoice-list { min-width: 0; overflow-x: hidden; overflow-y: auto; }

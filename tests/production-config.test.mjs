@@ -26,8 +26,8 @@ test("desktop transaction workspace has physical checkout-left named areas and v
   assert.match(css, /grid-template-areas: "checkout invoice discovery"/);
   assert.match(css, /\.transaction-workspace \{[^}]*direction: ltr;/s);
   assert.match(css, /\.transaction-workspace > \* \{ direction: rtl; \}/);
-  assert.match(css, /\.workspace-discovery \{[^}]*grid-template-rows: auto minmax\(0, 1fr\)/s);
-  assert.match(css, /\.workspace-discovery > \.search-panel \{ grid-row: 1; \}/);
+  assert.match(css, /\.workspace-discovery \{[^}]*grid-template-rows: clamp\(220px, 28vh, 250px\) minmax\(0, 1fr\)/s);
+  assert.match(css, /\.workspace-discovery > \.search-panel \{ grid-row: 1; height: 100%; min-height: 0; \}/);
   assert.match(css, /\.workspace-discovery > \.quick-invoices \{ grid-row: 2; \}/);
   assert.doesNotMatch(css, /\.quick-invoices \{[^}]*align-self: end/s);
   assert.doesNotMatch(css, /\.quick-invoices \{[^}]*height: 42%/s);

@@ -125,6 +125,17 @@ test("compact dates, explicit action order, and idle discovery remain structural
   assert.match(css, /grid-template-rows: auto minmax\(0, 1fr\)/);
 });
 
+test("desktop discovery reserves a stable product-search track", () => {
+  const desktopWorkspace = css.slice(
+    css.indexOf("/* Authoritative three-region transaction layout."),
+    css.indexOf("@media (max-width: 1050px)", css.indexOf("/* Authoritative three-region transaction layout.")),
+  );
+  assert.match(desktopWorkspace, /\.workspace-discovery\s*\{[^}]*grid-template-rows:\s*clamp\(220px, 28vh, 250px\) minmax\(0, 1fr\)/);
+  assert.doesNotMatch(desktopWorkspace, /\.workspace-discovery\s*\{[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\)/);
+  assert.match(desktopWorkspace, /\.workspace-discovery > \.search-panel\s*\{[^}]*height:\s*100%[^}]*min-height:\s*0/);
+  assert.match(desktopWorkspace, /\.search-panel \.product-picker\s*\{[^}]*height:\s*100%[^}]*min-height:\s*0/);
+});
+
 test("expenses and record filters retain the compact desktop grid", () => {
   const records = between("function Records", "const reportNames");
   assert.match(records, /className="records-kind-filter"/);
