@@ -10,8 +10,8 @@ test("remaining ERP pages use framed regions without legacy title bands", () => 
   for (const title of ["مصروف جديد", "المصاريف المستحقة", "سجل المصاريف"]) assert.match(expenses, new RegExp(`FramedSection title=.*${title}`));
   assert.doesNotMatch(expenses, /section-title/);
   const warehouses = between("function Warehouses", "function ProductMovementPanel");
-  assert.match(warehouses, /FramedSection title="المخزن"/);
-  assert.match(warehouses, /FramedSection title="جرد المخزن"/);
+  assert.match(warehouses, /FramedSection title="جرد المخازن"/);
+  assert.doesNotMatch(warehouses, /FramedSection title="المخزن"/);
   for (const component of [between("function Transfer", "function Adjustment"), between("function Adjustment", "function Records")]) assert.doesNotMatch(component, /<Heading/);
 });
 test("parties and banks use framed ERP tables", () => {
@@ -41,10 +41,10 @@ test("warehouse summary uses stable metrics and controlled popover overflow", ()
   const warehouses = between("function Warehouses", "function ProductMovementPanel");
   for (const label of ["عدد المنتجات", "إجمالي الكمية", "قيمة المخزون"]) assert.match(warehouses, new RegExp(label));
   for (const anomaly of ["القيمة المعروفة", "بدون تكلفة فعلية", "تكلفة غير معروفة"]) assert.doesNotMatch(warehouses, new RegExp(anomaly));
-  assert.match(warehouses, /className="warehouse-head" allowOverflow/);
+  assert.match(warehouses, /className="inventory-overview inventory-toolbar"/);
   assert.match(css, /\.popover-host\s*\{[^}]*overflow:\s*visible/);
-  assert.match(css, /\.inventory-panel\s*\{[^}]*align-content:\s*start/);
-  assert.match(css, /\.inventory-panel\.browser-open\s*\{[^}]*minmax\(0, 1fr\)/);
+  assert.match(css, /\.inventory-panel\{[^}]*grid-template-rows:auto auto minmax\(0,1fr\)/);
+  assert.doesNotMatch(warehouses, /browserOpen/);
 });
 test("product movement details prioritize the table", () => {
   const panel = between("function ProductMovementPanel", "function Products");
@@ -81,8 +81,9 @@ test("POS checkout, records, scoped stock, and document print retain explicit st
 
 test("focused banking and transaction editor regressions stay explicit", () => {
   const banks = between("function Banks", "function PaymentAccountDialog");
-  assert.ok(banks.indexOf('title="البنوك والحسابات"') < banks.indexOf('title="ملخص الحسابات"'));
-  for (const label of ["السحب والإيداع", "manual-deposit", "opening-balance"]) assert.match(banks, new RegExp(label));
+  assert.ok(banks.indexOf('className="bank-panel"') < banks.indexOf('title="ملخص الحسابات"'));
+  for (const label of ["manual-deposit", "opening-balance"]) assert.match(banks, new RegExp(label));
+  assert.match(app, /label: "السحب والإيداع"/);
   assert.match(app, /m\.type !== "opening-balance"/);
   assert.match(bootstrap, /\$ne: \["\$type", "opening-balance"\]/);
   const purchase = between("function Purchases", "function Expenses");

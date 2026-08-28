@@ -1568,13 +1568,13 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .expense-toolbar svg { width: 17px; }
 .expense-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto minmax(0, 1fr); gap: 8px; min-width: 0; min-height: 0; }
 .expense-form, .expense-recurring, .expense-history { min-width: 0; min-height: 0; overflow: hidden; }
-.expense-form { grid-column: 1 / -1; }
+.expense-form { grid-column:2;grid-row:1; }
 .expense-form-body { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px; align-items:end; }
 .expense-fields { display: grid; grid-template-columns: minmax(160px, 1.4fr) repeat(4, minmax(110px, 1fr)); gap: 6px; }
 .expense-save { min-width: 130px; }
-.expense-recurring { display: grid; grid-template-rows: minmax(0, 1fr); }
-.expense-history { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 6px; }
-.expense-history .search { width: min(470px, 100%); }
+.expense-recurring { display:grid;grid-column:2;grid-row:2;grid-template-rows:minmax(0,1fr); }
+.expense-history { display:grid;grid-column:1;grid-row:1 / span 2;grid-template-rows:auto minmax(0,1fr);gap:6px; }
+.expense-history .search { width:min(270px,100%); }
 .expense-scroll { width: 100%; min-width: 0; min-height: 0; padding-inline: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: auto; }
 
 /* Inventory starts as a summary and expands to a list/details browser in place. */
@@ -1830,13 +1830,13 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .picker-results .erp-table tbody tr td{color:#111;background:#fff}
 .picker-results .erp-table tbody tr:hover td,.picker-results .erp-table tbody tr.selected td{color:#fff;background:var(--section-color)}
 .picker-results .erp-table tbody tr:hover .soft,.picker-results .erp-table tbody tr.selected .soft{color:#fff;border-color:#fff;background:transparent}
-.compact-search{width:min(100%,470px);height:35px;min-width:0;min-height:35px;padding-inline:9px;border-radius:8px}
-.compact-search input{width:100%;height:33px;min-height:33px;padding-block:2px}
-.compact-date-range{display:flex;align-items:center;gap:5px;min-width:0;flex-wrap:wrap}
-.compact-date-range label{display:flex;align-items:center;height:35px;min-width:0;margin:0;border:1px solid var(--line);border-radius:8px;background:#fff;overflow:hidden}
-.compact-date-range label span{align-self:stretch;display:grid;place-items:center;padding-inline:8px;border-inline-end:1px solid var(--line);color:#39484c;background:#f5f7f7;font-size:10px;font-weight:900;white-space:nowrap}
-.compact-date-range input{width:123px;height:33px;min-height:33px;padding:2px 5px;border:0;border-radius:0;background:#fff;font-size:10px}
-.compact-date-range .soft{height:35px;min-height:35px;padding:4px 10px;border-radius:8px}
+.compact-search{width:min(100%,350px);height:34px;min-width:0;min-height:34px;padding-inline:8px;border-radius:7px}
+.compact-search input{width:100%;height:32px;min-height:32px;padding-block:2px}
+.compact-date-range{display:flex;align-items:center;gap:5px;min-width:0;flex:0 0 auto;flex-wrap:nowrap}
+.compact-date-range label{display:flex;align-items:center;width:153px;height:34px;min-width:153px;margin:0;border:1px solid var(--line);border-radius:8px;background:#fff;overflow:hidden}
+.compact-date-range label span{align-self:stretch;display:grid;place-items:center;width:32px;min-width:32px;padding-inline:0;border-inline-end:1px solid var(--line);color:#39484c;background:#f5f7f7;font-size:10px;font-weight:900;white-space:nowrap}
+.compact-date-range input{width:119px;height:32px;min-height:32px;padding:2px 5px;border:0;border-radius:0;background:#fff;font-size:10px}
+.compact-date-range .soft{width:84px;height:34px;min-height:34px;padding:4px 8px;border-radius:7px}
 .compact-date-range .soft.active{color:#fff;border-color:var(--section-color);background:var(--section-color)}
 .combobox-results button{color:#111;background:#fff}
 .combobox-results button:hover,.combobox-results button.active{color:#fff;background:#1967d2}
@@ -2201,3 +2201,7 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .bank-scope-controls{display:flex;align-items:center;gap:5px}.bank-scope-controls>.primary{height:35px;min-height:35px;padding:4px 12px}.bank-filter-stack{display:grid;gap:2px}.bank-filters{display:flex!important;align-items:center;gap:5px;flex-wrap:wrap}.bank-filters select{width:auto;min-width:145px}.bank-scope-note{color:#b42318;font-size:9px;font-weight:800}.bank-tab-movements{grid-template-rows:auto minmax(0,1fr)!important}.bank-tab-transfers,.bank-tab-adjustment{grid-template-rows:auto minmax(0,1fr)!important}.bank-history{display:grid;grid-template-rows:auto minmax(0,1fr);gap:4px;min-height:0;overflow:hidden}.adjustment-list{min-height:0;height:100%;overflow:auto}.banks-workspace .bank-adjustment-form{display:flex;align-items:end;gap:5px;max-width:none;padding:0}.banks-workspace .bank-adjustment-direction{grid-column:auto;margin:0}.banks-workspace .bank-adjustment-form label{min-width:140px}.banks-workspace .bank-adjustment-form>*{height:35px;min-height:35px}.bank-summary{padding:4px 6px 5px!important}.bank-summary>div{min-height:34px!important;padding:2px 8px!important}.bank-summary small{font-size:9px}.bank-summary b{font-size:13px}.financial-operation-detail{width:min(520px,92vw)}.financial-operation-detail dl{display:grid;grid-template-columns:120px 1fr;margin:0 0 8px;border:1px solid var(--grid-line)}.financial-operation-detail dt,.financial-operation-detail dd{margin:0;padding:5px 7px;border-bottom:1px solid var(--grid-line)}.financial-operation-detail dt{font-weight:900;background:#f5f7f7}.financial-operation-detail dd{font-variant-numeric:tabular-nums}.ledger-list tbody tr,.transfer-list tbody tr,.adjustment-list tbody tr{cursor:pointer}
 .bank-summary .positive{color:#15803d!important}.bank-summary .negative{color:#b91c1c!important}
 .report-toolbar{padding:5px 7px!important;gap:5px!important}.report-toolbar .compact-date-range{flex:0 1 auto}.report-toolbar :is(select,input,.combobox-trigger,button){min-height:34px;height:34px}.report-sort-header{width:100%;height:100%;min-height:0;padding:0;border:0;border-radius:0;color:inherit;background:transparent;font:inherit;cursor:pointer}.report-table-product-sales{min-width:0!important;font-size:9px}.report-table-product-sales th,.report-table-product-sales td{padding-inline:2px;font-size:9px}.report-table-product-sales .serial{width:32px}
+
+@media(min-width:1051px){.compact-date-range{flex-wrap:nowrap}.expense-grid{grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr);grid-template-rows:auto minmax(0,1fr)}.warehouse-admin{width:min(1040px,100%);height:auto;max-height:100%;margin-inline:auto;align-content:start}.warehouse-admin .scroll-panel{height:auto}.inventory-overview{flex-wrap:nowrap}.inventory-toolbar>.combobox{flex:0 0 215px;min-width:215px}.inventory-apply{flex:0 0 70px;height:34px}.inventory-print{flex:0 0 100px;height:34px}.inventory-overview-metrics{margin-inline-start:auto}.party-history-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px}.parties-workspace{grid-template-rows:auto minmax(0,1fr) auto}.bank-panel{grid-template-rows:var(--bank-tab-stage-height)}.bank-tab-stage{height:var(--bank-tab-stage-height)}.bank-adjustment-form label{margin:0}.report-table{width:100%;min-width:0;table-layout:fixed;font-size:10px}.report-table th,.report-table td{padding:4px 5px}}
+@media(max-width:1050px){.compact-date-range{flex-wrap:wrap}.inventory-overview{flex-wrap:wrap}}
+.period-error{color:#b42318;font-size:9px;font-weight:800}.inventory-panel{display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:6px;min-height:0}.inventory-panel .compact-search{width:350px}.inventory-grid th,.inventory-grid td,.party-grid th,.party-grid td,.bank-tab-content th,.bank-tab-content td{height:31px;padding:4px 6px;line-height:1.22}.bank-nav-popover button:hover,.bank-nav-popover button.active{color:#fff;background:#1967d2}.warehouse-admin tbody tr:hover td{background:inherit}.picker-results>button:hover,.picker-results>button[aria-selected="true"]{color:#fff;background:#1967d2;box-shadow:none}.picker-results>button:hover small,.picker-results>button[aria-selected="true"] small{color:#fff}.search-panel .product-picker{padding:5px;border:0;border-radius:0}.search-panel .picker-results{margin-top:5px}.bank-tab-transfers>.transfer-form{margin-bottom:9px;padding-bottom:9px;border-bottom:1px solid var(--line)}
