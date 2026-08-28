@@ -118,9 +118,21 @@ test("invoice editors expose explicit new, edit, void, history routing and autho
 test("compact dates, explicit action order, and idle discovery remain structural", () => {
   const dates = between("function CompactDateRange", "function BarcodeScanner");
   assert.ok(dates.indexOf("onApply&&") < dates.indexOf("عرض الكل"));
-  assert.doesNotMatch(css, /compact-date-range label[^}]*153px|compact-date-range input[^}]*119px/);
+  assert.match(css, /\.compact-date-range label\{[^}]*width:130px[^}]*border-radius:4px/);
+  assert.match(css, /\.compact-date-range input\{[^}]*width:106px/);
+  assert.match(css, /\.expense-form input\[type="date"\]\{width:128px\}/);
   for (const editor of [between("function Pos", "function Purchase"), between("function Purchases", "function Expenses")]) assert.match(editor, /collapseResultsWhenIdle/);
   assert.match(css, /grid-template-rows: auto minmax\(0, 1fr\)/);
+});
+
+test("expenses and record filters retain the compact desktop grid", () => {
+  const records = between("function Records", "const reportNames");
+  assert.match(records, /className="records-kind-filter"/);
+  assert.match(css, /\.records-filters \.records-kind-filter\{[^}]*width:180px[^}]*flex:0 0 180px/);
+  assert.match(css, /\.expense-form \{ grid-column:1;grid-row:1; \}/);
+  assert.match(css, /\.expense-recurring \{[^}]*grid-column:1;grid-row:2/);
+  assert.match(css, /\.expense-history \{[^}]*grid-column:2;grid-row:1 \/ span 2/);
+  assert.doesNotMatch(css, /\.expense-form\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/);
 });
 
 test("party history footer and framed bank workflows preserve semantic hierarchy", () => {

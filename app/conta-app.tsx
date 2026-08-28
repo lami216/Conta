@@ -1110,7 +1110,7 @@ function Records({
     <section className="records-workspace">
       <FramedSection title="بحث السجلات" className="records-filters"><div className="filters">
         <CompactSearch value={q} onChange={setQ} placeholder="رقم المستند أو الطرف" />
-        <select value={kind} onChange={(e) => setKind(e.target.value)}>
+        <select className="records-kind-filter" value={kind} onChange={(e) => setKind(e.target.value)}>
           <option value="">كل المعاملات</option>
           {Object.entries(kindLabels).map(([k, v]) => (
             <option key={k} value={k}>
