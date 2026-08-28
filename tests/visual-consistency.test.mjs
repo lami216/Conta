@@ -135,11 +135,28 @@ test("expenses and record filters retain the compact desktop grid", () => {
   assert.doesNotMatch(css, /\.expense-form\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/);
 });
 
+test("invoice history renders every filtered record and expense actions follow their fields", () => {
+  const recent = between("function Recent", "function Heading");
+  assert.match(recent, /visibleDocs\.map\(/);
+  assert.doesNotMatch(recent, /visibleDocs\.slice\(|visibleDocs\.filter\([^)]*\)\.slice\(/);
+  const expenses = between("function Expenses", "function Banks");
+  const fields = expenses.slice(expenses.indexOf('className="expense-fields"'), expenses.indexOf("</div>", expenses.indexOf('className="expense-fields"')));
+  assert.match(fields, /وسيلة الدفع[\s\S]*className="primary expense-save"/);
+  assert.match(css, /\.expense-form-body\s*\{[^}]*display:block/);
+  assert.match(css, /\.expense-save\s*\{[^}]*align-self:end[^}]*height:34px/);
+});
+
 test("party history footer and framed bank workflows preserve semantic hierarchy", () => {
   const party = between("function PartyPage", "export function periodQuantity");
   assert.doesNotMatch(party, /دفع للطرف/);
   assert.match(party, /دفع لل\{customer\?"عميل":"مورد"\}/);
+  assert.match(party, /className="party-history-toolbar"><CompactDateRange/);
   assert.ok(party.indexOf('<Recent title="الحركات"') < party.indexOf('className="party-trade-metrics"'));
+  assert.match(css, /\.party-payment-row\{[^}]*grid-template-columns:280px 130px 105px minmax\(150px,1fr\)/);
+  assert.match(css, /\.party-cash-direction button\{[^}]*white-space:nowrap[^}]*overflow:visible/);
+  assert.doesNotMatch(css, /\.party-history-toolbar (?:label|input)\s*\{/);
+  assert.match(css, /\.party-history-toolbar\s*\{[^}]*min-height:34px[^}]*overflow:visible/);
+  assert.match(css, /\.party-trade-metrics\{[^}]*justify-content:flex-end[^}]*width:100%/);
   const banks = between("function Banks", "function PaymentAccountDialog");
   for (const title of ["تحويل جديد", "سجل التحويلات", "عملية سحب أو إيداع", "سجل السحب والإيداع"]) assert.match(banks, new RegExp(`FramedSection title="${title}"`));
 });
