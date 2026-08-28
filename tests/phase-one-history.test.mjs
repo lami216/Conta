@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { filterDocumentsByDate, localBusinessDay, sortDocumentsBySequence } from "../app/history-filters.ts";
+import { expenseAllTimeMode, expenseDateMode, expenseSearchMode, filterDocumentsByDate, localBusinessDay, rankExpenseDocuments, sortDocumentsBySequence } from "../app/history-filters.ts";
 
 const document = (id, sequence, day) => ({ id, sequence, occurredAt: `${day}T12:00:00.000Z`, businessDate: day });
 
@@ -29,7 +29,26 @@ test("expense defaults and all-time controls remain explicit", () => {
   const expenses = source.slice(source.indexOf("function Expenses"), source.indexOf("function Banks"));
   assert.match(expenses, /expense-date", localBusinessDay\(\)/);
   assert.match(expenses, /useState\(today\).*historyAllTime/s);
-  assert.match(expenses, /onAllTime=\{\(\) => setHistoryAllTime\(true\)\}/);
+  assert.match(expenses, /allTime=\{historyAllTime && !historyQuery\.trim\(\)\}/);
+  assert.match(expenses, /onAllTime=\{\(\) => applyExpenseFilters\(expenseAllTimeMode\(\)\)\}/);
+});
+
+test("expense search ranks exact numbers and closer titles before loose matches", () => {
+  const docs = [
+    { ...document("loose", 4, "2026-08-27"), kind: "expense", title: "فاتورة كهرباء المكتب", number: "EXP-4" },
+    { ...document("prefix", 2, "2026-08-27"), kind: "expense", title: "كهرباء", number: "EXP-7" },
+    { ...document("exact-number", 1, "2026-08-27"), kind: "expense", title: "إيجار", number: "EXP-2", sequence: 1 },
+    { ...document("none", 9, "2026-08-27"), kind: "expense", title: "مياه", number: "EXP-9" },
+  ];
+  assert.deepEqual(rankExpenseDocuments(docs, "  كهرب  ").map(item => item.id), ["prefix", "loose"]);
+  assert.equal(rankExpenseDocuments(docs, "EXP-2")[0].id, "exact-number");
+});
+
+test("expense search, date, and all-time actions switch explicit filter modes", () => {
+  const initial = { query: "", from: "2026-08-28", to: "2026-08-28", allTime: false };
+  assert.deepEqual(expenseSearchMode(initial, " كهرباء "), { query: " كهرباء ", from: "", to: "", allTime: true });
+  assert.deepEqual(expenseDateMode({ query: "كهرباء", from: "", to: "", allTime: true }, "from", "2026-07-01"), { query: "", from: "2026-07-01", to: "", allTime: false });
+  assert.deepEqual(expenseAllTimeMode(), { query: "", from: "", to: "", allTime: true });
 });
 
 test("product picker and document overlay regression checkpoints remain mounted", () => {
