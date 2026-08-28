@@ -171,3 +171,37 @@ test("party history footer and framed bank workflows preserve semantic hierarchy
   const banks = between("function Banks", "function PaymentAccountDialog");
   for (const title of ["تحويل جديد", "سجل التحويلات", "عملية سحب أو إيداع", "سجل السحب والإيداع"]) assert.match(banks, new RegExp(`FramedSection title="${title}"`));
 });
+
+test("party financial summaries use explicit business-semantic tones", () => {
+  const parties = between("function Parties", "function PartyPage");
+  const party = between("function PartyPage", "export function periodQuantity");
+  assert.match(parties, /data\.partyFinancialSummaries/);
+  assert.match(parties, /partyTradeMetrics/);
+  assert.match(party, /data\.partyFinancialSummaries/);
+  assert.match(party, /partyTradeMetrics/);
+  assert.match(parties, /grossProfit.*metric-positive.*grossProfit.*metric-negative.*metric-neutral/);
+  assert.match(party, /party-trade-metrics.*metric-neutral.*cashIn.*metric-neutral.*cashOut/s);
+  assert.match(party, /grossProfit.*metric-positive.*grossProfit.*metric-negative.*metric-neutral/);
+  assert.match(parties, /balance>0\?"positive":balance<0\?"negative"/);
+  assert.match(css, /\.party-list-metrics b,\.party-trade-metrics b\{[^}]*font-size:16px/);
+  assert.match(css, /\.metric-positive,.metric-positive b\{color:#15803d/);
+  assert.match(css, /\.metric-negative,.metric-negative b\{color:#b91c1c/);
+});
+
+test("account overview is accounts-only, global, and uses a two-region semantic layout", () => {
+  const banks = between("function Banks", "function PaymentAccountDialog");
+  const accounts = banks.slice(banks.indexOf('{tab==="accounts"&&'), banks.indexOf('{tab==="movements"&&'));
+  const afterAccounts = banks.slice(banks.indexOf('{tab==="movements"&&'));
+  assert.match(accounts, /bank-accounts-main/);
+  assert.match(accounts, /className="bank-summary"/);
+  assert.doesNotMatch(afterAccounts, /className="bank-summary"/);
+  assert.equal((banks.match(/className="bank-summary"/g) ?? []).length, 1);
+  assert.match(banks, /accountSummary=bankScopeMetrics\(data\.paymentAccounts,data\.documents,null\)/);
+  assert.doesNotMatch(banks, /accountSummary=bankScopeMetrics\([^;]*movementScope|accountSummary=bankScopeMetrics\([^;]*accountFilter|accountSummary=bankScopeMetrics\([^;]*typeFilter/);
+  assert.match(banks, /movements=filterFinancialMovements\(operationalMovements,movementScope\.period,accountFilter,typeFilter\)/);
+  assert.match(accounts, /account\.balance>0\?"metric-positive":account\.balance<0\?"metric-negative":"metric-neutral"/);
+  assert.match(accounts, /إجمالي المبيعات<\/small><b>\{money\(accountSummary\.sales\)\}/);
+  assert.match(css, /\.bank-tab-accounts\{[^}]*grid-template-columns:minmax\(0,2fr\) minmax\(280px,1fr\)/);
+  assert.match(css, /\.bank-summary\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+  assert.doesNotMatch(css, /\.banks-workspace\{[^}]*grid-template-rows:[^}]*bank-summary/);
+});
