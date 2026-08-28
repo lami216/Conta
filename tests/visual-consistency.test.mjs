@@ -114,3 +114,20 @@ test("invoice editors expose explicit new, edit, void, history routing and autho
   assert.match(app, /setPurchaseEditRequest\(id\); setView\("purchases"\)/);
   assert.match(app, /root\.classList\.add\("print-document-mode"\); window\.print\(\)/);
 });
+
+test("compact dates, explicit action order, and idle discovery remain structural", () => {
+  const dates = between("function CompactDateRange", "function BarcodeScanner");
+  assert.ok(dates.indexOf("onApply&&") < dates.indexOf("عرض الكل"));
+  assert.doesNotMatch(css, /compact-date-range label[^}]*153px|compact-date-range input[^}]*119px/);
+  for (const editor of [between("function Pos", "function Purchase"), between("function Purchases", "function Expenses")]) assert.match(editor, /collapseResultsWhenIdle/);
+  assert.match(css, /grid-template-rows: auto minmax\(0, 1fr\)/);
+});
+
+test("party history footer and framed bank workflows preserve semantic hierarchy", () => {
+  const party = between("function PartyPage", "export function periodQuantity");
+  assert.doesNotMatch(party, /دفع للطرف/);
+  assert.match(party, /دفع لل\{customer\?"عميل":"مورد"\}/);
+  assert.ok(party.indexOf('<Recent title="الحركات"') < party.indexOf('className="party-trade-metrics"'));
+  const banks = between("function Banks", "function PaymentAccountDialog");
+  for (const title of ["تحويل جديد", "سجل التحويلات", "عملية سحب أو إيداع", "سجل السحب والإيداع"]) assert.match(banks, new RegExp(`FramedSection title="${title}"`));
+});
