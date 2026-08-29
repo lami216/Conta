@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
-import { DEFAULT_GENERAL_SETTINGS, validateGeneralSettings } from "../lib/general-settings.ts";
 import { validateInvoiceBranding } from "../lib/invoice-branding.ts";
 
 const app = await readFile(new URL("../app/conta-app.tsx", import.meta.url), "utf8");
@@ -12,12 +11,6 @@ const between = (start, end) => app.slice(app.indexOf(start), app.indexOf(end, a
 test("legacy branding receives empty optional business fields", () => {
   const value = validateInvoiceBranding({ storeName: "متجر", nameFont: "tahoma", nameFontSize: 24, nameFontWeight: 800 });
   assert.deepEqual(value, { storeName: "متجر", storePhone: "", storeAddress: "", registrationNumber: "", taxNumber: "", footerNote: "", nameFont: "tahoma", nameFontSize: 24, nameFontWeight: 800 });
-});
-
-test("general financial privacy is strict and privacy-first", () => {
-  assert.deepEqual(DEFAULT_GENERAL_SETTINGS, { hideFinancialAmountsByDefault: true });
-  assert.deepEqual(validateGeneralSettings({ hideFinancialAmountsByDefault: false }), { hideFinancialAmountsByDefault: false });
-  for (const invalid of [{}, { hideFinancialAmountsByDefault: "false" }, { hideFinancialAmountsByDefault: 0 }]) assert.throws(() => validateGeneralSettings(invalid));
 });
 
 test("new transaction editors require explicit payment and preserve loaded edit values", () => {
