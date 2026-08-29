@@ -6,17 +6,27 @@ test("desktop navigation has eight unique destinations with reports before setti
 test("submenu current states require their parent view without resetting remembered selections", async () => {
   const source = await readFile(new URL("../app/conta-app.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /className=\{view==="banks"&&bankTab===item\.id\?"active":""\}/);
-  assert.match(source, /aria-current=\{view === "reports" && reportType === id \? "page" : undefined\}/);
-  assert.match(source, /className=\{view === "reports" && reportType === id \? "active" : ""\}/);
-
-  assert.match(source, /invoiceNav[\s\S]*?className=\{view === n\.id \? "active" : ""\}/);
-  assert.match(source, /warehouseNav[\s\S]*?className=\{view === n\.id \? "active" : ""\}/);
-  assert.match(source, /party-nav-popover[\s\S]*?className=\{view===item\.id\?"active":""\}/);
+  assert.match(source, /allowed=\{can\("banks\.view"\)\} active=\{view==="banks"&&bankTab===item\.id\}/);
+  assert.match(source, /allowed=\{can\("reports\.view"\)\} active=\{view==="reports"&&reportType===id\}/);
+  assert.match(source, /invoiceNav\.map\(n=><PermissionNavItem[^>]+active=\{view===n\.id\}/);
+  assert.match(source, /warehouseNav\.map\(n=><PermissionNavItem[^>]+active=\{view===n\.id\}/);
+  assert.match(source, /partyNav\.map\(item=><PermissionNavItem[^>]+active=\{view===item\.id\}/);
 
   const navigateBody = source.match(/const navigate = \(id: View\) => \{([\s\S]*?)\n  \};/)?.[1];
   assert.ok(navigateBody);
   assert.doesNotMatch(navigateBody, /setBankTab|setReportType/);
+});
+
+test("permission-aware navigation stays complete and disabled items cannot activate", async () => {
+  const source = await readFile(new URL("../app/conta-app.tsx", import.meta.url), "utf8");
+  for (const collection of ["invoiceNav", "warehouseNav", "partyNav", "bankNav", "reportOrder"])
+    assert.match(source, new RegExp(`${collection}\\.map\\(`));
+  assert.doesNotMatch(source, /(?:invoiceNav|warehouseNav|partyNav)\.filter\([^\n]*can/);
+  assert.match(source, /if \(!can\(viewCapability\[id\]\)\) return/);
+  assert.match(source, /disabled=\{!allowed\}/);
+  assert.match(source, /aria-disabled=\{!allowed\?"true":undefined\}/);
+  assert.match(source, /allowed&&active/);
+  assert.match(source, /لا تملك صلاحية الوصول/);
 });
 
 test("top navigation dropdowns share one visual system and render text-only rows", async () => {
