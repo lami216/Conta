@@ -8,6 +8,7 @@ test("submenu current states require their parent view without resetting remembe
 
   assert.match(source, /allowed=\{can\("banks\.view"\)\} active=\{view==="banks"&&bankTab===item\.id\}/);
   assert.match(source, /allowed=\{can\("reports\.view"\)\} active=\{view==="reports"&&reportType===id\}/);
+  assert.match(source, /allowed=\{settingsAllowed\(item\.id\)\} active=\{view==="settings"&&settingsTab===item\.id\}/);
   assert.match(source, /invoiceNav\.map\(n=><PermissionNavItem[^>]+active=\{view===n\.id\}/);
   assert.match(source, /warehouseNav\.map\(n=><PermissionNavItem[^>]+active=\{view===n\.id\}/);
   assert.match(source, /partyNav\.map\(item=><PermissionNavItem[^>]+active=\{view===item\.id\}/);
@@ -33,12 +34,17 @@ test("top navigation dropdowns share one visual system and render text-only rows
   const source = await readFile(new URL("../app/conta-app.tsx", import.meta.url), "utf8");
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
-  assert.equal((source.match(/className="nav-popover(?: [^"]+)?"/g) ?? []).length, 5);
+  assert.equal((source.match(/className="nav-popover(?: [^"]+)?"/g) ?? []).length, 6);
   assert.match(source, /<ReceiptText\s*\/>\s*<span>الفواتير<\/span>\s*<ChevronDown/);
   assert.match(source, /<Boxes\s*\/>\s*<span>المخازن<\/span>\s*<ChevronDown/);
   assert.match(source, /<Users\s*\/>\s*<span>العملاء والموردون<\/span>\s*<ChevronDown/);
   assert.match(source, /<Landmark\s*\/>\s*<span>البنوك<\/span>\s*<ChevronDown/);
   assert.match(source, /<Receipt\s*\/>\s*<span>التقارير<\/span>\s*<ChevronDown/);
+  assert.match(source, /className="nav-menu settings-nav-menu"[\s\S]*?<SettingsIcon\s*\/>\s*<span>الإعدادات<\/span>\s*<ChevronDown/);
+  assert.match(source, /\[\{id:"general",label:"إعدادات عامة"\},\{id:"users",label:"المستخدمون والصلاحيات"\},\{id:"data",label:"البيانات والنسخ الاحتياطي"\}\]/);
+  assert.match(source, /const settingsAllowed=.*settings\.users\.manage.*settings\.backup\.manage.*settings\.legacy\.import/);
+  assert.match(source, /settingsMenuRef/);
+  assert.match(source, /setSettingsMenu\(false\)/);
 
   assert.doesNotMatch(source, /invoiceNav\.filter[^\n]+<n\.icon\s*\/>/);
   assert.doesNotMatch(source, /warehouseNav\.filter[^\n]+<n\.icon\s*\/>/);

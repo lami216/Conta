@@ -22,10 +22,10 @@ test("parties and banks use framed ERP tables", () => {
   assert.match(banks, /aria-label="وسائل الدفع"/);
   assert.doesNotMatch(banks, /account-card/);
 });
-test("settings uses three focused internal pages with an explicit accent", () => {
+test("settings navigation is lifted while compact pages own their widths", () => {
   const settings = between("function SettingsPage", "function FramedSection");
-  for (const label of ["إعدادات عامة", "المستخدمون والصلاحيات", "البيانات والنسخ الاحتياطي"]) assert.match(settings, new RegExp(label));
-  assert.match(settings, /useState<SettingsTab>\("general"\)/);
+  assert.doesNotMatch(settings, /settings-tabs|useState<SettingsTab>/);
+  assert.match(app, /\[settingsTab, setSettingsTab\] = useState<SettingsTab>\("general"\)/);
   assert.match(settings, /tab==="general"&&<GeneralSettings/);
   assert.match(settings, /tab==="users"&&allowed\("users"\)&&<UsersPermissions\/>/);
   assert.match(settings, /tab==="data"&&allowed\("data"\)&&<DataSettings/);
@@ -33,7 +33,17 @@ test("settings uses three focused internal pages with an explicit accent", () =>
   assert.doesNotMatch(users, /BrandingSettings|settings-utility-row|النسخ الاحتياطي|الاستعادة والاستيراد/);
   const dataSettings = between("function DataSettings", "type SettingsTab");
   for (const title of ["النسخ الاحتياطي", "الاستعادة والاستيراد"]) assert.match(dataSettings, new RegExp(`FramedSection title="${title}"`));
-  assert.match(css, /\.settings-tabs button\.active\{[^}]*#fff7e8/);
+  assert.doesNotMatch(css, /\.settings-tabs/);
+  assert.match(css, /\.general-settings\{[^}]*width:min\(100%,980px\)[^}]*margin-inline:auto/);
+  assert.match(css, /\.business-settings-fields\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)[^}]*gap:10px/);
+  assert.match(css, /\.business-settings-fields \.business-address\{grid-column:1\/-1\}/);
+  assert.match(css, /\.branding-preview\{[^}]*min-height:140px[^}]*max-height:180px/);
+  assert.match(css, /\.settings-utility-row\{[^}]*width:min\(100%,780px\)[^}]*margin-inline:auto/);
+  assert.match(css, /\.settings-backup\{width:100%;max-width:540px\}/);
+  assert.match(css, /\.settings-import\{width:min\(100%,740px\)\}/);
+  assert.match(css, /\.settings-utility-row\.has-import-details\{width:min\(100%,980px\)\}/);
+  assert.match(app, /settings-utility-row\$\{selectedFile\?" has-import-details":""\}/);
+  assert.match(css, /\.users-permissions\{height:100%;min-height:0;overflow:hidden\}/);
   assert.match(css, /\.section-settings\s*\{[^}]*--section-color:\s*var\(--color-settings\)/);
 });
 test("warehouse summary uses stable metrics and controlled popover overflow", () => {

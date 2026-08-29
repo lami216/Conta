@@ -83,6 +83,7 @@ type RunCommand = (
 ) => Promise<string & { disposition?: "deleted" | "archived" }>;
 type AdjustmentPrefill = { productId: string; warehouseId: string };
 type BankTab = "accounts" | "movements" | "transfers" | "adjustment";
+type SettingsTab = "general" | "users" | "data";
 type DraftLine = {
   productId: string;
   quantity: string;
@@ -177,7 +178,9 @@ export default function ContaApp() {
     [reportMenu, setReportMenu] = useState(false),
     [partyMenu, setPartyMenu] = useState(false),
     [bankMenu, setBankMenu] = useState(false),
+    [settingsMenu, setSettingsMenu] = useState(false),
     [bankTab, setBankTab] = useState<BankTab>("accounts"),
+    [settingsTab, setSettingsTab] = useState<SettingsTab>("general"),
     [reportType, setReportType] = useState<ReportType>("sales"),
     [doc, setDoc] = useState<DocumentRecord | null>(null),
     [saleEditRequest, setSaleEditRequest] = useState<string | null>(null),
@@ -190,7 +193,9 @@ export default function ContaApp() {
   const reportMenuRef = useRef<HTMLDivElement>(null);
   const partyMenuRef = useRef<HTMLDivElement>(null);
   const bankMenuRef = useRef<HTMLDivElement>(null);
+  const settingsMenuRef = useRef<HTMLDivElement>(null);
   const can=(capability:string)=>data.principal.principalType==="owner"||data.principal.permissions.includes(capability);
+  const settingsAllowed=(target:SettingsTab)=>can("settings.view")&&(target==="general"||(target==="users"?can("settings.users.manage"):can("settings.backup.manage")||can("settings.legacy.import")));
   const viewCapability:Record<View,string>={pos:"pos.view",purchases:"purchases.view",expenses:"expenses.view",customers:"customers.view",suppliers:"suppliers.view",warehouses:"warehouses.inventory.view",warehouseAdmin:"warehouses.view",transfers:"warehouses.transfer",adjustments:"warehouses.adjust",products:"products.view",records:"records.view",reports:"reports.view",banks:"banks.view",settings:"settings.view"};
   useEffect(() => {
     const close = (event: PointerEvent) => {
@@ -199,6 +204,7 @@ export default function ContaApp() {
       if (!reportMenuRef.current?.contains(event.target as Node)) setReportMenu(false);
       if (!partyMenuRef.current?.contains(event.target as Node)) setPartyMenu(false);
       if (!bankMenuRef.current?.contains(event.target as Node)) setBankMenu(false);
+      if (!settingsMenuRef.current?.contains(event.target as Node)) setSettingsMenu(false);
     };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
@@ -206,7 +212,7 @@ export default function ContaApp() {
   const navigate = (id: View) => {
     if (!can(viewCapability[id])) return;
     if (id !== "adjustments") setAdjustmentPrefill(null);
-    setView(id); setDoc(null); setPartyDetail(null); setMenu(false); setWarehouseMenu(false); setInvoiceMenu(false); setReportMenu(false); setPartyMenu(false); setBankMenu(false);
+    setView(id); setDoc(null); setPartyDetail(null); setMenu(false); setWarehouseMenu(false); setInvoiceMenu(false); setReportMenu(false); setPartyMenu(false); setBankMenu(false); setSettingsMenu(false);
   };
   const openStockAdjustment = (prefill: AdjustmentPrefill) => {
     setAdjustmentPrefill(prefill);
@@ -290,7 +296,7 @@ export default function ContaApp() {
           {nav.slice(1).filter(n=>n.id!=="reports"&&n.id!=="settings"&&n.id!=="banks").map(n=><PermissionNavItem key={n.id} allowed={can(viewCapability[n.id])} active={view===n.id} className="nav" onClick={()=>navigate(n.id)}><n.icon/><span>{n.label}</span></PermissionNavItem>)}
           <div className="nav-menu bank-nav-menu" ref={bankMenuRef}><button className={view==="banks"?"nav active":"nav"} aria-expanded={bankMenu} onClick={()=>setBankMenu(open=>!open)}><Landmark/><span>البنوك</span><ChevronDown className="chevron"/></button>{bankMenu&&<div className="nav-popover bank-nav-popover">{bankNav.map(item=><PermissionNavItem key={item.id} allowed={can("banks.view")} active={view==="banks"&&bankTab===item.id} onClick={()=>{setBankTab(item.id);navigate("banks")}}><span>{item.label}</span></PermissionNavItem>)}</div>}</div>
           <div className="nav-menu report-nav-menu" ref={reportMenuRef}><button className={view==="reports"?"nav active":"nav"} aria-expanded={reportMenu} onClick={()=>setReportMenu(value=>!value)}><Receipt/><span>التقارير</span><ChevronDown className="chevron"/></button>{reportMenu&&<div className="nav-popover report-nav-popover">{reportOrder.map(id=><PermissionNavItem key={id} allowed={can("reports.view")} active={view==="reports"&&reportType===id} onClick={()=>{setReportType(id);navigate("reports")}}><span>{reportNames[id]}</span></PermissionNavItem>)}</div>}</div>
-          {nav.filter(n=>n.id==="settings").map(n=><PermissionNavItem key={n.id} allowed={can(viewCapability[n.id])} active={view===n.id} className="nav" onClick={()=>navigate(n.id)}><n.icon/><span>{n.label}</span></PermissionNavItem>)}
+          <div className="nav-menu settings-nav-menu" ref={settingsMenuRef}><button className={view==="settings"?"nav active":"nav"} aria-expanded={settingsMenu} onClick={()=>setSettingsMenu(value=>!value)}><SettingsIcon/><span>الإعدادات</span><ChevronDown className="chevron"/></button>{settingsMenu&&<div className="nav-popover">{([{id:"general",label:"إعدادات عامة"},{id:"users",label:"المستخدمون والصلاحيات"},{id:"data",label:"البيانات والنسخ الاحتياطي"}] as Array<{id:SettingsTab;label:string}>).map(item=><PermissionNavItem key={item.id} allowed={settingsAllowed(item.id)} active={view==="settings"&&settingsTab===item.id} onClick={()=>{setSettingsTab(item.id);navigate("settings")}}><span>{item.label}</span></PermissionNavItem>)}</div>}</div>
         </nav>
         <div className="account-session">
           <strong>{data.principal.name}</strong>
@@ -349,7 +355,7 @@ export default function ContaApp() {
                 <Reports key={reportType} data={data} openDoc={openDoc} type={reportType} />
               )}{" "}
               {view === "banks" && <Banks data={data} run={run} openDoc={openDoc} tab={bankTab} />}{" "}
-              {view === "settings" && <SettingsPage data={data} reload={reload} />}{" "}
+              {view === "settings" && <SettingsPage data={data} reload={reload} tab={settingsTab} />}{" "}
             </>
           )}
           {doc && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={`سجل المعاملة ${doc.number}`}><div className="official-document-viewer"><DocumentDetail document={doc} data={data} close={() => setDoc(null)} onEdit={doc.status === "posted" && !doc.legacyKey && (doc.kind === "sale" ? can("pos.edit") : doc.kind === "purchase" ? can("purchases.edit") : false) ? () => editInvoice(doc.id) : undefined} /></div></div>}
@@ -390,10 +396,10 @@ function GeneralSettings({data,reload}:{data:BootstrapData;reload:()=>Promise<vo
   const dirty=JSON.stringify(branding)!==JSON.stringify(data.branding)||JSON.stringify(privacy)!==JSON.stringify(data.generalSettings);
   const save=async()=>{setSaving(true);setNotice("");try{const requests=[];if(canBrand&&JSON.stringify(branding)!==JSON.stringify(data.branding))requests.push(fetch("/api/settings/branding",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(branding)}).then(readApiResponse));if(canPrivacy&&JSON.stringify(privacy)!==JSON.stringify(data.generalSettings))requests.push(fetch("/api/settings/general",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(privacy)}).then(readApiResponse));await Promise.all(requests);await reload();setNotice("تم حفظ الإعدادات")}catch(error){setNotice(error instanceof Error?error.message:"تعذر الحفظ")}finally{setSaving(false)}};
   return <div className="general-settings">
-    <FramedSection title="بيانات النشاط"><div className="general-settings-fields"><label>اسم المحل<input required maxLength={80} disabled={!canBrand} value={branding.storeName} onChange={e=>setBranding({...branding,storeName:e.target.value})}/></label><label>رقم الهاتف<input maxLength={40} disabled={!canBrand} value={branding.storePhone} onChange={e=>setBranding({...branding,storePhone:e.target.value})}/></label><label>العنوان<input maxLength={160} disabled={!canBrand} value={branding.storeAddress} onChange={e=>setBranding({...branding,storeAddress:e.target.value})}/></label><label>رقم السجل التجاري<input maxLength={60} disabled={!canBrand} value={branding.registrationNumber} onChange={e=>setBranding({...branding,registrationNumber:e.target.value})}/></label><label>الرقم الضريبي<input maxLength={60} disabled={!canBrand} value={branding.taxNumber} onChange={e=>setBranding({...branding,taxNumber:e.target.value})}/></label></div></FramedSection>
+    <FramedSection title="بيانات النشاط"><div className="business-settings-fields"><label>اسم المحل<input required maxLength={80} disabled={!canBrand} value={branding.storeName} onChange={e=>setBranding({...branding,storeName:e.target.value})}/></label><label>رقم الهاتف<input maxLength={40} disabled={!canBrand} value={branding.storePhone} onChange={e=>setBranding({...branding,storePhone:e.target.value})}/></label><label className="business-address">العنوان<input maxLength={160} disabled={!canBrand} value={branding.storeAddress} onChange={e=>setBranding({...branding,storeAddress:e.target.value})}/></label><label>رقم السجل التجاري<input maxLength={60} disabled={!canBrand} value={branding.registrationNumber} onChange={e=>setBranding({...branding,registrationNumber:e.target.value})}/></label><label>الرقم الضريبي<input maxLength={60} disabled={!canBrand} value={branding.taxNumber} onChange={e=>setBranding({...branding,taxNumber:e.target.value})}/></label></div></FramedSection>
     <FramedSection title="هوية المستندات" className="branding-settings"><div className="branding-fields"><label>نوع الخط<select value={branding.nameFont} disabled={!canBrand} onChange={e=>setBranding({...branding,nameFont:e.target.value as typeof branding.nameFont})}><option value="tahoma">Tahoma — تاهوما</option><option value="arial">Arial — أريال</option><option value="segoe-ui">Segoe UI</option><option value="times-new-roman">Times New Roman</option></select></label><label>حجم اسم المحل<input type="number" min="16" max="32" value={branding.nameFontSize} disabled={!canBrand} onChange={e=>setBranding({...branding,nameFontSize:Number(e.target.value)})}/></label><label>سماكة الخط<select value={branding.nameFontWeight} disabled={!canBrand} onChange={e=>setBranding({...branding,nameFontWeight:Number(e.target.value) as 400|600|800})}><option value="400">عادي</option><option value="600">متوسط</option><option value="800">عريض</option></select></label></div><div className="branding-preview"><strong style={{fontFamily:invoiceFontFamilies[branding.nameFont],fontSize:`${branding.nameFontSize}pt`,fontWeight:branding.nameFontWeight}}>{branding.storeName||"اسم المحل"}</strong><b>فاتورة بيع</b><span>رقم 000</span></div></FramedSection>
-    <FramedSection title="معلومات المستند"><label>ملاحظة التذييل<textarea maxLength={160} disabled={!canBrand} value={branding.footerNote} onChange={e=>setBranding({...branding,footerNote:e.target.value})}/></label></FramedSection>
-    <FramedSection title="الخصوصية المالية"><label className="privacy-setting"><input type="checkbox" disabled={!canPrivacy} checked={privacy.hideFinancialAmountsByDefault} onChange={e=>setPrivacy({hideFinancialAmountsByDefault:e.target.checked})}/> إخفاء المبالغ المالية افتراضيًا</label></FramedSection>
+    <FramedSection title="معلومات المستند" className="document-info-settings"><label>ملاحظة التذييل<textarea maxLength={160} disabled={!canBrand} value={branding.footerNote} onChange={e=>setBranding({...branding,footerNote:e.target.value})}/></label></FramedSection>
+    <FramedSection title="الخصوصية المالية" className="financial-privacy-settings"><label className="privacy-setting"><input type="checkbox" disabled={!canPrivacy} checked={privacy.hideFinancialAmountsByDefault} onChange={e=>setPrivacy({hideFinancialAmountsByDefault:e.target.checked})}/> إخفاء المبالغ المالية افتراضيًا</label></FramedSection>
     {(canBrand||canPrivacy)&&<button className="primary settings-save" disabled={saving||!dirty||!branding.storeName.trim()} onClick={()=>void save()}>{saving?"جاري الحفظ…":"حفظ الإعدادات"}</button>}{notice&&<div className={notice==="تم حفظ الإعدادات"?"success":"error"}>{notice}</div>}
   </div>;
 }
@@ -409,7 +415,7 @@ function DataSettings({data,reload}:{data:BootstrapData;reload:()=>Promise<void>
   const advance=async(run:ImportRun)=>{let current=run;while(current.state!=="completed"){await new Promise(resolve=>setTimeout(resolve,350));current=await readApiResponse(await fetch(`/api/settings/legacy/import-runs/${encodeURIComponent(current.importRunId)}/advance`,{method:"POST",headers:{"content-type":"application/json"},body:"{}"})) as ImportRun;setImportRun(current);if(current.state==="failed")throw new Error(current.publicError||`تعذر الاستيراد. رقم العملية: ${current.importRunId}`)}return current};
   const importExternal=async()=>{if(!externalPreview?.uploadId)return;setBusy("import");setFailure("");try{let run=await readApiResponse(await fetch("/api/settings/legacy/upload/complete",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({uploadId:externalPreview.uploadId,action:"import",stockPolicy,accountBalancePolicy:accountPolicy,filename:selectedFile?.name})})) as ImportRun;setImportRun(run);run=await advance(run);setMessage(`تم الدمج بأمان. نسخة الرجوع: ${run.backupIdBeforeImport}`);await reload()}catch(e){setFailure(e instanceof Error?e.message:"تعذر الاستيراد")}finally{setBusy("")}};
 
-  return <div className="settings-utility-row">
+  return <div className={`settings-utility-row${selectedFile?" has-import-details":""}`}>
     <FramedSection title="النسخ الاحتياطي" className="settings-backup"><div><button className="primary" disabled={!!busy||!canBackup} title={!canBackup?NO_ACCESS_TITLE:undefined} onClick={()=>{setBusy("backup");download().then(()=>setMessage("تم إنشاء النسخة وتنزيلها")).catch(e=>setFailure(e.message)).finally(()=>setBusy(""))}}>{busy==="backup"?"جاري الإنشاء…":"إنشاء وتنزيل"}</button></div></FramedSection>
     <FramedSection title="الاستعادة والاستيراد" className="settings-import"><div className="import-head"><label className="file-button">اختيار ملف<input type="file" disabled={!canBackup&&!canImport} title={!canBackup&&!canImport?NO_ACCESS_TITLE:undefined} accept=".json,.conta.json,.db,.sqlite,application/json,application/vnd.sqlite3" onChange={e=>void chooseFile(e.target.files?.[0]??null)}/></label></div>
       {selectedFile&&<div className="import-details"><ol className="import-steps"><li className={selectedFile?"done":"active"}>1 فحص الملف</li><li className={externalPreview?"done":""}>2 المطابقة</li><li className={externalPreview?.criticalConflicts?"active":""}>3 مراجعة التعارضات</li><li className={externalPreview?"done":""}>4 المعاينة النهائية</li><li className={importRun?"active":""}>5 الاستيراد</li></ol>
@@ -425,11 +431,9 @@ function DataSettings({data,reload}:{data:BootstrapData;reload:()=>Promise<void>
   </div>;
 }
 
-type SettingsTab = "general" | "users" | "data";
-function SettingsPage({data,reload}:{data:BootstrapData;reload:()=>Promise<void>}) {
-  const [tab,setTab]=useState<SettingsTab>("general");
+function SettingsPage({data,reload,tab}:{data:BootstrapData;reload:()=>Promise<void>;tab:SettingsTab}) {
   const allowed=(target:SettingsTab)=>target==="general"?true:target==="users"?(data.principal.principalType==="owner"||data.principal.permissions.includes("settings.users.manage")):(data.principal.principalType==="owner"||data.principal.permissions.some(permission=>["settings.backup.manage","settings.legacy.import"].includes(permission)));
-  return <section className="settings-page"><nav className="settings-tabs" aria-label="أقسام الإعدادات"><PermissionNavItem allowed={allowed("general")} active={tab==="general"} onClick={()=>setTab("general")}>إعدادات عامة</PermissionNavItem><PermissionNavItem allowed={allowed("users")} active={tab==="users"} onClick={()=>setTab("users")}>المستخدمون والصلاحيات</PermissionNavItem><PermissionNavItem allowed={allowed("data")} active={tab==="data"} onClick={()=>setTab("data")}>البيانات والنسخ الاحتياطي</PermissionNavItem></nav>{tab==="general"&&<GeneralSettings data={data} reload={reload}/>} {tab==="users"&&allowed("users")&&<UsersPermissions/>} {tab==="data"&&allowed("data")&&<DataSettings data={data} reload={reload}/>}</section>;
+  return <section className="settings-page">{tab==="general"&&<GeneralSettings data={data} reload={reload}/>} {tab==="users"&&allowed("users")&&<UsersPermissions/>} {tab==="data"&&allowed("data")&&<DataSettings data={data} reload={reload}/>}</section>;
 }
 
 function FramedSection({ title, className = "", allowOverflow = false, children }: { title: string; className?: string; allowOverflow?: boolean; children: ReactNode }) {
