@@ -53,7 +53,7 @@ for (const payment of ["cash", "note"]) test(`successful ${payment} sale clears 
   const order = [];
   await finishSuccessfulCommand(() => { clearPersistedSaleDraft(storage); order.push("clear"); }, async () => { order.push("refresh"); assert.equal(storage.getItem("conta:sale-lines"), "[]"); });
   assert.deepEqual(order, ["clear", "refresh"]);
-  assert.equal(storage.getItem("conta:sale-payment"), '""');
+  assert.equal(storage.getItem("conta:sale-payment"), '"cash"');
   assert.equal(storage.getItem("conta:sale-party"), '""');
 });
 

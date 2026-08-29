@@ -13,7 +13,7 @@ export const initialSaleUiState = { priceMode: "retail" as PriceMode, scannerEna
 /** Clear only a successfully posted sale draft, never invoice history. */
 export function clearPersistedSaleDraft(storage: Pick<Storage, "setItem">) {
   storage.setItem("conta:sale-lines", "[]");
-  storage.setItem("conta:sale-payment", JSON.stringify(""));
+  storage.setItem("conta:sale-payment", JSON.stringify("cash"));
   storage.setItem("conta:sale-party", JSON.stringify(""));
 }
 

@@ -91,7 +91,7 @@ test("focused banking and transaction editor regressions stay explicit", () => {
   assert.match(bootstrap, /\$ne: \["\$type", "opening-balance"\]/);
   const purchase = between("function Purchases", "function Expenses");
   assert.doesNotMatch(purchase, /purchase-locked|تأكيد المورد|تعديل المورد|disabled=\{!locked/);
-  assert.match(purchase, /disabled=\{!partyId \|\| !warehouseId \|\| !lines\.length \|\| \(payment !== "note" && !payment\)\}/);
+  assert.match(purchase, /disabled=\{!partyId \|\| !warehouseId \|\| !lines\.length\}/);
   const pos = between("function Pos", "function CompactPaymentSelector");
   assert.match(pos, /pos-quick-customer-button/);
   assert.doesNotMatch(pos, /pos-add-customer|إضافة عميل<\/button>/);
