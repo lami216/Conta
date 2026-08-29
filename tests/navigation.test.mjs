@@ -3,6 +3,22 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 test("desktop navigation has eight unique destinations with reports before settings",async()=>{const source=await readFile(new URL("../app/conta-app.tsx",import.meta.url),"utf8"),match=source.match(/MAIN_NAV_ORDER = \[([^\]]+)\]/);assert.ok(match);const entries=[...match[1].matchAll(/"([^"]+)"/g)].map(x=>x[1]);assert.deepEqual(entries,["pos","invoices","warehouses","products","parties","banks","reports","settings"]);assert.equal(new Set(entries).size,entries.length);});
 
+test("submenu current states require their parent view without resetting remembered selections", async () => {
+  const source = await readFile(new URL("../app/conta-app.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /className=\{view==="banks"&&bankTab===item\.id\?"active":""\}/);
+  assert.match(source, /aria-current=\{view === "reports" && reportType === id \? "page" : undefined\}/);
+  assert.match(source, /className=\{view === "reports" && reportType === id \? "active" : ""\}/);
+
+  assert.match(source, /invoiceNav[\s\S]*?className=\{view === n\.id \? "active" : ""\}/);
+  assert.match(source, /warehouseNav[\s\S]*?className=\{view === n\.id \? "active" : ""\}/);
+  assert.match(source, /party-nav-popover[\s\S]*?className=\{view===item\.id\?"active":""\}/);
+
+  const navigateBody = source.match(/const navigate = \(id: View\) => \{([\s\S]*?)\n  \};/)?.[1];
+  assert.ok(navigateBody);
+  assert.doesNotMatch(navigateBody, /setBankTab|setReportType/);
+});
+
 test("product and report tables use uncapped shared scroll viewports", async () => {
   const source = await readFile(new URL("../app/conta-app.tsx", import.meta.url), "utf8");
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
