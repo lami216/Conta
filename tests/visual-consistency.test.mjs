@@ -22,20 +22,19 @@ test("parties and banks use framed ERP tables", () => {
   assert.match(banks, /aria-label="وسائل الدفع"/);
   assert.doesNotMatch(banks, /account-card/);
 });
-test("settings uses full framed workspace with an explicit accent", () => {
+test("settings uses three focused internal pages with an explicit accent", () => {
   const settings = between("function SettingsPage", "function FramedSection");
-  for (const title of ["النسخ الاحتياطي", "الاستعادة والاستيراد"]) assert.match(settings, new RegExp(`FramedSection title="${title}"`));
-  assert.doesNotMatch(settings, /سجل عمليات الاستيراد|\/api\/settings\/import-runs/);
-  assert.match(settings, /className="settings-utility-row"/);
-  assert.match(settings, /<UsersPermissions utilities=\{utilities\}/);
-  assert.match(app, /<th>رقم<\/th><th>اسم الشاشة<\/th>\{\(\["view","create","edit","delete"\]/);
-  assert.doesNotMatch(app, /<th>الصلاحيات<\/th>/);
-  assert.match(css, /\.users-permissions-layout\{[^}]*grid-template-columns:minmax\(0,1\.85fr\) minmax\(340px,1fr\)/);
-  assert.match(css, /\.settings-utility-row\{[^}]*grid-template-rows:auto auto auto/);
-  assert.doesNotMatch(settings, /compact-counts|settings-title/);
-  assert.doesNotMatch(css, /max-width:\s*1120px/);
+  for (const label of ["إعدادات عامة", "المستخدمون والصلاحيات", "البيانات والنسخ الاحتياطي"]) assert.match(settings, new RegExp(label));
+  assert.match(settings, /useState<SettingsTab>\("general"\)/);
+  assert.match(settings, /tab==="general"&&<GeneralSettings/);
+  assert.match(settings, /tab==="users"&&allowed\("users"\)&&<UsersPermissions\/>/);
+  assert.match(settings, /tab==="data"&&allowed\("data"\)&&<DataSettings/);
+  const users = between("function UsersPermissions", "function GeneralSettings");
+  assert.doesNotMatch(users, /BrandingSettings|settings-utility-row|النسخ الاحتياطي|الاستعادة والاستيراد/);
+  const dataSettings = between("function DataSettings", "type SettingsTab");
+  for (const title of ["النسخ الاحتياطي", "الاستعادة والاستيراد"]) assert.match(dataSettings, new RegExp(`FramedSection title="${title}"`));
+  assert.match(css, /\.settings-tabs button\.active\{[^}]*#fff7e8/);
   assert.match(css, /\.section-settings\s*\{[^}]*--section-color:\s*var\(--color-settings\)/);
-  assert.doesNotMatch(css, /\.account-card/);
 });
 test("warehouse summary uses stable metrics and controlled popover overflow", () => {
   const warehouses = between("function Warehouses", "function ProductMovementPanel");
@@ -78,8 +77,8 @@ test("POS checkout, records, scoped stock, and document print retain explicit st
   const picker = between("function ProductSearchPicker", "const SearchProducts");
   assert.match(picker, /stockScope === "selected-warehouse" \? stockInWarehouse/);
   assert.match(app, /function PrintableDocument/);
-  assert.match(css, /@page invoice \{ size: A4 portrait/);
-  assert.match(css, /@page report \{ size: A4 landscape/);
+  assert.match(css, /@page invoice\s*\{\s*size:\s*A4 portrait/);
+  assert.match(css, /@page report\s*\{\s*size:\s*A4 landscape/);
 });
 
 test("focused banking and transaction editor regressions stay explicit", () => {
@@ -91,7 +90,7 @@ test("focused banking and transaction editor regressions stay explicit", () => {
   assert.match(bootstrap, /\$ne: \["\$type", "opening-balance"\]/);
   const purchase = between("function Purchases", "function Expenses");
   assert.doesNotMatch(purchase, /purchase-locked|تأكيد المورد|تعديل المورد|disabled=\{!locked/);
-  assert.match(purchase, /disabled=\{!partyId \|\| !warehouseId \|\| !lines\.length\}/);
+  assert.match(purchase, /disabled=\{!partyId \|\| !warehouseId \|\| !lines\.length \|\| \(payment !== "note" && !payment\)\}/);
   const pos = between("function Pos", "function CompactPaymentSelector");
   assert.match(pos, /pos-quick-customer-button/);
   assert.doesNotMatch(pos, /pos-add-customer|إضافة عميل<\/button>/);
@@ -203,7 +202,7 @@ test("account overview is accounts-only, global, and uses a two-region semantic 
   assert.doesNotMatch(banks, /accountSummary=bankScopeMetrics\([^;]*movementScope|accountSummary=bankScopeMetrics\([^;]*accountFilter|accountSummary=bankScopeMetrics\([^;]*typeFilter/);
   assert.match(banks, /movements=filterFinancialMovements\(operationalMovements,movementScope\.period,accountFilter,typeFilter\)/);
   assert.match(accounts, /account\.balance>0\?"metric-positive":account\.balance<0\?"metric-negative":"metric-neutral"/);
-  assert.match(accounts, /إجمالي المبيعات<\/small><b>\{money\(accountSummary\.sales\)\}/);
+  assert.match(accounts, /إجمالي المبيعات<\/small><PrivateMoney value=\{accountSummary\.sales\}/);
   assert.match(css, /\.bank-tab-accounts\{[^}]*grid-template-columns:minmax\(0,2fr\) minmax\(280px,1fr\)/);
   assert.match(css, /\.bank-summary\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
   assert.doesNotMatch(css, /\.banks-workspace\{[^}]*grid-template-rows:[^}]*bank-summary/);

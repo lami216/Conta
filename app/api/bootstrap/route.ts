@@ -5,6 +5,7 @@ import { getPrincipalFromRequest, hasCapability } from "../../../lib/auth";
 import { peekNextDocumentSequence } from "../../../lib/document-sequences";
 import { calculatePartyFinancialSummaries } from "../../party-metrics";
 import { getInvoiceBranding } from "../../../lib/invoice-branding";
+import { getGeneralSettings } from "../../../lib/general-settings";
 
 export async function GET(request: Request) {
   const principal=await getPrincipalFromRequest(request);if(!principal)return Response.json({error:"غير مصرح"},{status:401});
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
     if (legacyCosts.length) await db.collection("products").bulkWrite(legacyCosts.map(cost => ({
       updateOne: { filter: { id: cost._id, lastPurchaseCost: { $exists: false } }, update: { $set: { lastPurchaseCost: cost.cost, lastPurchaseAt: cost.at } } },
     })));
-    const [parties, warehouses, products, documents, movements, recurringExpenses, financialMovements, partyMetricDocuments, partyMetricMovements, paymentAccounts, accountTransfers, productCounter, nextSale, nextPurchase, nextExpense, branding] = await Promise.all([
+    const [parties, warehouses, products, documents, movements, recurringExpenses, financialMovements, partyMetricDocuments, partyMetricMovements, paymentAccounts, accountTransfers, productCounter, nextSale, nextPurchase, nextExpense, branding, generalSettings] = await Promise.all([
       db.collection("parties").find().sort({ name: 1 }).toArray(), db.collection("warehouses").find().sort({ isSalesDefault: -1, name: 1 }).toArray(),
       db.collection("products").find().sort({ name: 1 }).toArray(), db.collection("documents").find().sort({ occurredAt: -1 }).limit(500).toArray(),
       db.collection("stockMovements").find().sort({ occurredAt: -1 }).limit(1000).toArray(), db.collection("recurringExpenses").find().sort({ createdAt: -1 }).toArray(),
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
       db.collection("paymentAccounts").find().sort({ createdAt: 1 }).toArray(),
       db.collection("accountTransfers").find().sort({ occurredAt: -1 }).limit(500).toArray(),
       db.collection<{ _id: string; value: number }>("counters").findOne({ _id: "productSequence" }),
-      peekNextDocumentSequence(db, "sale"), peekNextDocumentSequence(db, "purchase"), peekNextDocumentSequence(db, "expense"), getInvoiceBranding(db),
+      peekNextDocumentSequence(db, "sale"), peekNextDocumentSequence(db, "purchase"), peekNextDocumentSequence(db, "expense"), getInvoiceBranding(db), getGeneralSettings(db),
     ]);
     const clean = (rows: Array<Record<string, unknown>>) => rows.map(({ _id, ...row }) => ({ id: row.id ?? String(_id), ...row }));
     const cleanProducts = clean(products).map(product => ({ ...product, wholesalePrice: (product as Record<string, unknown>).wholesalePrice ?? null, expiryDate: (product as Record<string, unknown>).expiryDate ?? null, note: (product as Record<string, unknown>).note ?? null }));
@@ -66,6 +67,6 @@ export async function GET(request: Request) {
     const exposedProducts=productAdmin?cleanProducts:(cleanProducts as Array<Record<string,unknown>>).map(({id,name,sku,barcode,piecePrice,wholesalePrice,expiryDate,stocks,isArchived})=>({id,name,sku,barcode,piecePrice,wholesalePrice,expiryDate,stocks,isArchived,pieceCost:null,lastPurchaseCost:null}));
     const visiblePartyIds=new Set(cleanParties.filter(party=>(resolvePartyType(party)==="customer"&&hasCapability(principal,"customers.view"))||(resolvePartyType(party)==="supplier"&&hasCapability(principal,"suppliers.view"))).map(party=>String(party.id)));
     const partyFinancialSummaries=partyAdmin?calculatePartyFinancialSummaries(partyMetricDocuments as never[],partyMetricMovements as never[]).filter(summary=>visiblePartyIds.has(summary.partyId)):[];
-    return Response.json({ branding, principal:{principalType:principal.principalType,name:principal.name,permissions:principal.permissions}, parties:exposedParties, warehouses:clean(warehouses), products:exposedProducts, documents:allowedDocuments, movements:hasCapability(principal,"warehouses.inventory.view")?clean(movements):[], recurringExpenses:hasCapability(principal,"expenses.view")?clean(recurringRows):[], financialMovements:bankAccess?clean(financialMovements):[], partyFinancialSummaries, paymentAccounts:selectorAccounts, accountTransfers:hasCapability(principal,"banks.transfer")?clean(accountTransfers):[], nextProductCode, nextDocumentSequences:{sale:nextSale,purchase:nextPurchase,expense:nextExpense} });
+    return Response.json({ branding, generalSettings, principal:{principalType:principal.principalType,name:principal.name,permissions:principal.permissions}, parties:exposedParties, warehouses:clean(warehouses), products:exposedProducts, documents:allowedDocuments, movements:hasCapability(principal,"warehouses.inventory.view")?clean(movements):[], recurringExpenses:hasCapability(principal,"expenses.view")?clean(recurringRows):[], financialMovements:bankAccess?clean(financialMovements):[], partyFinancialSummaries, paymentAccounts:selectorAccounts, accountTransfers:hasCapability(principal,"banks.transfer")?clean(accountTransfers):[], nextProductCode, nextDocumentSequences:{sale:nextSale,purchase:nextPurchase,expense:nextExpense} });
   } catch (error) { log("error", "api.bootstrap.failed", { error }); return Response.json({ error: "تعذر تحميل البيانات" }, { status: 500 }); }
 }
