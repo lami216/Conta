@@ -281,7 +281,7 @@ export default function ContaApp() {
               <ReceiptText /><span>الفواتير</span><ChevronDown className="chevron" />
             </button>
             {invoiceMenu && <div className="nav-popover">
-              {invoiceNav.filter(n=>can(viewCapability[n.id])).map(n => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => navigate(n.id)}><n.icon /><span>{n.label}</span></button>)}
+              {invoiceNav.filter(n=>can(viewCapability[n.id])).map(n => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => navigate(n.id)}><span>{n.label}</span></button>)}
             </div>}
           </div>}
           {warehouseNav.some(n=>can(viewCapability[n.id]))&&<div className="nav-menu" ref={warehouseMenuRef}>
@@ -289,10 +289,10 @@ export default function ContaApp() {
               <Boxes /><span>المخازن</span><ChevronDown className="chevron" />
             </button>
             {warehouseMenu && <div className="nav-popover">
-              {warehouseNav.filter(n=>can(viewCapability[n.id])).map(n => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => navigate(n.id)}><n.icon /><span>{n.label}</span></button>)}
+              {warehouseNav.filter(n=>can(viewCapability[n.id])).map(n => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => navigate(n.id)}><span>{n.label}</span></button>)}
             </div>}
           </div>}
-          {partyNav.some(item=>can(viewCapability[item.id]))&&<div className="nav-menu party-nav-menu" ref={partyMenuRef}><button className={partyNav.some(item=>item.id===view)?"nav active":"nav"} aria-expanded={partyMenu} onClick={()=>setPartyMenu(value=>!value)}><Users/><span>العملاء والموردون</span><ChevronDown className="chevron"/></button>{partyMenu&&<div className="nav-popover party-nav-popover">{partyNav.filter(item=>can(viewCapability[item.id])).map(item=><button key={item.id} className={view===item.id?"active":""} onClick={()=>navigate(item.id)}><item.icon/><span>{item.label}</span></button>)}</div>}</div>}
+          {partyNav.some(item=>can(viewCapability[item.id]))&&<div className="nav-menu party-nav-menu" ref={partyMenuRef}><button className={partyNav.some(item=>item.id===view)?"nav active":"nav"} aria-expanded={partyMenu} onClick={()=>setPartyMenu(value=>!value)}><Users/><span>العملاء والموردون</span><ChevronDown className="chevron"/></button>{partyMenu&&<div className="nav-popover party-nav-popover">{partyNav.filter(item=>can(viewCapability[item.id])).map(item=><button key={item.id} className={view===item.id?"active":""} onClick={()=>navigate(item.id)}><span>{item.label}</span></button>)}</div>}</div>}
           {nav.slice(1).filter(n=>n.id!=="reports"&&n.id!=="settings"&&n.id!=="banks"&&can(viewCapability[n.id])).map(n=><button key={n.id} className={view===n.id?"nav active":"nav"} onClick={()=>navigate(n.id)}><n.icon/><span>{n.label}</span></button>)}
           {can("banks.view")&&<div className="nav-menu bank-nav-menu" ref={bankMenuRef}><button className={view==="banks"?"nav active":"nav"} aria-expanded={bankMenu} onClick={()=>setBankMenu(open=>!open)}><Landmark/><span>البنوك</span><ChevronDown className="chevron"/></button>{bankMenu&&<div className="nav-popover bank-nav-popover">{bankNav.map(item=><button key={item.id} className={view==="banks"&&bankTab===item.id?"active":""} onClick={()=>{setBankTab(item.id);navigate("banks")}}><span>{item.label}</span></button>)}</div>}</div>}
           {can("reports.view")&&<div className="nav-menu report-nav-menu" ref={reportMenuRef}>
