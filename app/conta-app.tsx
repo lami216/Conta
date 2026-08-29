@@ -46,7 +46,9 @@ import {
   type Party,
   type Product,
   type PaymentAccount,
+  type InvoiceBrandingSettings,
 } from "./domain";
+import { invoiceFontFamilies } from "../lib/invoice-branding";
 import { calculatePartyFinancialSummaries, partyTradeMetrics } from "./party-metrics";
 import { reportDateQuery, reportNumber, reportTableModel, type ReportResponse, type ReportType } from "./report-types";
 import { buildReportFooterMetrics } from "./report-footer";
@@ -88,6 +90,7 @@ type DraftLine = {
 };
 const empty: BootstrapData = {
   principal: { principalType: "owner", name: "المالك", permissions: [] },
+  branding: { storeName:"Conta",nameFont:"tahoma",nameFontSize:24,nameFontWeight:800 },
   nextProductCode: 1,
   nextDocumentSequences: { sale: 1, purchase: 1, expense: 1 },
   parties: [],
@@ -304,7 +307,7 @@ export default function ContaApp() {
         </div>
       </aside>
       <main>
-        {autoPrintId && <div className="auto-print-host"><PrintableDocument document={data.documents.find(document => document.id === autoPrintId)!} data={data} /></div>}
+        {autoPrintId && <PrintableDocument document={data.documents.find(document => document.id === autoPrintId)!} data={data} />}
         <header className="page-bar">
           <button className="icon mobile" onClick={() => setMenu(true)}>
             <Menu />
@@ -358,7 +361,7 @@ export default function ContaApp() {
               {view === "settings" && <SettingsPage data={data} reload={reload} />}{" "}
             </>
           )}
-          {doc && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={`سجل المعاملة ${doc.number}`}><div className="modal-card"><DocumentDetail document={doc} data={data} close={() => setDoc(null)} onEdit={doc.status === "posted" && !doc.legacyKey && (doc.kind === "sale" ? can("pos.edit") : doc.kind === "purchase" ? can("purchases.edit") : false) ? () => editInvoice(doc.id) : undefined} /></div></div>}
+          {doc && <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={`سجل المعاملة ${doc.number}`}><div className="official-document-viewer"><DocumentDetail document={doc} data={data} close={() => setDoc(null)} onEdit={doc.status === "posted" && !doc.legacyKey && (doc.kind === "sale" ? can("pos.edit") : doc.kind === "purchase" ? can("purchases.edit") : false) ? () => editInvoice(doc.id) : undefined} /></div></div>}
         </div>
       </main>
     </div>
@@ -390,6 +393,7 @@ function UsersPermissions({utilities}:{utilities:ReactNode}) {
     </div>
   </FramedSection>
 }
+function BrandingSettings({data,reload}:{data:BootstrapData;reload:()=>Promise<void>}){const [value,setValue]=useState(data.branding),[saving,setSaving]=useState(false),[notice,setNotice]=useState("");const allowed=data.principal.principalType==="owner"||data.principal.permissions.includes("settings.branding.manage");const save=async()=>{setSaving(true);setNotice("");try{await readApiResponse(await fetch("/api/settings/branding",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(value)}));await reload();setNotice("تم حفظ هوية المستندات")}catch(e){setNotice(e instanceof Error?e.message:"تعذر الحفظ")}finally{setSaving(false)}};return <FramedSection title="هوية المستندات والفواتير" className="branding-settings"><div className="branding-fields"><label>اسم المحل<input value={value.storeName} disabled={!allowed} maxLength={80} onChange={e=>setValue({...value,storeName:e.target.value})}/></label><label>نوع الخط<select value={value.nameFont} disabled={!allowed} onChange={e=>setValue({...value,nameFont:e.target.value as typeof value.nameFont})}><option value="tahoma">Tahoma — تاهوما</option><option value="arial">Arial — أريال</option><option value="segoe-ui">Segoe UI</option><option value="times-new-roman">Times New Roman</option></select></label><label>حجم اسم المحل<input type="number" min="16" max="32" value={value.nameFontSize} disabled={!allowed} onChange={e=>setValue({...value,nameFontSize:Number(e.target.value)})}/></label><label>سماكة الخط<select value={value.nameFontWeight} disabled={!allowed} onChange={e=>setValue({...value,nameFontWeight:Number(e.target.value) as 400|600|800})}><option value="400">عادي</option><option value="600">متوسط</option><option value="800">عريض</option></select></label></div><div className="branding-preview"><strong style={{fontFamily:invoiceFontFamilies[value.nameFont],fontSize:`${value.nameFontSize}pt`,fontWeight:value.nameFontWeight}}>{value.storeName||"اسم المحل"}</strong><b>فاتورة بيع</b><span>رقم 000</span></div>{allowed&&<button className="primary" disabled={saving} onClick={()=>void save()}>{saving?"جاري الحفظ…":"حفظ"}</button>}{notice&&<small>{notice}</small>}</FramedSection>}
 function SettingsPage({data,reload}:{data:BootstrapData;reload:()=>Promise<void>}) {
   const [selectedFile,setSelectedFile]=useState<File|null>(null),[nativePreview,setNativePreview]=useState<FilePreview|null>(null),[externalPreview,setExternalPreview]=useState<FilePreview|null>(null),[importRun,setImportRun]=useState<ImportRun|null>(null),[stockPolicy,setStockPolicy]=useState("keep-current"),[accountPolicy,setAccountPolicy]=useState("keep-current"),[busy,setBusy]=useState(""),[message,setMessage]=useState(""),[failure,setFailure]=useState("");
   const request=async(url:string,file:File)=>readApiResponse(await fetch(url,{method:"POST",headers:{"content-type":file.type||"application/octet-stream"},body:file}));
@@ -400,7 +404,7 @@ function SettingsPage({data,reload}:{data:BootstrapData;reload:()=>Promise<void>
   const advance=async(run:ImportRun)=>{let current=run;while(current.state!=="completed"){await new Promise(resolve=>setTimeout(resolve,350));current=await readApiResponse(await fetch(`/api/settings/legacy/import-runs/${encodeURIComponent(current.importRunId)}/advance`,{method:"POST",headers:{"content-type":"application/json"},body:"{}"})) as ImportRun;setImportRun(current);if(current.state==="failed")throw new Error(current.publicError||`تعذر الاستيراد. رقم العملية: ${current.importRunId}`)}return current};
   const importExternal=async()=>{if(!externalPreview?.uploadId)return;setBusy("import");setFailure("");try{let run=await readApiResponse(await fetch("/api/settings/legacy/upload/complete",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({uploadId:externalPreview.uploadId,action:"import",stockPolicy,accountBalancePolicy:accountPolicy,filename:selectedFile?.name})})) as ImportRun;setImportRun(run);run=await advance(run);setMessage(`تم الدمج بأمان. نسخة الرجوع: ${run.backupIdBeforeImport}`);await reload()}catch(e){setFailure(e instanceof Error?e.message:"تعذر الاستيراد")}finally{setBusy("")}};
 
-  const utilities=<div className="settings-utility-row">
+  const utilities=<div className="settings-utility-row"><BrandingSettings data={data} reload={reload}/>
     <FramedSection title="النسخ الاحتياطي" className="settings-backup"><div><button className="primary" disabled={!!busy} onClick={()=>{setBusy("backup");download().then(()=>setMessage("تم إنشاء النسخة وتنزيلها")).catch(e=>setFailure(e.message)).finally(()=>setBusy(""))}}>{busy==="backup"?"جاري الإنشاء…":"إنشاء وتنزيل"}</button></div></FramedSection>
     <FramedSection title="الاستعادة والاستيراد" className="settings-import"><div className="import-head"><label className="file-button">اختيار ملف<input type="file" accept=".json,.conta.json,.db,.sqlite,application/json,application/vnd.sqlite3" onChange={e=>void chooseFile(e.target.files?.[0]??null)}/></label></div>
       {selectedFile&&<div className="import-details"><ol className="import-steps"><li className={selectedFile?"done":"active"}>1 فحص الملف</li><li className={externalPreview?"done":""}>2 المطابقة</li><li className={externalPreview?.criticalConflicts?"active":""}>3 مراجعة التعارضات</li><li className={externalPreview?"done":""}>4 المعاينة النهائية</li><li className={importRun?"active":""}>5 الاستيراد</li></ol>
@@ -795,7 +799,8 @@ function Expenses({ data, run, openDoc }: { data: BootstrapData; run: RunCommand
 type FinancialDetail = {type:string;occurredAt:string;amount:number;reference:string;note?:string|null;from?:string;to?:string;account?:string;balanceBefore?:number;balanceAfter?:number};
 function useBankScope(){const [draftFrom,setDraftFrom]=useState(""),[draftTo,setDraftTo]=useState(""),[period,setPeriod]=useState<CommittedPeriod>(null);return {draftFrom,draftTo,setDraftFrom,setDraftTo,period,commit:()=>setPeriod({from:draftFrom,to:draftTo}),all:()=>setPeriod(null)}}
 function BankScopeControls({scope}:{scope:ReturnType<typeof useBankScope>}){return <div className="bank-scope-controls"><CompactDateRange from={scope.draftFrom} to={scope.draftTo} allTime={scope.period===null} onApply={scope.commit} onAllTime={scope.all} onFromChange={scope.setDraftFrom} onToChange={scope.setDraftTo}/></div>}
-function FinancialOperationDetail({detail,close}:{detail:FinancialDetail;close:()=>void}){return createPortal(<div className="modal-overlay" role="dialog" aria-modal="true"><div className="modal-card financial-operation-detail"><div className="modal-heading"><h3>تفاصيل العملية المالية</h3><button className="icon" aria-label="إغلاق" onClick={close}><X/></button></div><dl><dt>النوع</dt><dd>{detail.type}</dd><dt>التاريخ</dt><dd>{formatDateTime(detail.occurredAt)}</dd>{detail.account&&<><dt>الحساب</dt><dd>{detail.account}</dd></>}{detail.from&&<><dt>من</dt><dd>{detail.from}</dd></>}{detail.to&&<><dt>إلى</dt><dd>{detail.to}</dd></>}<dt>المبلغ</dt><dd>{money(detail.amount)}</dd><dt>المرجع</dt><dd dir="ltr">{detail.reference}</dd>{detail.note&&<><dt>ملاحظة / سبب</dt><dd>{detail.note}</dd></>}{detail.balanceBefore!=null&&<><dt>الرصيد قبل</dt><dd>{money(detail.balanceBefore)}</dd></>}{detail.balanceAfter!=null&&<><dt>الرصيد بعد</dt><dd>{money(detail.balanceAfter)}</dd></>}</dl><button className="primary" onClick={()=>window.print()}><Printer/> طباعة</button></div></div>,document.body)}
+function buildFinancialPresentation(detail:FinancialDetail):OfficialPresentation{const transfer=!!detail.from&&!!detail.to,correction=detail.balanceBefore!=null||detail.balanceAfter!=null,title=transfer?"سند تحويل بين الحسابات":correction?"سند تصحيح رصيد":/إيداع/.test(detail.type)?"سند إيداع":/سحب/.test(detail.type)?"سند سحب":"سند عملية مالية";return{title,meta:[["المرجع",detail.reference],["التاريخ",formatDateTime(detail.occurredAt)],...(detail.account?[["الحساب",detail.account]] as Array<[string,string]>:[]),...(detail.from?[["من الحساب",detail.from]] as Array<[string,string]>:[]),...(detail.to?[["إلى الحساب",detail.to]] as Array<[string,string]>:[]),...(detail.balanceBefore!=null?[["الرصيد قبل",money(detail.balanceBefore)]] as Array<[string,string]>:[]),...(detail.balanceAfter!=null?[["الرصيد بعد",money(detail.balanceAfter)]] as Array<[string,string]>:[]),...(detail.note?[[correction?"السبب":"ملاحظة",detail.note]] as Array<[string,string]>:[])],totals:[[correction?"مقدار التغيير":"المبلغ",money(detail.amount)]],tone:transfer||correction?"neutral":/إيداع/.test(detail.type)?"positive":/سحب/.test(detail.type)?"negative":"neutral"}}
+function FinancialOperationDetail({detail,close,branding}:{detail:FinancialDetail;close:()=>void;branding:InvoiceBrandingSettings}){const presentation=buildFinancialPresentation(detail);const print=()=>{const root=document.documentElement,cleanup=()=>root.classList.remove("print-document-mode");root.classList.add("print-document-mode");window.addEventListener("afterprint",cleanup,{once:true});window.print();window.setTimeout(cleanup,1500)};return createPortal(<div className="modal-overlay" role="dialog" aria-modal="true"><div className="official-document-viewer"><section className="official-document-layout"><div className="official-document-toolbar"><button className="back" onClick={close}>← العودة</button><button className="soft" onClick={print}><Printer/> طباعة</button></div><div className="official-document-scroll"><OfficialRecordSheet presentation={presentation} branding={branding}/></div>{createPortal(<div className="document-print-portal"><OfficialRecordSheet presentation={presentation} branding={branding}/></div>,document.body)}</section></div></div>,document.body)}
 function Banks({ data, run, openDoc, tab }: { data: BootstrapData; run: RunCommand; openDoc:(id:string)=>void; tab:BankTab }) {
   const [editing,setEditing]=useState<PaymentAccount|null>(null),[detail,setDetail]=useState<FinancialDetail|null>(null),[showArchived,setShowArchived]=useState(false);
   const [transferFrom,setTransferFrom]=useState(""),[transferTo,setTransferTo]=useState(""),[amount,setAmount]=useState(""),[note,setNote]=useState("");
@@ -815,7 +820,7 @@ function Banks({ data, run, openDoc, tab }: { data: BootstrapData; run: RunComma
   {tab==="movements"&&<div className="bank-tab-content bank-tab-movements"><div className="bank-filter-stack"><div className="bank-filters"><BankScopeControls scope={movementScope}/><select value={accountFilter} onChange={e=>setAccountFilter(e.target.value)}><option value="">كل الحسابات</option>{data.paymentAccounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select><select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option value="">كل الأنواع</option>{Object.entries(movementLabels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></div>{noteClauses&&<small className="bank-scope-note">تنبيه: العرض الحالي حسب {noteClauses}</small>}</div><div className="erp-table-wrap ledger-list"><table className="erp-table"><thead><tr><th>التاريخ</th><th>النوع</th><th>الحساب</th><th>الحركة</th><th>المستند</th></tr></thead><tbody>{movements.map(m=><tr key={m.id} onClick={()=>inspectMovement(m)}><td>{formatDateTime(m.occurredAt)}</td><td>{movementLabels[m.type]??m.type}</td><td>{name(m.paymentMethod)}</td><td className={`num-cell ${m.direction==="in"?"bank-amount-positive":"bank-amount-negative"}`}>{m.direction==="in"?"+":"−"}{number(m.amount)}</td><td dir="ltr">{m.documentNumber}</td></tr>)}</tbody></table></div></div>}
   {tab==="transfers"&&<div className="bank-tab-content bank-tab-transfers"><FramedSection title="تحويل جديد" className="bank-operation"><form className="transfer-form bank-operation-form" onSubmit={async e=>{e.preventDefault();await run({type:"account-transfer.post",fromAccountId:transferFrom,toAccountId:transferTo,amount:val(amount),note},"تم التحويل بين الحسابات");setAmount("");setNote("")}}><div className="bank-operation-row transfer-account-row"><label>من الحساب<select required value={transferFrom} onChange={e=>setTransferFrom(e.target.value)}><option value="">اختر المصدر</option>{active.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label>إلى الحساب<select required value={transferTo} onChange={e=>setTransferTo(e.target.value)}><option value="">اختر الوجهة</option>{active.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label></div><div className="bank-operation-row transfer-detail-row"><label>المبلغ<Num value={amount} onChange={setAmount}/></label><label>ملاحظة<input value={note} onChange={e=>setNote(e.target.value)}/></label><button className="primary" disabled={!transferFrom||!transferTo||transferFrom===transferTo||!amount}>اعتماد التحويل</button></div></form></FramedSection><FramedSection title="سجل التحويلات" className="bank-history"><div className="bank-history-filter-stack"><div className="bank-history-date-row"><BankScopeControls scope={transferScope}/></div><div className="bank-history-select-row"><select value={transferFromFilter} onChange={e=>setTransferFromFilter(e.target.value)}><option value="">كل المرسلين</option>{data.paymentAccounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select><select value={transferToFilter} onChange={e=>setTransferToFilter(e.target.value)}><option value="">كل المستلمين</option>{data.paymentAccounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div></div><div className="erp-table-wrap transfer-list"><table className="erp-table bank-transfer-table"><colgroup><col style={{width:"21%"}}/><col style={{width:"19%"}}/><col style={{width:"19%"}}/><col style={{width:"17%"}}/><col style={{width:"24%"}}/></colgroup><thead><tr><th>التاريخ</th><th>من</th><th>إلى</th><th>المبلغ</th><th>المرجع</th></tr></thead><tbody>{transfers.map(t=><tr key={t.id} onClick={()=>setDetail({type:"تحويل",occurredAt:t.occurredAt,amount:t.amount,reference:t.number,note:t.note,from:name(t.fromAccountId),to:name(t.toAccountId)})}><td>{formatDateTime(t.occurredAt)}</td><td>{name(t.fromAccountId)}</td><td>{name(t.toAccountId)}</td><td className="num-cell bank-amount-neutral">{money(t.amount)}</td><td dir="ltr">{t.number}</td></tr>)}</tbody></table></div></FramedSection></div>}
   {tab==="adjustment"&&<div className="bank-tab-content bank-tab-adjustment"><FramedSection title="عملية سحب أو إيداع" className="bank-operation"><form className="bank-adjustment-form bank-operation-form" onSubmit={async e=>{e.preventDefault();await run({type:"account-adjustment.post",accountId:adjustmentAccount,direction:adjustmentDirection,amount:val(adjustmentAmount),note:adjustmentNote},adjustmentDirection==="deposit"?"تم الإيداع":"تم السحب");setAdjustmentAmount("");setAdjustmentNote("")}}><div className="bank-operation-row adjustment-account-row"><div className="bank-adjustment-direction"><button type="button" className="selection-option deposit-option" aria-pressed={adjustmentDirection==="deposit"} onClick={()=>setAdjustmentDirection("deposit")}>إيداع</button><button type="button" className="selection-option withdrawal-option" aria-pressed={adjustmentDirection==="withdrawal"} onClick={()=>setAdjustmentDirection("withdrawal")}>سحب</button></div><label>الحساب<select required value={adjustmentAccount} onChange={e=>setAdjustmentAccount(e.target.value)}><option value="">اختر الحساب</option>{active.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label></div><div className="bank-operation-row adjustment-detail-row"><label>المبلغ<Num value={adjustmentAmount} onChange={setAdjustmentAmount}/></label><label>ملاحظة<input value={adjustmentNote} onChange={e=>setAdjustmentNote(e.target.value)}/></label><button className="primary">اعتماد العملية</button></div></form></FramedSection><FramedSection title="سجل السحب والإيداع" className="bank-history"><div className="bank-history-filter-stack"><div className="bank-history-date-row"><BankScopeControls scope={adjustmentScope}/></div><div className="bank-history-select-row"><select value={adjustmentFilter} onChange={e=>setAdjustmentFilter(e.target.value)}><option value="">كل الحسابات</option>{data.paymentAccounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select><select value={adjustmentType} onChange={e=>setAdjustmentType(e.target.value)}><option value="">إيداع وسحب</option><option value="manual-deposit">إيداع</option><option value="manual-withdrawal">سحب</option></select></div></div><div className="erp-table-wrap adjustment-list"><table className="erp-table"><thead><tr><th>المرجع</th><th>التاريخ</th><th>الحساب</th><th>النوع</th><th>المبلغ</th><th>الملاحظة</th></tr></thead><tbody>{adjustments.map(m=><tr key={m.id} onClick={()=>inspectMovement(m)}><td dir="ltr">{m.documentNumber}</td><td>{formatDateTime(m.occurredAt)}</td><td>{name(m.paymentMethod)}</td><td>{movementLabels[m.type]}</td><td className={`num-cell ${m.direction==="in"?"bank-amount-positive":"bank-amount-negative"}`}>{money(m.amount)}</td><td>{m.note||"—"}</td></tr>)}</tbody></table></div></FramedSection></div>}
-  </div></FramedSection>{showArchived&&<div className="modal-overlay" role="dialog" aria-modal="true"><div className="modal-card account-dialog"><div className="modal-heading"><h3>وسائل الدفع المؤرشفة</h3><button className="icon" onClick={()=>setShowArchived(false)}><X/></button></div>{archived.map(account=><div className="admin-actions" key={account.id}><span>{account.name} · {account.archivedAt?formatDate(account.archivedAt):"—"} · {money(account.balance)}</span><button className="soft" onClick={async()=>{await run({type:"payment-account.restore",accountId:account.id},"تمت استعادة وسيلة الدفع");setShowArchived(false)}}>استعادة</button></div>)}</div></div>}{editing&&<PaymentAccountDialog account={editing} close={()=>setEditing(null)} run={run}/>} {detail&&<FinancialOperationDetail detail={detail} close={()=>setDetail(null)}/>}</section>;
+  </div></FramedSection>{showArchived&&<div className="modal-overlay" role="dialog" aria-modal="true"><div className="modal-card account-dialog"><div className="modal-heading"><h3>وسائل الدفع المؤرشفة</h3><button className="icon" onClick={()=>setShowArchived(false)}><X/></button></div>{archived.map(account=><div className="admin-actions" key={account.id}><span>{account.name} · {account.archivedAt?formatDate(account.archivedAt):"—"} · {money(account.balance)}</span><button className="soft" onClick={async()=>{await run({type:"payment-account.restore",accountId:account.id},"تمت استعادة وسيلة الدفع");setShowArchived(false)}}>استعادة</button></div>)}</div></div>}{editing&&<PaymentAccountDialog account={editing} close={()=>setEditing(null)} run={run}/>} {detail&&<FinancialOperationDetail detail={detail} close={()=>setDetail(null)} branding={data.branding}/>}</section>;
 }
 
 function PaymentAccountDialog({ account, close, run }: { account: PaymentAccount; close: () => void; run: RunCommand }) {
@@ -1180,149 +1185,24 @@ function Reports({ data, openDoc, type }: { data: BootstrapData; openDoc: (id: s
   {type==="stock"&&<select value={movementType} onChange={e=>setMovementType(e.target.value)}><option value="">كل الحركات</option>{Object.entries(movementLabels).filter(([k])=>["sale","purchase","transfer-in","transfer-out","adjustment","opening"].includes(k)).map(([k,v])=><option value={k} key={k}>{v}</option>)}</select>}{type==="financial"&&<select value={direction} onChange={e=>setDirection(e.target.value)}><option value="">داخل وخارج</option><option value="in">داخل</option><option value="out">خارج</option></select>}{type==="debts"&&<><select value={debtSide} onChange={e=>setDebtSide(e.target.value)}><option value="">الجميع</option><option value="receivable">لنا عليه</option><option value="payable">له علينا</option><option value="clear">حساب خالص</option></select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث بالاسم أو الهاتف"/></>}
   </div></FramedSection><div className="print-report-title"><h2>{reportNames[type]}</h2>{showDates&&<span>{committedPeriod===null ? "كل الفترة" : <>من {formatDate(committedPeriod?.from??draftFrom)} إلى {formatDate(committedPeriod?.to??draftTo)}</>}</span>}</div>{reportError&&<div className="error report-error">{reportError}</div>}<FramedSection title={reportNames[type]} className="report-body">{busy&&<div className="report-loading">جاري إعداد التقرير…</div>}<div className="erp-table-wrap"><table className={`erp-table report-table report-table-${type}`}><colgroup>{type==="sales"&&(productId?<><col style={{width:"5%"}}/><col style={{width:"17%"}}/><col style={{width:"18%"}}/><col style={{width:"18%"}}/><col style={{width:"10%"}}/><col style={{width:"11%"}}/><col style={{width:"11%"}}/><col style={{width:"10%"}}/></>:<><col style={{width:"5%"}}/><col style={{width:"18%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/><col style={{width:"13%"}}/><col style={{width:"13%"}}/><col style={{width:"13%"}}/></>)}</colgroup><thead><tr><th className="serial">رقم</th>{columns.map(([key,label])=><th key={key}><button type="button" className="report-sort-header" onClick={()=>toggleReportSort(key)}>{label}{sortState?.key===key&&(sortState.direction==="asc"?" ↑":" ↓")}</button></th>)}</tr></thead><tbody>{sortedRows.map((row,i)=><tr key={String(row.id??i)} onClick={()=>row.documentId&&openDoc(String(row.documentId))}><td className="num-cell">{number(i+1)}</td>{columns.map(([key])=><td key={key} title={key==="number"?String(row[key]??""):undefined} className={`${numericKeys.has(key)||typeof row[key]==="number"?"num-cell ":""}${key==="occurredAt"?"date-cell":""}`}>{display(key,row[key])}</td>)}</tr>)}</tbody></table></div></FramedSection>{result&&<div className="report-summary-area">{type==="sales"&&reportNumber(result.summary.unknownRevenue)>0&&<p className="report-summary-warning">يوجد جزء من المبيعات دون تكلفة تاريخية مؤكدة؛ قد يكون ربح المبيعات أعلى من الواقع.</p>}<div className="report-kpis">{footerMetrics.map(metric=><span className="report-kpi" key={metric.key}><small>{metric.label}</small><span className="report-kpi-value"><b className={`summary-${metric.tone}`}>{summaryValue(metric.key,metric.value)}{metric.format==="percent"?"%":""}</b>{metric.note&&<em>{metric.note}</em>}</span></span>)}</div></div>}</section>;
 }
-function PrintableDocument({ document: record, data }: { document: DocumentRecord; data: BootstrapData }) {
-  const sale = record.kind === "sale", purchase = record.kind === "purchase";
-  const account = data.paymentAccounts.find(item => item.id === record.paymentMethod || item.code === record.paymentMethod);
-  const payment = record.paymentMethod === "note" ? "ملاحظة / دين" : account?.name ?? "—";
-  const remaining = Math.max(0, record.dueTotal - record.paidTotal);
-  return <article className="invoice-print-sheet" aria-label={`نسخة طباعة ${kindLabels[record.kind]}`}>
-    <header className="invoice-print-header"><div><strong>Conta</strong><span>نظام المتجر</span></div><h1>{kindLabels[record.kind]}</h1><b dir="ltr">{displayDocumentNumber(record)}</b></header>
-    <div className="invoice-print-meta">
-      <span>رقم الفاتورة <b dir="ltr">{displayDocumentNumber(record)}</b></span><span>التاريخ <b>{formatDateTime(record.occurredAt)}</b></span>
-      {sale && <span>العميل <b>{record.partyName || "بيع مباشر"}</b></span>}
-      {purchase && <span>المورد <b>{record.partyName || "غير محدد"}</b></span>}
-      {(sale || purchase) && <span>{purchase ? "المخزن المستلم" : "المخزن"} <b>{record.warehouseName || "—"}</b></span>}
-      {(sale || purchase) && <span>{purchase ? "طريقة التسوية" : "طريقة الدفع"} <b>{payment}</b></span>}
-      {sale && <span>الحالة <b>{remaining > 0 ? "متبقي / دين" : "مدفوعة"}</b></span>}
-      {!sale && !purchase && record.title && <span>البيان <b>{record.title}</b></span>}
-    </div>
-    {!!record.lines.length && <table className="invoice-print-table"><thead><tr><th>رقم</th><th>المنتج</th><th>الكمية</th><th>سعر الوحدة (MRU)</th><th>المجموع (MRU)</th></tr></thead><tbody>{record.lines.map((line, index) => <tr key={line.id}><td>{number(index + 1)}</td><td>{line.description}</td><td>{quantity(line.quantity)}</td><td>{number(line.unitPrice)}</td><td>{number(line.lineTotal)}</td></tr>)}</tbody></table>}
-    <div className="invoice-print-totals"><span>الإجمالي <strong>{money(record.total)}</strong></span>{record.dueTotal > 0 && <><span>المدفوع <strong>{money(record.paidTotal)}</strong></span><span>المتبقي <strong>{money(remaining)}</strong></span></>}</div>
-    <footer>تم إنشاء هذه الفاتورة بواسطة Conta</footer>
-  </article>;
+type OfficialPresentation={title:string;meta:Array<[string,string]>;columns?:string[];rows?:string[][];totals?:Array<[string,string]>;tone?:"positive"|"negative"|"neutral"};
+function paymentName(record:DocumentRecord,data:BootstrapData){return record.paymentMethod==="note"?"ملاحظة / دين":data.paymentAccounts.find(a=>a.id===record.paymentMethod||a.code===record.paymentMethod)?.name??"—"}
+function buildDocumentPresentation(record:DocumentRecord,data:BootstrapData):OfficialPresentation{
+ const remaining=Math.max(0,record.dueTotal-record.paidTotal),reference=displayDocumentNumber(record),date=formatDateTime(record.occurredAt),payment=paymentName(record,data);
+ const common:Array<[string,string]>=[["المرجع",reference],["التاريخ",date]];
+ if(record.kind==="sale"||record.kind==="purchase")return{title:record.kind==="sale"?"فاتورة بيع":"فاتورة شراء",meta:[...common,[record.kind==="sale"?"العميل":"المورد",record.partyName||(record.kind==="sale"?"بيع مباشر":"غير محدد")],[record.kind==="sale"?"المخزن":"المخزن المستلم",record.warehouseName||"—"],[record.kind==="sale"?"طريقة الدفع":"طريقة التسوية",payment],...(record.kind==="sale"?[["الحالة",remaining>0?"متبقي / دين":"مدفوعة"] as [string,string]]:[])],columns:["رقم","المنتج","الكمية",record.kind==="purchase"?"سعر الشراء":"سعر الوحدة","المجموع"],rows:record.lines.map((l,i)=>[number(i+1),l.description,quantity(l.quantity),money(l.unitPrice),money(l.lineTotal)]),totals:[["الإجمالي",money(record.total)],...(record.dueTotal>0?[["المدفوع",money(record.paidTotal)],["المتبقي",money(remaining)]] as Array<[string,string]>:[])]};
+ if(record.kind==="transfer")return{title:"سند تحويل مخزون",meta:[...common,["من المخزن",record.warehouseName||"—"],["إلى المخزن",record.destinationWarehouseName||"—"]],columns:["رقم","المنتج","الكمية"],rows:record.lines.map((l,i)=>[number(i+1),l.description,quantity(l.quantity)])};
+ if(record.kind==="adjustment")return{title:"سند تصحيح مخزون",meta:[...common,["المخزن",record.warehouseName||"—"]],columns:["رقم","المنتج","الكمية"],rows:record.lines.map((l,i)=>[number(i+1),l.description,quantity(l.quantity)])};
+ if(record.kind==="payment"){const receive=record.partyCashDirection?record.partyCashDirection==="receive":!/دفع|صرف/.test(record.title??"");return{title:receive?"سند قبض":"سند صرف",meta:[...common,[receive?"استلام من":"دفع إلى",record.partyName||"—"],["الحساب",payment],["البيان",record.title||"—"]],totals:[["المبلغ",money(record.cashAmount??record.paidTotal??record.total)]],tone:receive?"positive":"negative"}}
+ if(record.kind==="expense")return{title:"سند مصروف",meta:[...common,["عنوان المصروف",record.title||"مصروف"],["وسيلة الدفع",payment],...(record.recurringId?[["النوع","مصروف متكرر"] as [string,string]]:[])],totals:[["المبلغ",money(record.total)]],tone:"negative"};
+ return{title:record.kind==="offset"?"سند مقاصة":record.kind==="settlement"?"تسوية حساب":kindLabels[record.kind],meta:[...common,["الطرف",record.partyName||"—"],["البيان",record.title||"—"]],totals:record.total?[["المبلغ",money(record.total)]]:undefined};
 }
-
-function DocumentDetail({
-  document,
-  data,
-  close,
-  onEdit,
-}: {
-  document: DocumentRecord;
-  data: BootstrapData;
-  close: () => void;
-  onEdit?: () => void;
-}) {
-  function printDocument() {
-    const root = window.document.documentElement;
-    const cleanup = () => root.classList.remove("print-document-mode");
-    root.classList.add("print-document-mode");
-    window.addEventListener("afterprint", cleanup, { once: true });
-    window.print();
-    window.setTimeout(cleanup, 1500);
-  }
-  function download() {
-    const content = [
-      `${kindLabels[document.kind]} ${displayDocumentNumber(document)}`,
-      `التاريخ: ${document.occurredAt}`,
-      `الطرف: ${document.partyName ?? "—"}`,
-      `المخزن: ${document.warehouseName ?? "—"}`,
-      ...document.lines.map(
-        (l) =>
-          `${l.description} | ${l.quantity} × ${l.unitPrice} = ${l.lineTotal}`,
-      ),
-      `الإجمالي: ${document.total} MRU`,
-    ].join("\n");
-    const a = window.document.createElement("a");
-    a.href = URL.createObjectURL(
-      new Blob([content], { type: "text/plain;charset=utf-8" }),
-    );
-    a.download = `${displayDocumentNumber(document)}.txt`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-  return (
-    <section>
-      <div className="doc-actions">
-        <button className="back" onClick={close}>
-          ← العودة
-        </button>
-        {onEdit && (
-          <button className="primary" onClick={onEdit}>
-            <PencilLine /> تعديل الفاتورة
-          </button>
-        )}
-        <button className="soft" onClick={printDocument}>
-          <Printer /> طباعة
-        </button>
-        <button className="soft" onClick={download}>
-          تنزيل
-        </button>
-      </div>
-      <article className="document">
-        <div className="document-head">
-          <div>
-            <span>{kindLabels[document.kind]}</span>
-            <h2>{displayDocumentNumber(document)}</h2>
-            <small>{document.occurredAt}</small>
-          </div>
-          <b>{document.status === "posted" ? "معتمد" : document.status}</b>
-        </div>
-        <div className="doc-meta">
-          <span>
-            الطرف <b>{document.partyName ?? "—"}</b>
-          </span>
-          <span>
-            المخزن <b>{document.warehouseName ?? "—"}</b>
-          </span>
-          {document.destinationWarehouseName && (
-            <span>
-              الوجهة <b>{document.destinationWarehouseName}</b>
-            </span>
-          )}
-          <span>
-            طريقة الدفع <b>{document.paymentMethod ?? "—"}</b>
-          </span>
-        </div>
-        <div className="erp-table-wrap"><table className="erp-table document-lines"><colgroup><col style={{width:"46%"}}/><col style={{width:"16%"}}/><col style={{width:"18%"}}/><col style={{width:"20%"}}/></colgroup>
-          <thead>
-            <tr>
-              <th>الاسم</th>
-              <th>الكمية</th>
-              <th>السعر</th>
-              <th>المجموع</th>
-            </tr>
-          </thead>
-          <tbody>
-            {document.lines.map((l) => (
-              <tr key={l.id}>
-                <td>{l.description}</td>
-                <td>{quantity(l.quantity)}</td>
-                <td>{money(l.unitPrice)}</td>
-                <td>{money(l.lineTotal)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table></div>
-        <div className="document-total">
-          <span>الإجمالي</span>
-          <strong>{money(document.total)}</strong>
-        </div>
-        {document.dueTotal > 0 && (
-          <div className="due">
-            <span>المستحق الأصلي {money(document.dueTotal)}</span>
-            <span>المسوّى {money(document.paidTotal)}</span>
-            <b>
-              المتبقي{" "}
-              {money(Math.max(0, document.dueTotal - document.paidTotal))}
-            </b>
-          </div>
-        )}
-      </article>
-      <Linked document={document} data={data} />
-      <PrintableDocument document={document} data={data} />
-    </section>
-  );
+function OfficialRecordSheet({presentation,branding}:{presentation:OfficialPresentation;branding:InvoiceBrandingSettings}){const style={fontFamily:invoiceFontFamilies[branding.nameFont],fontSize:`${branding.nameFontSize}pt`,fontWeight:branding.nameFontWeight} as CSSProperties;return <article className="official-record-sheet"><header className="official-record-header"><strong style={style}>{branding.storeName}</strong><h1>{presentation.title}</h1><span>{presentation.meta.slice(0,2).map(x=>x[1]).join(" · ")}</span></header><div className="official-record-meta">{presentation.meta.slice(2).map(([label,value])=><span key={label}><small>{label}</small><b>{value}</b></span>)}</div>{presentation.columns&&<div className="official-record-table-wrap"><table className="official-record-table"><thead><tr>{presentation.columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{presentation.rows?.map((row,i)=><tr key={i}>{row.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div>}{presentation.totals&&<div className={`official-record-totals ${presentation.tone??"neutral"}`}>{presentation.totals.map(([label,value])=><span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div>}<footer>تم إنشاء هذا المستند بواسطة Conta</footer></article>}
+function PrintableDocument({document:record,data}:{document:DocumentRecord;data:BootstrapData}){return createPortal(<div className="document-print-portal"><OfficialRecordSheet presentation={buildDocumentPresentation(record,data)} branding={data.branding}/></div>,window.document.body)}
+function DocumentDetail({document,data,close,onEdit}:{document:DocumentRecord;data:BootstrapData;close:()=>void;onEdit?: () => void}){
+ function printDocument(){const root=window.document.documentElement,cleanup=()=>root.classList.remove("print-document-mode");root.classList.add("print-document-mode");window.addEventListener("afterprint",cleanup,{once:true});window.print();window.setTimeout(cleanup,1500)}
+ function download(){const p=buildDocumentPresentation(document,data),content=[`${p.title} ${displayDocumentNumber(document)}`,...p.meta.map(x=>`${x[0]}: ${x[1]}`),...(p.rows??[]).map(x=>x.join(" | ")),...(p.totals??[]).map(x=>`${x[0]}: ${x[1]}`)].join("\n"),a=window.document.createElement("a");a.href=URL.createObjectURL(new Blob([content],{type:"text/plain;charset=utf-8"}));a.download=`${displayDocumentNumber(document)}.txt`;a.click();URL.revokeObjectURL(a.href)}
+ return <section className="official-document-layout"><div className="official-document-toolbar"><button className="back" onClick={close}>← العودة</button>{onEdit && (<button className="primary" onClick={onEdit}><PencilLine /> تعديل الفاتورة</button>)}<button className="soft" onClick={printDocument}><Printer/> طباعة</button><button className="soft" onClick={download}>تنزيل</button></div><div className="official-document-scroll"><OfficialRecordSheet presentation={buildDocumentPresentation(document,data)} branding={data.branding}/><Linked document={document} data={data}/></div><PrintableDocument document={document} data={data}/></section>
 }
 function Linked({
   document,

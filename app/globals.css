@@ -1922,35 +1922,27 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .records-workspace > .recent-table > .erp-table-wrap { height: 100%; min-height: 0; overflow-x: auto; overflow-y: auto; overscroll-behavior: contain; }
 .combobox-popover-floating { direction: rtl; overflow: hidden; }
 .combobox-popover-floating .combobox-results { max-height: min(260px, calc(100vh - 110px)); }
-.invoice-print-sheet { display: none; }
-
-@page invoice { size: A4 portrait; margin: 10mm 12mm; }
-@page report { size: A4 landscape; margin: 10mm; }
-.reports-workspace { page: report; }
-.invoice-print-sheet { page: invoice; }
-@media print {
-  html.print-document-mode body * { visibility: hidden !important; }
-  html.print-document-mode .invoice-print-sheet,
-  html.print-document-mode .invoice-print-sheet * { visibility: visible !important; }
-  html.print-document-mode .invoice-print-sheet { display: block !important; position: static; width: 100%; color: #111; background: #fff; direction: rtl; font: 10.5pt Arial, sans-serif; }
-  html.print-document-mode .modal-overlay { position: static; background: transparent; }
-  .invoice-print-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding-bottom: 8mm; border-bottom: 1px solid #555; }
-  .invoice-print-header > div { display: grid; }
-  .invoice-print-header > div strong { font-size: 18pt; }
-  .invoice-print-header > div span { font-size: 9pt; }
-  .invoice-print-header h1 { margin: 0; font-size: 18pt; text-align: center; }
-  .invoice-print-header > b { justify-self: end; font-size: 10pt; }
-  .invoice-print-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm 10mm; padding: 6mm 0; }
-  .invoice-print-meta span { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dotted #aaa; padding-bottom: 2mm; }
-  .invoice-print-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  .invoice-print-table th, .invoice-print-table td { padding: 2.5mm 2mm; border: 1px solid #777; text-align: center; }
-  .invoice-print-table th:nth-child(1) { width: 7%; }.invoice-print-table th:nth-child(2) { width: 41%; }.invoice-print-table th:nth-child(3) { width: 13%; }.invoice-print-table th:nth-child(4), .invoice-print-table th:nth-child(5) { width: 19.5%; }
-  .invoice-print-table td:nth-child(2) { text-align: right; }
-  .invoice-print-table thead { display: table-header-group; }
-  .invoice-print-table tr { break-inside: avoid; }
-  .invoice-print-totals { display: grid; justify-content: end; gap: 2mm; min-width: 70mm; margin: 7mm 0; break-inside: avoid; }
-  .invoice-print-totals span { display: flex; justify-content: space-between; gap: 18mm; padding-bottom: 2mm; border-bottom: 1px solid #888; }
-  .invoice-print-sheet footer { margin-top: 15mm; padding-top: 3mm; border-top: 1px solid #aaa; color: #555; font-size: 8pt; text-align: center; }
+.document-print-portal{display:none}
+.official-document-viewer{width:min(1100px,94vw);height:min(850px,92vh);min-height:0;overflow:hidden;border:1px solid #aeb6bf;border-radius:6px;background:#e8ebee;box-shadow:0 18px 55px #0005}
+.official-document-layout{display:grid;grid-template-rows:auto minmax(0,1fr);height:100%;min-height:0}
+.official-document-toolbar{display:flex;flex-wrap:wrap;gap:7px;padding:8px 10px;border-bottom:1px solid #c4cbd2;background:#f7f8f9}
+.official-document-toolbar button{display:flex;align-items:center;gap:5px}.official-document-toolbar svg{width:15px}
+.official-document-scroll{min-height:0;overflow:auto;padding:18px}
+.official-record-sheet{width:min(800px,100%);margin:auto;padding:28px 32px;border:1px solid #c9cdd1;background:#fff;color:#16191d;direction:rtl;box-shadow:0 2px 8px #0001}
+.official-record-header{text-align:center;padding-bottom:16px;border-bottom:1px solid #555}.official-record-header strong{display:block;line-height:1.25}.official-record-header h1{margin:8px 0 4px;font-size:20px}.official-record-header span{font-size:12px;color:#555}
+.official-record-meta{display:grid;grid-template-columns:1fr 1fr;gap:0 24px;padding:15px 0}.official-record-meta span{display:flex;justify-content:space-between;gap:10px;padding:7px 2px;border-bottom:1px dotted #aaa}.official-record-meta small{color:#555}.official-record-table-wrap{overflow-x:auto}.official-record-table{width:100%;border-collapse:collapse}.official-record-table th,.official-record-table td{padding:8px;border:1px solid #888;text-align:center}.official-record-table td:nth-child(2){text-align:right}.official-record-table th{background:#f3f4f5}
+.official-record-totals{display:grid;justify-content:end;min-width:250px;margin:20px 0;break-inside:avoid}.official-record-totals span{display:flex;justify-content:space-between;gap:50px;padding:7px;border-bottom:1px solid #888}.official-record-totals.positive strong{color:#087443}.official-record-totals.negative strong{color:#a11b1b}.official-record-sheet footer{margin-top:30px;padding-top:8px;border-top:1px solid #aaa;color:#666;font-size:10px;text-align:center}
+.official-document-scroll>.panel{width:min(800px,100%);margin:10px auto;background:#fff}.branding-settings{display:grid;gap:8px}.branding-fields{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}.branding-fields label{display:grid;gap:3px}.branding-preview{display:grid;justify-items:center;gap:4px;padding:12px;border:1px solid #aaa;background:#fff}.branding-preview strong{line-height:1.2}.branding-settings>.primary{justify-self:start}
+@page invoice{size:A4 portrait;margin:10mm 12mm}@page report{size:A4 landscape;margin:10mm}.reports-workspace{page:report}
+@media(max-width:650px){.official-document-scroll{padding:6px}.official-record-sheet{padding:18px 12px}.official-record-meta,.branding-fields{grid-template-columns:1fr}}
+@media print{
+ html.print-document-mode body>*{display:none!important}
+ html.print-document-mode body>.document-print-portal{display:block!important}
+ html.print-document-mode .official-record-sheet{display:block;width:100%;margin:0;padding:0;border:0;box-shadow:none;page:invoice;font:10.5pt Arial,sans-serif}
+ html.print-document-mode .official-record-table-wrap{overflow:visible}
+ html.print-document-mode .official-record-table thead{display:table-header-group}
+ html.print-document-mode .official-record-table tr{break-inside:avoid}
+ html.print-document-mode .official-record-totals{break-inside:avoid}
 }
 
 /* Role-safe party workspaces and comprehensive accounting report. */
@@ -2025,7 +2017,6 @@ input, select, .combobox-trigger { border-color: #9faab8; }
   .overview-workspace .bank-detail { max-height: none; overflow: visible; }
   body:has(.overview-workspace) { width: 297mm; }
   @page { size: A4 landscape; margin: 9mm; }
-  body:has(.invoice-print-sheet) { width: 210mm; }
 }
 
 /* Focused density: party account workspace. */
@@ -2097,8 +2088,6 @@ input, select, .combobox-trigger { border-color: #9faab8; }
 .purchase-payment-row .compact-payment { display:contents; }
 .purchase-payment-row > *, .purchase-payment-row .bank-option, .purchase-payment-row select, .purchase-supplier, .purchase-supplier .combobox, .purchase-supplier .combobox-trigger { min-width:0; }
 .purchase-payment-row .compact-payment > button, .purchase-payment-row .bank-option select, .purchase-supplier .combobox-trigger { width:100%; height:33px; min-height:33px; padding:2px 6px; border-radius:4px; font-size:11px; }
-.auto-print-host { display:none; }
-@media print { html.print-document-mode .auto-print-host { display:block; } }
 .admin-actions,.dialog-actions{display:flex;gap:7px;align-items:center;border-top:1px solid #e1e6ec;padding-top:8px}.account-dialog textarea{min-height:62px;resize:vertical}.correction-detail{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
 
 /* Settings is one bounded two-column workspace. */
