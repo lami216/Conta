@@ -229,7 +229,7 @@ export async function execute(db: Db, session: ClientSession, body: Input) {
     if (!original) throw new CommandError("الفاتورة غير موجودة أو غير قابلة للتعديل", 404);
     if (original.legacyKey) throw new CommandError("الفواتير المرحلة متاحة للعرض فقط", 409);
     if (isSale && await db.collection("documents").findOne({ kind: "return", status: "posted", parentDocumentId: documentId }, { session })) throw new CommandError("لا يمكن تعديل هذه الفاتورة القديمة لوجود حركة تاريخية مرتبطة بها.", 409);
-    const input = lines(body), paymentMethod = text(body.paymentMethod);
+    const input = lines(body), paymentMethod = text(body.paymentMethod) || "cash";
     const { warehouse, party, warehouseId, partyId } = await refs(db, session, { ...body, warehouseId: isSale ? original.warehouseId : body.warehouseId }, !isSale || paymentMethod === "note");
     if (party && party.partyType !== (isSale ? "customer" : "supplier")) throw new CommandError(isSale ? "يجب اختيار عميل صالح" : "يجب اختيار مورد صالح");
     if (paymentMethod !== "note") await paymentAccount(db, session, paymentMethod);
@@ -289,7 +289,7 @@ export async function execute(db: Db, session: ClientSession, body: Input) {
     return documentId;
   }
   if (type === "sale.post" || type === "purchase.post") {
-    const input = lines(body), isSale = type === "sale.post", { warehouse, party, warehouseId, partyId } = await refs(db, session, body, !isSale || text(body.paymentMethod) === "note"), map = await products(db, session, input), paymentMethod = text(body.paymentMethod);
+    const input = lines(body), isSale = type === "sale.post", { warehouse, party, warehouseId, partyId } = await refs(db, session, body, !isSale || text(body.paymentMethod) === "note"), map = await products(db, session, input), paymentMethod = text(body.paymentMethod) || "cash";
     if (party && party.partyType !== (isSale ? "customer" : "supplier")) throw new CommandError(isSale ? "يجب اختيار عميل صالح" : "يجب اختيار مورد صالح");
     if (isSale && input.some(line => isProductExpired(map.get(line.productId)!, new Date().toISOString().slice(0, 10)))) throw new CommandError("انتهت صلاحية هذا المنتج ولا يمكن بيعه.");
     if (paymentMethod !== "note") await paymentAccount(db, session, paymentMethod);
