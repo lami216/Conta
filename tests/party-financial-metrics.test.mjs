@@ -18,7 +18,7 @@ test("customer credit and later cash flows remain independent", () => {
   const later=summary([doc("sale","customer",1000,{grossProfit:300})],[movement("customer","in",400),movement("customer","out",75)],"customer");
   assert.equal(later.cashIn,400); assert.equal(later.cashOut,75);
 });
-test("sale returns reduce customer net trade and represented gross profit, while voids and legacy missing profit are safe", () => {
+test("legacy return records preserve historical customer totals and represented gross profit, while voids and legacy missing profit are safe", () => {
   const value=summary([doc("sale","customer",1000,{grossProfit:300}),doc("return","customer",250,{grossProfit:80}),doc("sale","customer",900,{status:"voided",grossProfit:400}),doc("sale","customer",10)],[],"customer");
   assert.equal(value.customerTradeTotal,760); assert.equal(value.customerGrossProfit,220);
 });

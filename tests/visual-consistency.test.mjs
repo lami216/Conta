@@ -52,6 +52,9 @@ test("product movement details prioritize the table", () => {
   for (const metric of ["الكمية في", "إجمالي الكمية", "تكلفة الوحدة", "القيمة في"]) assert.match(panel, new RegExp(metric));
   assert.doesNotMatch(panel, /شراء \/ بيع|تحويل \/ تصحيح|تكلفة غير معروفة/);
   assert.match(panel, /aria-label="سجل حركة المنتج"/);
+  for (const heading of ["التاريخ", "العملية", "الطرف / المخزن", "الكمية", "السعر", "المستند"]) assert.equal((panel.match(new RegExp(`<th>${heading}</th>`, "g")) ?? []).length, 1);
+  const warehouses = between("function Warehouses", "function ProductMovementPanel");
+  assert.match(warehouses, /modal-overlay section-warehouses/);
 });
 test("stock operations collapse idle search and edit a serial ERP draft", () => {
   const form = between("function MultiStockForm", "function Transfer");

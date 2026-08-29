@@ -7,8 +7,6 @@ export const permissionRows: Array<{
   { name: "نقطة البيع", actions: { view: "pos.view", create: "pos.create", edit: "pos.edit", delete: "pos.delete" } },
   { name: "فواتير الشراء", actions: { view: "purchases.view", create: "purchases.create", edit: "purchases.edit", delete: "purchases.delete" } },
   { name: "سجل الفواتير", actions: { view: "records.view" } },
-  { name: "مرتجع البيع", actions: { create: "returns.sale" } },
-  { name: "مرتجع الشراء", actions: { create: "returns.purchase" } },
   { name: "المنتجات", actions: { view: "products.view", create: "products.create", edit: "products.edit", delete: "products.delete" } },
   { name: "العملاء", actions: { view: "customers.view", create: "customers.create", edit: "customers.edit" } },
   { name: "الموردون", actions: { view: "suppliers.view", create: "suppliers.create", edit: "suppliers.edit" } },
@@ -35,7 +33,7 @@ export const allPermissions = [...new Set(permissionRows.flatMap(row => Object.v
 export const permissionPresets = {
   manager: allPermissions,
   accountant: [
-    "purchases.view", "purchases.create", "purchases.edit", "records.view", "returns.purchase",
+    "purchases.view", "purchases.create", "purchases.edit", "records.view",
     "products.view", "customers.view", "customers.collect", "suppliers.view", "suppliers.pay",
     "warehouses.view", "warehouses.inventory.view", "banks.view", "banks.movements.view", "banks.transfer",
     "banks.deposit_withdraw", "expenses.view", "expenses.create", "expenses.edit", "reports.view",

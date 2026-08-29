@@ -2,6 +2,7 @@ export type PaymentMethod = string;
 export type DocumentKind =
   | "purchase"
   | "sale"
+  /** Legacy read-only document kind; new creation is disabled. */
   | "return"
   | "transfer"
   | "adjustment"
@@ -198,7 +199,7 @@ export const paymentMethods: Array<{
 export const kindLabels: Record<DocumentKind, string> = {
   purchase: "فاتورة شراء",
   sale: "فاتورة بيع",
-  return: "إرجاع بيع",
+  return: "حركة تاريخية",
   transfer: "تحويل مخزون",
   adjustment: "تصحيح مخزون",
   expense: "فاتورة مصروفات",
@@ -206,6 +207,10 @@ export const kindLabels: Record<DocumentKind, string> = {
   offset: "مقاصة",
   settlement: "تسوية يدوية للرصيد",
 };
+/** Current document kinds offered by user-facing filters. */
+export const visibleDocumentKindLabels = Object.fromEntries(
+  Object.entries(kindLabels).filter(([kind]) => kind !== "return"),
+) as Partial<Record<DocumentKind, string>>;
 export function western(value: number | string) {
   return String(value)
     .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
