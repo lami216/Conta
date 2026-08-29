@@ -24,7 +24,6 @@ export const permissionRows: Array<{
   { name: "المصاريف", actions: { view: "expenses.view", create: "expenses.create", edit: "expenses.edit", delete: "expenses.delete" } },
   { name: "التقارير", actions: { view: "reports.view" } },
   { name: "الإعدادات", actions: { view: "settings.view" } },
-  { name: "الإعدادات العامة", actions: { edit: "settings.general.manage" } },
   { name: "هوية النشاط والمستندات", actions: { edit: "settings.branding.manage" } },
   { name: "النسخ الاحتياطي والاستعادة", actions: { create: "settings.backup.manage" } },
   { name: "استيراد النظام السابق", actions: { create: "settings.legacy.import" } },

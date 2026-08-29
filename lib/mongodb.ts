@@ -52,6 +52,7 @@ export async function ensureDatabaseSchema(database: Db) {
         database.collection("stockMovements").createIndex({ occurredAt: -1 }),
         database.collection("stockMovements").createIndex({ productId: 1, occurredAt: -1 }),
         database.collection("auditEvents").createIndex({ createdAt: -1 }),
+        database.collection("commandReceipts").createIndex({ createdAt: 1 }, { expireAfterSeconds: 7 * 24 * 60 * 60 }),
         database.collection("financialMovements").createIndex({ documentId: 1, type: 1 }, { unique: true }),
         database.collection("financialMovements").createIndex({ paymentMethod: 1, occurredAt: -1 }),
         database.collection("financialMovements").createIndex({ occurredAt: -1 }),

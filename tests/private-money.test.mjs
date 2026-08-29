@@ -1,42 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
-
-const source = await readFile(new URL("../app/conta-app.tsx", import.meta.url), "utf8");
-const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
-
-test("PrivateMoney is independently masked by default and has an accessible toggle", () => {
-  const component = source.slice(source.indexOf("export function PrivateMoney"), source.indexOf("function PermissionNavItem"));
-  assert.match(component, /useState\(\(\)=>!hideByDefault\)/);
-  assert.match(source, /FinancialPrivacyContext\.Provider value=\{data\.generalSettings\.hideFinancialAmountsByDefault\}/);
-  assert.match(component, /"\*\*\*\*\*\* MRU"/);
-  assert.match(component, /revealed\?money\(value\)/);
-  assert.match(component, /setRevealed\(value=>!value\)/);
-  assert.match(component, /"إظهار المبلغ"/);
-  assert.match(component, /"إخفاء المبلغ"/);
-  assert.match(component, /aria-label=\{revealed\?undefined:"المبلغ مخفي"\}/);
-  assert.match(component, /<EyeOff/);
-  assert.match(component, /<Eye /);
-});
-
-test("masked money is neutral, revealed tones are semantic, and print keeps real money", () => {
-  assert.match(css, /\.money-masked\s*\{[^}]*color:#475467!important/);
-  assert.match(css, /\.money-positive\s*\{[^}]*#15803d/);
-  assert.match(css, /\.money-negative\s*\{[^}]*#b91c1c/);
-  assert.match(source, /className="financial-amount print-only">\{money\(value\)\}/);
-  assert.match(css, /font-family:"Bahnschrift","Segoe UI",Arial,Tahoma,sans-serif/);
-  assert.match(css, /font-variant-numeric:tabular-nums lining-nums/);
-});
-
-test("privacy is used in banks, party displays and report money while inputs and counts stay readable", () => {
-  const banks = source.slice(source.indexOf("function Banks"), source.indexOf("function PaymentAccountDialog"));
-  const parties = source.slice(source.indexOf("function Parties"), source.indexOf("export function periodQuantity"));
-  const reports = source.slice(source.indexOf("function Reports"), source.indexOf("type OfficialPresentation"));
-  assert.ok((banks.match(/<PrivateMoney/g) ?? []).length >= 8);
-  assert.ok((parties.match(/<PrivateMoney/g) ?? []).length >= 8);
-  assert.match(reports, /monetaryKeys\.has\(key\)\?<PrivateMoney/);
-  assert.match(banks, /<label>المبلغ<Num value=\{amount\}/);
-  assert.match(banks, /<label>المبلغ<Num value=\{adjustmentAmount\}/);
-  assert.match(parties, /:number\(summary\?\.supplierInvoiceCount\?\?0\)/);
-  assert.doesNotMatch(source.slice(source.indexOf("function OfficialRecordSheet"), source.indexOf("function PrintableDocument")), /PrivateMoney|\*\*\*\*\*\*/);
-});
+const source=await readFile(new URL("../app/conta-app.tsx",import.meta.url),"utf8"),css=await readFile(new URL("../app/globals.css",import.meta.url),"utf8"),domain=await readFile(new URL("../app/domain.ts",import.meta.url),"utf8"),auth=await readFile(new URL("../lib/auth.ts",import.meta.url),"utf8");
+test("money values are stateless, immediate, and retain semantic typography",()=>{const component=source.slice(source.indexOf("export function MoneyValue"),source.indexOf("function PermissionNavItem"));assert.match(component,/money\(value\)/);assert.match(component,/financial-amount money-\$\{tone\}/);assert.doesNotMatch(component,/useState|button|Eye|\*\*\*\*\*\*/);assert.match(css,/font-family:"Bahnschrift","Segoe UI",Arial,Tahoma,sans-serif/);assert.match(css,/font-variant-numeric:tabular-nums lining-nums/);assert.match(css,/\.money-positive\s*\{[^}]*#15803d/);assert.match(css,/\.money-negative\s*\{[^}]*#b91c1c/)});
+test("financial privacy runtime, setting, and capability are removed",()=>{for(const value of [source,css,domain,auth])assert.doesNotMatch(value,/PrivateMoney|FinancialPrivacyContext|EyeOff|\bEye\b|hideFinancialAmountsByDefault|settings\.general\.manage|money-masked|private-money/);assert.doesNotMatch(source,/الخصوصية المالية|إخفاء المبالغ المالية/);assert.ok((source.match(/<MoneyValue/g)??[]).length>=20)});
