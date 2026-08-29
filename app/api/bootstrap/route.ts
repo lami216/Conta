@@ -33,6 +33,7 @@ export async function GET(request: Request) {
       db.collection("products").find().sort({ name: 1 }).toArray(), db.collection("documents").find().sort({ occurredAt: -1 }).limit(500).toArray(),
       db.collection("stockMovements").find().sort({ occurredAt: -1 }).limit(1000).toArray(), db.collection("recurringExpenses").find().sort({ createdAt: -1 }).toArray(),
       db.collection("financialMovements").find().sort({ occurredAt: -1 }).limit(2000).toArray(),
+      // Legacy read-only adjustments remain in aggregate inputs; no creation surface exists.
       db.collection("documents").find({ kind: { $in: ["sale", "return", "purchase"] } }, { projection: { _id: 0, kind: 1, status: 1, partyId: 1, total: 1, "lines.grossProfit": 1 } }).toArray(),
       db.collection("financialMovements").find({ partyId: { $type: "string" } }, { projection: { _id: 0, partyId: 1, direction: 1, amount: 1 } }).toArray(),
       db.collection("paymentAccounts").find().sort({ createdAt: 1 }).toArray(),
@@ -59,7 +60,7 @@ export async function GET(request: Request) {
     const bankAccess=hasCapability(principal,"banks.view")||hasCapability(principal,"banks.movements.view"),partyAdmin=hasCapability(principal,"customers.view")||hasCapability(principal,"suppliers.view"),productAdmin=hasCapability(principal,"products.view");
     // Keep archived accounts exposed for historical name resolution; selectors filter them centrally.
     const selectorAccounts=(clean(accountRows) as Array<Record<string,unknown>>).map(account=>bankAccess?account:{id:account.id,code:account.code,name:account.name,isActive:account.isActive,isArchived:account.isArchived,allowNegativeBalance:false});
-    const allowedDocuments=(clean(documents) as Array<Record<string,unknown>>).filter(document=>hasCapability(principal,"records.view")||(hasCapability(principal,"pos.view")&&["sale","return"].includes(String(document.kind)))||(hasCapability(principal,"purchases.view")&&document.kind==="purchase")||(hasCapability(principal,"expenses.view")&&document.kind==="expense"));
+    const allowedDocuments=(clean(documents) as Array<Record<string,unknown>>).filter(document=>hasCapability(principal,"records.view")||(hasCapability(principal,"pos.view")&&document.kind==="sale")||(hasCapability(principal,"purchases.view")&&document.kind==="purchase")||(hasCapability(principal,"expenses.view")&&document.kind==="expense"));
     const exposedParties=partyAdmin?cleanParties:(cleanParties as Array<Record<string,unknown>>).map(({id,name,phone,partyType})=>({id,name,phone,partyType,receivable:0,payable:0,net:0}));
     const exposedProducts=productAdmin?cleanProducts:(cleanProducts as Array<Record<string,unknown>>).map(({id,name,sku,barcode,piecePrice,wholesalePrice,expiryDate,stocks,isArchived})=>({id,name,sku,barcode,piecePrice,wholesalePrice,expiryDate,stocks,isArchived,pieceCost:null,lastPurchaseCost:null}));
     const visiblePartyIds=new Set(cleanParties.filter(party=>(resolvePartyType(party)==="customer"&&hasCapability(principal,"customers.view"))||(resolvePartyType(party)==="supplier"&&hasCapability(principal,"suppliers.view"))).map(party=>String(party.id)));

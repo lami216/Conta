@@ -21,6 +21,8 @@ test("same-origin validation requires a matching Origin on mutations", () => {
 
 test("permission presets remain permission arrays and cover intended access", () => {
   assert.deepEqual(new Set(permissionPresets.manager), new Set(CAPABILITIES));
+  assert.equal(CAPABILITIES.some(capability => capability.startsWith("returns.")), false);
+  assert.equal(permissionRows.some(row => /مرتجع/.test(row.name)), false);
   assert.ok(permissionPresets.manager.includes("settings.users.manage"));
   assert.deepEqual(permissionPresets.sales, ["pos.view", "pos.create", "customers.create"]);
   for (const forbidden of ["banks.view", "reports.view", "settings.view", "settings.users.manage", "products.edit", "warehouses.edit"])

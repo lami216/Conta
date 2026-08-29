@@ -26,6 +26,7 @@ export function calculatePartyFinancialSummaries(
     if (!Number.isFinite(value)) continue;
     const party = summary(document.partyId);
     if (document.kind === "purchase") { party.supplierTradeTotal += value; party.supplierInvoiceCount += 1; }
+    // Legacy read-only adjustments must keep historical customer totals unchanged.
     if (document.kind === "sale" || document.kind === "return") {
       const sign = document.kind === "return" ? -1 : 1;
       party.customerTradeTotal += sign * value;

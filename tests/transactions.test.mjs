@@ -79,17 +79,24 @@ test("transfer and adjustment initialize missing destination fields", async t =>
   assert.deepEqual(await db.collection("stockMovements").findOne({ type: "adjustment" }, { projection: { _id: 0, balanceBefore: 1, balanceAfter: 1, quantityDelta: 1 } }), { quantityDelta: 17, balanceBefore: 0, balanceAfter: 17 });
 });
 
-test("partial returns accumulate only up to sold quantity", async t => {
+test("sale update is the only correction workflow and adjusts stock in both directions", async t => {
   if (unavailable) return t.skip(unavailable);
-  await db.collection("products").updateOne({ id: "p1" }, { $set: { "stocks.wh-main": 5 } });
-  const saleId = await command({ type: "sale.post", warehouseId: "wh-main", partyId: "party", paymentMethod: "cash", paidAmount: 500, lines: [{ productId: "p1", quantity: 5, piecePrice: 100 }] });
-  const postedSale = await db.collection("documents").findOne({ id: saleId });
-  assert.deepEqual([postedSale.lines[0].costAtSale, postedSale.lines[0].grossProfit], [null, null], "legacy/unproven current pieceCost is not treated as historical cost");
-  await command({ type: "sale.return", saleId, lines: [{ productId: "p1", quantity: 2 }] });
-  assert.equal((await db.collection("documents").findOne({ kind: "return" })).lines[0].costAtSale, null);
-  await command({ type: "sale.return", saleId, lines: [{ productId: "p1", quantity: 3 }] });
-  await assert.rejects(command({ type: "sale.return", saleId, lines: [{ productId: "p1", quantity: 1 }] }), /تتجاوز/);
+  await db.collection("products").updateOne({ id: "p1" }, { $set: { "stocks.wh-main": 10, lastPurchaseCost: 40 } });
+  const saleId = await command({ type: "sale.post", warehouseId: "wh-main", partyId: "party", paymentMethod: "note", lines: [{ productId: "p1", quantity: 5, piecePrice: 100 }] });
+  const original = await db.collection("documents").findOne({ id: saleId });
   assert.equal((await db.collection("products").findOne({ id: "p1" })).stocks["wh-main"], 5);
+  await command({ type: "sale.update", documentId: saleId, partyId: "party", paymentMethod: "note", lines: [{ productId: "p1", quantity: 3, piecePrice: 100 }] });
+  let edited = await db.collection("documents").findOne({ id: saleId });
+  assert.deepEqual([edited.id, edited.number, edited.sequence, edited.total, edited.revision, edited.lines[0].grossProfit], [original.id, original.number, original.sequence, 300, 1, 180]);
+  assert.equal((await db.collection("products").findOne({ id: "p1" })).stocks["wh-main"], 7);
+  assert.equal((await db.collection("parties").findOne({ id: "party" })).receivable, 300);
+  assert.equal(await db.collection("documents").countDocuments({ kind: "sale" }), 1);
+  assert.equal(await db.collection("documents").countDocuments({ kind: "return" }), 0);
+  await command({ type: "sale.update", documentId: saleId, partyId: "party", paymentMethod: "note", lines: [{ productId: "p1", quantity: 4, piecePrice: 100 }] });
+  edited = await db.collection("documents").findOne({ id: saleId });
+  assert.deepEqual([edited.total, edited.revision], [400, 2]);
+  assert.equal((await db.collection("products").findOne({ id: "p1" })).stocks["wh-main"], 6);
+  await assert.rejects(command({ type: "sale.return", saleId, lines: [{ productId: "p1", quantity: 1 }] }), /العملية غير مدعومة/);
 });
 
 test("payments, offset, settlement, expense and invalid input preserve balance invariant", async t => {
@@ -287,7 +294,7 @@ test("sale update changes indebted customer, blocks settled debt and protects li
   await assert.rejects(command({ type: "sale.update", documentId: saleId, partyId: "customer-b", paymentMethod: "note", lines: [{ productId: "p1", quantity: 1, piecePrice: 100 }] }), /تمت تسويته/);
   assert.equal((await db.collection("documents").findOne({ id: saleId })).total, 300);
   await db.collection("documents").insertOne({ id: "ret", number: "RET-1", kind: "return", status: "posted", parentDocumentId: saleId, lines: [] });
-  await assert.rejects(command({ type: "sale.void", documentId: saleId }), /مرتجع مرتبط/);
+  await assert.rejects(command({ type: "sale.void", documentId: saleId }), /حركة تاريخية/);
 });
 
 test("sale void reverses effects, preserves number and does not rewind sequence", async t => {
