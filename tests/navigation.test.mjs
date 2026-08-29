@@ -19,6 +19,30 @@ test("submenu current states require their parent view without resetting remembe
   assert.doesNotMatch(navigateBody, /setBankTab|setReportType/);
 });
 
+test("top navigation dropdowns share one visual system and render text-only rows", async () => {
+  const source = await readFile(new URL("../app/conta-app.tsx", import.meta.url), "utf8");
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.equal((source.match(/className="nav-popover(?: [^"]+)?"/g) ?? []).length, 5);
+  assert.match(source, /<ReceiptText\s*\/>\s*<span>الفواتير<\/span>\s*<ChevronDown/);
+  assert.match(source, /<Boxes\s*\/>\s*<span>المخازن<\/span>\s*<ChevronDown/);
+  assert.match(source, /<Users\s*\/>\s*<span>العملاء والموردون<\/span>\s*<ChevronDown/);
+  assert.match(source, /<Landmark\s*\/>\s*<span>البنوك<\/span>\s*<ChevronDown/);
+  assert.match(source, /<Receipt\s*\/>\s*<span>التقارير<\/span>\s*<ChevronDown/);
+
+  assert.doesNotMatch(source, /invoiceNav\.filter[^\n]+<n\.icon\s*\/>/);
+  assert.doesNotMatch(source, /warehouseNav\.filter[^\n]+<n\.icon\s*\/>/);
+  assert.doesNotMatch(source, /partyNav\.filter[^\n]+<item\.icon\s*\/>/);
+
+  assert.match(css, /--nav-popover-hover:\s*#1967d2/);
+  assert.match(css, /--nav-popover-active:\s*#172d55/);
+  assert.match(css, /\.nav-menu\s*>\s*\.nav-popover button\s*\{[^}]*height:\s*36px[^}]*min-height:\s*36px[^}]*padding:\s*0 12px[^}]*border-radius:\s*0/s);
+  assert.match(css, /\.nav-menu\s*>\s*\.nav-popover button\.active\s*\{[^}]*background:\s*var\(--nav-popover-active\)/s);
+  assert.match(css, /\.nav-menu\s*>\s*\.nav-popover button:hover,[^\{]*button:focus-visible\s*\{[^}]*background:\s*var\(--nav-popover-hover\)/s);
+  assert.match(css, /\.nav-menu\s*>\s*\.report-nav-popover\s*\{[^}]*max-height:[^;}]+;overflow-y:\s*auto/s);
+  assert.doesNotMatch(css, /\.(?:bank|report)-nav-popover button(?::hover|\.active)/);
+});
+
 test("product and report tables use uncapped shared scroll viewports", async () => {
   const source = await readFile(new URL("../app/conta-app.tsx", import.meta.url), "utf8");
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
