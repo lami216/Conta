@@ -7,7 +7,8 @@ const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8
 
 test("PrivateMoney is independently masked by default and has an accessible toggle", () => {
   const component = source.slice(source.indexOf("export function PrivateMoney"), source.indexOf("function PermissionNavItem"));
-  assert.match(component, /useState\(false\)/);
+  assert.match(component, /useState\(\(\)=>!hideByDefault\)/);
+  assert.match(source, /FinancialPrivacyContext\.Provider value=\{data\.generalSettings\.hideFinancialAmountsByDefault\}/);
   assert.match(component, /"\*\*\*\*\*\* MRU"/);
   assert.match(component, /revealed\?money\(value\)/);
   assert.match(component, /setRevealed\(value=>!value\)/);

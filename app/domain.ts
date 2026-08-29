@@ -119,6 +119,7 @@ export interface Movement {
 export interface BootstrapData {
   principal: { principalType: "owner" | "user"; name: string; permissions: string[] };
   branding: InvoiceBrandingSettings;
+  generalSettings: GeneralSettings;
   /** Informational only; product.create allocates the authoritative value atomically. */
   nextProductCode: number;
   /** Informational previews; posting remains authoritative and allocates atomically. */
@@ -146,7 +147,18 @@ export interface BootstrapData {
 }
 export const invoiceFonts = ["tahoma", "arial", "segoe-ui", "times-new-roman"] as const;
 export type InvoiceFont = typeof invoiceFonts[number];
-export type InvoiceBrandingSettings = { storeName: string; nameFont: InvoiceFont; nameFontSize: number; nameFontWeight: 400 | 600 | 800 };
+export type InvoiceBrandingSettings = {
+  storeName: string;
+  storePhone: string;
+  storeAddress: string;
+  registrationNumber: string;
+  taxNumber: string;
+  footerNote: string;
+  nameFont: InvoiceFont;
+  nameFontSize: number;
+  nameFontWeight: 400 | 600 | 800;
+};
+export type GeneralSettings = { hideFinancialAmountsByDefault: boolean };
 export interface PartyFinancialSummary {
   partyId: string;
   cashIn: number;

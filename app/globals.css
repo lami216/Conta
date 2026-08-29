@@ -2211,3 +2211,17 @@ input[type="date"]{height:34px;min-height:34px;font-size:10px}.expense-form inpu
 
 @media(max-width:700px){.report-filters>.party-ledger-filter{flex-basis:100%}.party-ledger-filter{grid-template-columns:180px minmax(0,1fr);width:100%;min-width:0}.party-ledger-filter .combobox{min-width:0}.report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.report-kpi:nth-child(3){border-inline-start:0;border-block-start:1px solid var(--grid-line)}.report-kpi:nth-child(4){border-block-start:1px solid var(--grid-line)}}
 @media(max-width:420px){.party-ledger-filter{grid-template-columns:1fr}.party-type-toggle{width:180px}.report-kpis{grid-template-columns:1fr}.report-kpi+.report-kpi{border-inline-start:0;border-block-start:1px solid var(--grid-line)}}
+
+/* Compact, permission-aware internal Settings navigation. */
+.settings-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.settings-tabs button{border:1px solid var(--line);background:#fff;color:var(--muted);padding:8px 14px;border-radius:8px;font-weight:700}
+.settings-tabs button.active{background:#fff7e8;border-color:#d99a2b;color:#9a5b00;box-shadow:inset 0 -2px #d99a2b}
+.settings-tabs button:disabled{background:#f3f4f6;color:#9ca3af;cursor:not-allowed}
+.general-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.general-settings>.erp-fieldset:first-child,.general-settings>.branding-settings{grid-column:span 2}
+.general-settings-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.general-settings-fields label,.general-settings>fieldset>label{display:grid;gap:6px}
+.general-settings textarea{min-height:82px;resize:vertical}
+.privacy-setting{display:flex!important;grid-template-columns:auto 1fr!important;align-items:center}
+.settings-save{justify-self:start}.official-business-meta{font-size:11pt!important;color:#475569}.official-record-sheet footer{display:grid;gap:5px;text-align:center}
+@media(max-width:800px){.general-settings{grid-template-columns:1fr}.general-settings>.erp-fieldset:first-child,.general-settings>.branding-settings{grid-column:auto}.general-settings-fields{grid-template-columns:1fr}}
