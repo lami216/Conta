@@ -208,11 +208,11 @@ test("account overview is accounts-only, global, and uses a two-region semantic 
   assert.match(accounts, /className="bank-summary"/);
   assert.doesNotMatch(afterAccounts, /className="bank-summary"/);
   assert.equal((banks.match(/className="bank-summary"/g) ?? []).length, 1);
-  assert.match(banks, /accountSummary=bankScopeMetrics\(data\.paymentAccounts,data\.documents,null\)/);
+  assert.match(banks, /accountSummary=bankScopeMetrics\(data\.paymentAccounts,data\.financialMovements,data\.parties\)/);
   assert.doesNotMatch(banks, /accountSummary=bankScopeMetrics\([^;]*movementScope|accountSummary=bankScopeMetrics\([^;]*accountFilter|accountSummary=bankScopeMetrics\([^;]*typeFilter/);
   assert.match(banks, /movements=filterFinancialMovements\(operationalMovements,movementScope\.period,accountFilter,typeFilter\)/);
   assert.match(accounts, /account\.balance>0\?"metric-positive":account\.balance<0\?"metric-negative":"metric-neutral"/);
-  assert.match(accounts, /إجمالي المبيعات<\/small><MoneyValue value=\{accountSummary\.sales\}/);
+  assert.match(accounts, /إجمالي المداخيل<\/small><MoneyValue value=\{accountSummary\.income\}/);
   assert.match(css, /\.bank-tab-accounts\{[^}]*grid-template-columns:minmax\(0,2fr\) minmax\(280px,1fr\)/);
   assert.match(css, /\.bank-summary\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
   assert.doesNotMatch(css, /\.banks-workspace\{[^}]*grid-template-rows:[^}]*bank-summary/);

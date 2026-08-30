@@ -42,3 +42,13 @@ export function calculatePartyFinancialSummaries(
 export function partyTradeMetrics(summary: PartyFinancialSummary | undefined, partyType: PartyType) {
   return partyType === "customer" ? { total: summary?.customerTradeTotal ?? 0, grossProfit: summary?.customerGrossProfit ?? 0 } : { total: summary?.supplierTradeTotal ?? 0, grossProfit: null };
 }
+
+export function partyAggregateMetrics(summaries: PartyFinancialSummary[], partyIds: string[], partyType: PartyType) {
+  const allowed = new Set(partyIds);
+  return summaries.filter(summary => allowed.has(summary.partyId)).reduce((total, summary) => {
+    if (partyType === "customer") { total.tradeTotal += summary.customerTradeTotal; total.grossProfit += summary.customerGrossProfit; }
+    else { total.tradeTotal += summary.supplierTradeTotal; total.invoiceCount += summary.supplierInvoiceCount; }
+    total.cashIn += summary.cashIn; total.cashOut += summary.cashOut;
+    return total;
+  }, { tradeTotal: 0, cashIn: 0, cashOut: 0, grossProfit: 0, invoiceCount: 0 });
+}
