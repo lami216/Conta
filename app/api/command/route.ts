@@ -158,15 +158,12 @@ export async function execute(db: Db, session: ClientSession, body: Input) {
   if (type === "product.delete") {
     const productId = text(body.id), product = await db.collection("products").findOne({ id: productId }, { session });
     if (!product) throw new CommandError("المنتج غير موجود", 404);
-    const totalStock = Object.values((product.stocks ?? {}) as Record<string, unknown>).reduce<number>((sum, value) => sum + Number(value || 0), 0);
-    if (totalStock > 0) throw new CommandError("لا يمكن حذف المنتج ولديه مخزون. صفّر المخزون أولًا من تصحيح المخزون.", 409);
-    const [document, movement] = await Promise.all([
-      db.collection("documents").findOne({ "lines.productId": productId }, { session, projection: { _id: 1 } }),
-      db.collection("stockMovements").findOne({ productId }, { session, projection: { _id: 1 } }),
-    ]);
-    if (document || movement) await db.collection("products").updateOne({ id: productId }, { $set: { isArchived: true, archivedAt: new Date() } }, { session });
-    else await db.collection("products").deleteOne({ id: productId }, { session });
+    await db.collection("products").updateOne({ id: productId }, { $set: { isArchived: true, archivedAt: new Date() } }, { session });
     return productId;
+  }
+  if (type === "product.restore") {
+    const productId=text(body.id),result=await db.collection("products").updateOne({id:productId,isArchived:true},{$set:{isArchived:false,archivedAt:null}},{session});
+    if(!result.matchedCount)throw new CommandError("المنتج المحذوف غير موجود",404);return productId;
   }
   if (type === "party.create") {
     const name = text(body.name), phone = text(body.phone), partyType = text(body.partyType); if (!name) throw new CommandError("اسم الحساب مطلوب");
@@ -351,7 +348,7 @@ export async function POST(request: Request) {
   let type = "unknown";
   try {
     const body = await request.json() as Input; type = text(body.type);
-    const map:Record<string,Capability>={"product.delete":"products.delete","product.create":"products.create","product.update":"products.edit","warehouse.create":"warehouses.create","warehouse.update":"warehouses.edit","warehouse.default":"warehouses.edit","warehouse.delete":"warehouses.delete","sale.post":"pos.create","sale.update":"pos.edit","sale.void":"pos.delete","purchase.post":"purchases.create","purchase.update":"purchases.edit","purchase.void":"purchases.delete","transfer.post":"warehouses.transfer","adjustment.post":"warehouses.adjust","payment.post":text(body.side)==="receivable"?"customers.collect":"suppliers.pay","party-cash.post":text(body.partyType)==="supplier"?"suppliers.pay":"customers.collect","settlement.post":"customers.edit","offset.post":"customers.edit","expense.post":"expenses.create","expense.materialize":"expenses.create","payment-account.create":"banks.create","payment-account.update":"banks.edit","payment-account.delete":"banks.delete","payment-account.restore":"banks.edit","account-adjustment.post":"banks.deposit_withdraw","account-transfer.post":"banks.transfer","account-balance-correction.post":"banks.balance_correct","party.create":body.partyType==="customer"?"customers.create":"suppliers.create"};
+    const map:Record<string,Capability>={"product.delete":"products.delete","product.restore":"products.edit","product.create":"products.create","product.update":"products.edit","warehouse.create":"warehouses.create","warehouse.update":"warehouses.edit","warehouse.default":"warehouses.edit","warehouse.delete":"warehouses.delete","sale.post":"pos.create","sale.update":"pos.edit","sale.void":"pos.delete","purchase.post":"purchases.create","purchase.update":"purchases.edit","purchase.void":"purchases.delete","transfer.post":"warehouses.transfer","adjustment.post":"warehouses.adjust","payment.post":text(body.side)==="receivable"?"customers.collect":"suppliers.pay","party-cash.post":text(body.partyType)==="supplier"?"suppliers.pay":"customers.collect","settlement.post":"customers.edit","offset.post":"customers.edit","expense.post":"expenses.create","expense.materialize":"expenses.create","payment-account.create":"banks.create","payment-account.update":"banks.edit","payment-account.delete":"banks.delete","payment-account.restore":"banks.edit","account-adjustment.post":"banks.deposit_withdraw","account-transfer.post":"banks.transfer","account-balance-correction.post":"banks.balance_correct","party.create":body.partyType==="customer"?"customers.create":"suppliers.create"};
     const capability=map[type];if(!capability)return Response.json({error:"العملية غير مدعومة"},{status:400});const denied=await requireCapability(request,capability);if(denied)return denied;if(!validSameOrigin(request))return Response.json({error:"طلب غير صالح"},{status:403});
     const idempotencyKey=text(request.headers.get("Idempotency-Key"));
     if(!idempotencyKey||idempotencyKey.length>200)return Response.json({error:"مفتاح العملية مطلوب"},{status:400});
