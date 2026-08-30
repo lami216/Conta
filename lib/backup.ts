@@ -19,7 +19,7 @@ export function parseAndValidateBackup(input: string): ContaBackup {
   if (Buffer.byteLength(input) > MAX_BACKUP_BYTES) throw new Error("ملف النسخة أكبر من الحد المسموح");
   let value: unknown; try { value = BSON.EJSON.parse(input); } catch { throw new Error("ملف النسخة ليس JSON صالحًا"); }
   const b = value as Partial<ContaBackup>;
-  if (b.format !== "conta-backup") throw new Error("هذا الملف ليس نسخة Conta");
+  if (b.format !== "conta-backup") throw new Error("هذا الملف ليس نسخة الكرنة");
   if (b.schemaVersion !== BACKUP_SCHEMA_VERSION) throw new Error(Number(b.schemaVersion) > BACKUP_SCHEMA_VERSION ? "إصدار النسخة أحدث من هذا التطبيق" : "إصدار النسخة غير مدعوم");
   if (!b.collections || typeof b.collections !== "object" || Array.isArray(b.collections)) throw new Error("بنية collections غير صالحة");
   const keys = Object.keys(b.collections);
