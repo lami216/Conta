@@ -2220,3 +2220,7 @@ input[type="date"]{height:34px;min-height:34px;font-size:10px}.expense-form inpu
 @media(max-width:650px){.business-settings-fields,.branding-fields{grid-template-columns:1fr}.business-settings-fields .business-address{grid-column:auto}}
 .financial-amount-summary { min-width:112px; font-size:17px; }
 .combobox-results button.selected:not(.highlighted) { color:var(--accent); background:#eef4fb; }
+/* Aggregate business summaries preserve a responsive two-by-two organization. */
+.party-list-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+.bank-debt-values{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.bank-debt-values>span{display:grid;gap:2px;text-align:center}.bank-debt-values>span+span{border-inline-start:1px solid var(--grid-line)}
+@media(max-width:620px){.party-list-metrics{grid-template-columns:1fr}}
