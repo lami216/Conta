@@ -52,6 +52,12 @@ export interface Product {
   archivedAt?: string | null;
 }
 
+/** Products available when creating a new operation. Archived rows remain in
+ * bootstrap data for inventory valuation and historical identity. */
+export function activeProducts<T extends Pick<Product, "isArchived">>(products: T[]) {
+  return products.filter(product => !product.isArchived);
+}
+
 export function isProductExpired(product: unknown, businessDate = new Date().toISOString().slice(0, 10)) {
   const expiryDate = (product as { expiryDate?: unknown } | null)?.expiryDate;
   return typeof expiryDate === "string" && expiryDate !== "" && expiryDate < businessDate;
