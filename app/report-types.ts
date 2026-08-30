@@ -4,7 +4,8 @@ export interface ReportFilters { type: ReportType; from?: string; to?: string; a
 export interface ReportMeta { page: number; pageSize: number; totalRows: number; totalPages: number; accountTotals?: Array<{ account: string; incoming: number; outgoing: number; net: number }> }
 export interface OverviewInvoiceRow extends ReportRow { id: string; documentId: string; kind: "sale" | "purchase" | "expense"; type: string; number: string; sequence: number | null; occurredAt: string; invoiceValue: number; cost: number; profit: number | null }
 export interface OverviewBankAccount { id: string; name: string; balance: number }
-export interface ReportResponse<Row = ReportRow> { report: ReportType; from: string | null; to: string | null; summary: Record<string, number | string | boolean>; rows: Row[]; meta: ReportMeta; invoices?: OverviewInvoiceRow[]; parties?: ReportRow[]; bankAccounts?: OverviewBankAccount[] }
+export interface OverviewWarehouseValue { id: string; name: string; value: number; archived?: boolean }
+export interface ReportResponse<Row = ReportRow> { report: ReportType; from: string | null; to: string | null; summary: Record<string, number | string | boolean>; rows: Row[]; meta: ReportMeta; invoices?: OverviewInvoiceRow[]; parties?: ReportRow[]; bankAccounts?: OverviewBankAccount[]; warehouseValues?: OverviewWarehouseValue[] }
 export interface ReportRow { id?: string; documentId?: string; partyId?: string; [key: string]: string | number | boolean | null | undefined }
 export type SalesReportRow = ReportRow & { documentId: string; number: string; occurredAt: string; party: string; paymentMethod: string; total: number; cost: number; profit: number; margin: number; paid: number; due: number };
 export type ProductSalesReportRow = ReportRow & { productId: string; sku: string; product: string; soldQuantity: number; netSales: number; averagePrice: number };
