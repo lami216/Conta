@@ -1,7 +1,8 @@
 import type { Db } from "mongodb";
 import { invoiceFonts, type InvoiceBrandingSettings, type InvoiceFont } from "../app/domain.ts";
+import { APP_NAME } from "./app-brand.ts";
 export const INVOICE_BRANDING_ID = "invoice-branding";
-export const DEFAULT_INVOICE_BRANDING: InvoiceBrandingSettings = { storeName: "Conta", storePhone: "", storeAddress: "", registrationNumber: "", taxNumber: "", footerNote: "", nameFont: "tahoma", nameFontSize: 24, nameFontWeight: 800 };
+export const DEFAULT_INVOICE_BRANDING: InvoiceBrandingSettings = { storeName: APP_NAME, storePhone: "", storeAddress: "", registrationNumber: "", taxNumber: "", footerNote: "", nameFont: "tahoma", nameFontSize: 24, nameFontWeight: 800 };
 export const invoiceFontFamilies: Record<InvoiceFont,string> = { tahoma: "Tahoma, sans-serif", arial: "Arial, sans-serif", "segoe-ui": "'Segoe UI', sans-serif", "times-new-roman": "'Times New Roman', serif" };
 export function validateInvoiceBranding(value: unknown): InvoiceBrandingSettings {
   const body=value as Record<string,unknown>|null,storeName=String(body?.storeName??"").trim();

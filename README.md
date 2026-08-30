@@ -1,6 +1,6 @@
-# Conta POS — النشر الإنتاجي
+# الكرنة — النشر الإنتاجي
 
-يعمل Conta كتطبيق **Next.js على Node.js**، ويستخدم **MongoDB Atlas فقط**. يدير PM2 العملية، ويمرر Nginx الدومين إلى `127.0.0.1:3000`. لا يحتاج التشغيل أو التحديث إلى Docker أو Cloudflare أو Wrangler أو migrations يدوية.
+تعمل الكرنة كتطبيق **Next.js على Node.js**، ويستخدم **MongoDB Atlas فقط**. يدير PM2 العملية، ويمرر Nginx الدومين إلى `127.0.0.1:3000`. لا يحتاج التشغيل أو التحديث إلى Docker أو Cloudflare أو Wrangler أو migrations يدوية.
 
 ## متطلبات الخادم
 
@@ -26,7 +26,7 @@ pm2 save
 pm2 startup
 ```
 
-نفّذ الأمر الذي يطبعه `pm2 startup` بصلاحية sudo، ثم نفّذ `pm2 save` مرة أخرى. تحقّق بـ `pm2 status`؛ يجب أن يظهر **Conta online**. عند كل تشغيل يفحص Conta اتصال MongoDB، وينشئ الـindexes والمخزنين الافتراضيين بصورة idempotent قبل خدمة الطلبات. لا تطبق `schema.sql` ولا تضغط migration ولا تستخدم Explorer أو Wrangler.
+نفّذ الأمر الذي يطبعه `pm2 startup` بصلاحية sudo، ثم نفّذ `pm2 save` مرة أخرى. تحقّق بـ `pm2 status`؛ يجب أن يظهر **Conta online**. عند كل تشغيل تفحص الكرنة اتصال MongoDB، وينشئ الـindexes والمخزنين الافتراضيين بصورة idempotent قبل خدمة الطلبات. لا تطبق `schema.sql` ولا تضغط migration ولا تستخدم Explorer أو Wrangler.
 
 ### Nginx وHTTPS
 

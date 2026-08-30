@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { APP_NAME, APP_TAGLINE } from "../lib/app-brand";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Conta — نظام المتجر",
+  title: `${APP_NAME} — ${APP_TAGLINE}`,
   description: "نظام نقاط بيع ومشتريات ومخازن وحسابات قابل للتدقيق.",
   other: {
     "codex-preview": "development",
