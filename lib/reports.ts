@@ -1,6 +1,6 @@
 import type { Db, Document, FindCursor } from "mongodb";
 import type { ReportFilters, ReportResponse, ReportRow, ReportType } from "../app/report-types.ts";
-import { isProductExpired, resolvePartyType } from "../app/domain.ts";
+import { inventoryUnitCost, isProductExpired, resolvePartyType } from "../app/domain.ts";
 import { displayDocumentNumber } from "./document-sequences.ts";
 
 const TYPES: ReportType[] = ["overview", "sales", "purchases", "product-sales", "stock", "profit", "debts", "party-ledger", "financial", "expenses"];
@@ -169,14 +169,31 @@ export async function buildReport(db: Db, f: ReportFilters): Promise<ReportRespo
   const grouped=new Map<string,ReportRow>();for(const fact of facts){const key=f.groupBy==="product"?String(fact.productId):String(fact.documentId),g=grouped.get(key)??{id:key,documentId:fact.documentId,number:fact.number,occurredAt:fact.occurredAt,productId:fact.productId,product:fact.product,sku:fact.sku,quantity:0,revenue:0,cost:0,profit:0,unknownRevenue:0,costKnown:true,invoiceIdList:""};g.quantity=n(g.quantity)+n(fact.quantity);g.revenue=n(g.revenue)+n(fact.revenue);g.cost=n(g.cost)+n(fact.cost);g.profit=n(g.profit)+n(fact.profit);g.unknownRevenue=n(g.unknownRevenue)+n(fact.unknownRevenue);g.costKnown=Boolean(g.costKnown)&&Boolean(fact.costKnown);const ids=new Set(String(g.invoiceIdList).split(",").filter(Boolean));ids.add(String(fact.documentId));g.invoiceIdList=[...ids].join(",");g.invoiceCount=ids.size;g.margin=n(g.revenue)?n(g.profit)/n(g.revenue)*100:0;grouped.set(key,g)}const prows=[...grouped.values()].map(row=>{const copy={...row};delete copy.invoiceIdList;return copy}).sort((a,b)=>n(b.profit)-n(a.profit));if(f.type==="profit")return{report:f.type,from:f.from!,to:f.to!,summary:{...profitSummary(facts),expiredInventoryLoss:expiryLoss},rows:slice(prows,f),meta:pagination(prows.length,f)};
   // Overview totals include legacy effects, while the invoice list below hides that retired kind.
   const commercial=await db.collection("documents").find({kind:{$in:["sale","return","purchase","expense"]},status:"posted",...matchDate(f)}).toArray();
-  const [parties,accounts,products]=await Promise.all([db.collection("parties").find().sort({name:1}).toArray(),db.collection("paymentAccounts").find({isActive:true,code:{$ne:"cash"}}).sort({createdAt:1,name:1}).toArray(),db.collection("products").find().project({stocks:1,lastPurchaseCost:1,pieceCost:1}).toArray()]);
+  // These collections are intentionally unfiltered by the report period: the lower
+  // overview is a current position snapshot, while `commercial` remains period-bound.
+  const [parties,accounts,products,warehouses]=await Promise.all([
+    db.collection("parties").find().sort({name:1}).toArray(),
+    db.collection("paymentAccounts").find({isActive:{$ne:false},isArchived:{$ne:true}}).sort({createdAt:1,name:1}).toArray(),
+    // Archived products remain here because their on-hand stock still has value.
+    db.collection("products").find().project({stocks:1,lastPurchaseCost:1,pieceCost:1}).toArray(),
+    db.collection("warehouses").find().sort({createdAt:1,name:1}).toArray(),
+  ]);
   const factsByDocument=new Map<string,{cost:number;profit:number}>();for(const fact of facts){const key=String(fact.documentId),current=factsByDocument.get(key)??{cost:0,profit:0};current.cost+=n(fact.cost);current.profit+=n(fact.profit);factsByDocument.set(key,current)}
   const kindRank:Record<string,number>={sale:0,purchase:1,expense:2};
   const invoices=commercial.filter(d=>d.kind!=="return").map(d=>{const kind=String(d.kind) as "sale"|"purchase"|"expense",value=n(d.total),saleFact=factsByDocument.get(String(d.id));return{id:String(d.id),documentId:String(d.id),kind,type:kind==="sale"?"فاتورة بيع":kind==="purchase"?"فاتورة شراء":"فاتورة مصروفات",number:displayDocumentNumber(d),sequence:Number.isSafeInteger(Number(d.sequence))&&n(d.sequence)>0?n(d.sequence):null,occurredAt:String(d.occurredAt),invoiceValue:value,cost:kind==="sale"?(saleFact?.cost??0):value,profit:kind==="sale"?(saleFact?.profit??value):null}}).sort((a,b)=>kindRank[a.kind]-kindRank[b.kind]||((a.sequence??Number.MAX_SAFE_INTEGER)-(b.sequence??Number.MAX_SAFE_INTEGER))||a.occurredAt.localeCompare(b.occurredAt)||a.id.localeCompare(b.id));
   const typedParties=parties.map(p=>({...p,partyType:resolvePartyType(p)} as Document & {partyType:"customer"|"supplier"}));
   const partyRows=typedParties.map(p=>({id:String(p.id),partyId:String(p.id),name:String(p.name),partyType:p.partyType,receivable:Math.max(n(p.receivable)-n(p.payable),0),payable:Math.max(n(p.payable)-n(p.receivable),0)}));
-  const bankAccounts=accounts.map(a=>({id:String(a.id),name:String(a.name),balance:n(a.balance)})),bankBalance=bankAccounts.reduce((v,a)=>v+a.balance,0);
+  const bankAccounts=accounts.map(a=>({id:String(a.id??a._id),name:String(a.name),balance:n(a.balance)}));
+  const currentAccountsBalance=bankAccounts.reduce((v,a)=>v+a.balance,0);
+  const warehouseValues=warehouses.map(warehouse=>{
+    const id=String(warehouse.id??warehouse._id);
+    const value=products.reduce((sum,product)=>sum+n(product.stocks?.[id])*inventoryUnitCost({lastPurchaseCost:Number.isFinite(product.lastPurchaseCost)?n(product.lastPurchaseCost):null,pieceCost:Number.isFinite(product.pieceCost)?n(product.pieceCost):null}),0);
+    return {id,name:String(warehouse.name),value,archived:warehouse.isArchived===true};
+  }).filter(warehouse=>!warehouse.archived||warehouse.value!==0);
+  const currentInventoryValue=warehouseValues.reduce((sum,warehouse)=>sum+warehouse.value,0);
+  const currentReceivable=typedParties.reduce((v,p)=>v+Math.max(n(p.receivable)-n(p.payable),0),0);
+  const currentPayable=typedParties.reduce((v,p)=>v+Math.max(n(p.payable)-n(p.receivable),0),0);
   const p=profitSummary(facts),sales=commercial.filter(d=>d.kind==="sale").reduce((v,d)=>v+n(d.total),0)-commercial.filter(d=>d.kind==="return").reduce((v,d)=>v+n(d.total),0),expenses=commercial.filter(d=>d.kind==="expense").reduce((v,d)=>v+n(d.total),0);
-  return{report:"overview",from:f.from!,to:f.to!,summary:{sales,salesCost:p.cost,salesProfit:p.profit,purchases:commercial.filter(d=>d.kind==="purchase").reduce((v,d)=>v+n(d.total),0),expenses,netOperatingResult:p.profit-expenses,profit:p.profit,bankBalance,inventoryValue:products.reduce((v,product)=>v+Object.values((product.stocks??{}) as Record<string,unknown>).reduce<number>((q,value)=>q+n(value),0)*(Number.isFinite(product.lastPurchaseCost)?n(product.lastPurchaseCost):Number.isFinite(product.pieceCost)?n(product.pieceCost):0),0),customerReceivables:typedParties.reduce((v,p)=>v+Math.max(n(p.receivable)-n(p.payable),0),0),supplierPayables:typedParties.reduce((v,p)=>v+Math.max(n(p.payable)-n(p.receivable),0),0),customerCount:typedParties.filter(p=>p.partyType==="customer").length,supplierCount:typedParties.filter(p=>p.partyType==="supplier").length},rows:[],invoices,parties:partyRows,bankAccounts,meta:pagination(invoices.length,f)};
+  return{report:"overview",from:f.from!,to:f.to!,summary:{sales,salesCost:p.cost,salesProfit:p.profit,purchases:commercial.filter(d=>d.kind==="purchase").reduce((v,d)=>v+n(d.total),0),expenses,netOperatingResult:p.profit-expenses,profit:p.profit,currentReceivable,currentPayable,currentInventoryValue,currentAccountsBalance,customerReceivables:currentReceivable,supplierPayables:currentPayable,bankBalance:currentAccountsBalance,inventoryValue:currentInventoryValue,customerCount:typedParties.filter(p=>p.partyType==="customer").length,supplierCount:typedParties.filter(p=>p.partyType==="supplier").length},rows:[],invoices,parties:partyRows,bankAccounts,warehouseValues,meta:pagination(invoices.length,f)};
 
 }
