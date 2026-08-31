@@ -2221,16 +2221,11 @@ input[type="date"]{height:34px;min-height:34px;font-size:10px}.expense-form inpu
 .bank-debt-values{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.bank-debt-values>span{display:grid;gap:2px;text-align:center}.bank-debt-values>span+span{border-inline-start:1px solid var(--grid-line)}
 @media(max-width:760px){.party-trade-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:420px){.party-trade-metrics{grid-template-columns:1fr}}
-/* Comprehensive report: compact current-position totals. */
+/* Comprehensive report: reuse the shared report footer as one compact summary row. */
 .comprehensive-report .overview-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .comprehensive-report .overview-accounts { grid-column: span 3; }
 .comprehensive-report .overview-invoices { grid-column: span 3; }
-.comprehensive-report .overview-current-position { grid-column: span 2; align-self: start; }
-.overview-debt-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.overview-debt-summary > div, .overview-current-total { min-height: 58px; padding: 7px 8px; display: grid; align-content: center; justify-items: center; gap: 3px; text-align: center; }
-.overview-debt-summary > div + div { border-inline-start: 1px solid var(--grid-line); }
-.overview-debt-summary span, .overview-current-total span { color: var(--text-muted); font-size: 10px; font-weight: 700; }
-.overview-debt-summary b, .overview-current-total b { font-weight: 900; }
+.comprehensive-report .overview-summary-area { grid-column: 1 / -1; align-self: start; min-width: 0; }
 @media (max-width: 900px) {
   .comprehensive-report .overview-grid { grid-template-columns: 1fr; }
   .comprehensive-report .overview-accounts, .comprehensive-report .overview-invoices { grid-column: auto; }
@@ -2238,6 +2233,5 @@ input[type="date"]{height:34px;min-height:34px;font-size:10px}.expense-form inpu
 @media print {
   .comprehensive-report .overview-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .comprehensive-report .overview-accounts, .comprehensive-report .overview-invoices { grid-column: span 3; }
-  .comprehensive-report .overview-current-position { grid-column: span 2; }
-  .comprehensive-report .overview-current-position { break-inside: avoid; }
+  .comprehensive-report .overview-summary-area { grid-column: 1 / -1; break-inside: avoid; }
 }
